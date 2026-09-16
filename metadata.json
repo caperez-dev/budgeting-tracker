@@ -1,0 +1,6 @@
+{
+  "name": "Budget Tracker",
+  "description": "Clean budget tracker with expense summaries, savings and debt tracking, purchase goals, and smart financial insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
