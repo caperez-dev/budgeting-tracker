@@ -6,7 +6,6 @@ import {
   Scale,
   Target,
   Sparkles,
-  Plus,
   HeartHandshake,
   Coins,
   ArrowUpRight,
@@ -25,7 +24,6 @@ interface HeaderProps {
   debtsYouOweTotal: number;
   debtsOwedToYouTotal: number;
   currencySymbol: string;
-  onOpenQuickEntry: () => void;
   onOpenDonate: () => void;
   onOpenCurrencies: () => void;
   onOpenCategories: () => void;
@@ -39,7 +37,6 @@ export function Header({
   debtsYouOweTotal,
   debtsOwedToYouTotal,
   currencySymbol,
-  onOpenQuickEntry,
   onOpenDonate,
   onOpenCurrencies,
   onOpenCategories,
@@ -115,16 +112,6 @@ export function Header({
               {formatCurrency(totalIncome, currencySymbol)}
             </span>
           </div>
-
-          {/* Quick Action Buttons */}
-          <button
-            id="btn-quick-entry"
-            onClick={onOpenQuickEntry}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-[4px] transition-colors shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Log Entry</span>
-          </button>
         </div>
       </div>
 

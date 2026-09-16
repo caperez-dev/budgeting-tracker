@@ -450,7 +450,6 @@ export default function App() {
         debtsYouOweTotal={totalYouOweUnsettled}
         debtsOwedToYouTotal={totalOwedToYouUnsettled}
         currencySymbol={currencySymbol}
-        onOpenQuickEntry={() => setShowQuickEntryModal(true)}
         onOpenDonate={() => setShowDonateModal(true)}
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
         onOpenCategories={() => {
