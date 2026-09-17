@@ -74,3 +74,23 @@ export interface AIInsight {
   message: string;
   actionableStep: string;
 }
+
+export interface UserProfile {
+  nickname: string;
+  avatarUrl?: string;
+  email?: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  nickname: string;
+  avatarUrl?: string;
+}
+
+export interface DBStatus {
+  configured: boolean;
+  hasPlaceholder: boolean;
+  connected: boolean;
+  error?: string | null;
+}

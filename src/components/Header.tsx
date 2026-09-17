@@ -12,6 +12,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
+import { UserProfile, DBStatus, AuthUser } from '../types';
+import { ProfileDropdown } from './ProfileDropdown';
 
 export type ActiveTab = 'tracker' | 'summary' | 'debts' | 'goals' | 'ai';
 
@@ -24,6 +26,16 @@ interface HeaderProps {
   debtsYouOweTotal: number;
   debtsOwedToYouTotal: number;
   currencySymbol: string;
+  userProfile: UserProfile;
+  onUpdateProfile: (profile: UserProfile) => void;
+  expenseCount: number;
+  incomeCount: number;
+  dbStatus?: DBStatus;
+  onSyncWithDB?: () => Promise<void>;
+  isSyncing?: boolean;
+  lastSyncedTime?: string | null;
+  currentUser?: AuthUser | null;
+  onLogout?: () => void;
   onOpenDonate: () => void;
   onOpenCurrencies: () => void;
   onOpenCategories: () => void;
@@ -34,9 +46,20 @@ export function Header({
   setActiveTab,
   currentSavings,
   totalIncome,
+  totalExpense,
   debtsYouOweTotal,
   debtsOwedToYouTotal,
   currencySymbol,
+  userProfile,
+  onUpdateProfile,
+  expenseCount,
+  incomeCount,
+  dbStatus,
+  onSyncWithDB,
+  isSyncing,
+  lastSyncedTime,
+  currentUser,
+  onLogout,
   onOpenDonate,
   onOpenCurrencies,
   onOpenCategories,
@@ -112,6 +135,20 @@ export function Header({
               {formatCurrency(totalIncome, currencySymbol)}
             </span>
           </div>
+
+          {/* Profile Dropdown */}
+          <ProfileDropdown
+            profile={userProfile}
+            onUpdateProfile={onUpdateProfile}
+            expenseCount={expenseCount}
+            incomeCount={incomeCount}
+            dbStatus={dbStatus}
+            onSyncWithDB={onSyncWithDB}
+            isSyncing={isSyncing}
+            lastSyncedTime={lastSyncedTime}
+            currentUser={currentUser}
+            onLogout={onLogout}
+          />
         </div>
       </div>
 

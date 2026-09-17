@@ -1,4 +1,10 @@
-import { Category, Currency, Debt, Goal, Transaction, UserSettings } from '../types';
+import { Category, Currency, Debt, Goal, Transaction, UserSettings, UserProfile } from '../types';
+
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  nickname: 'Carlos',
+  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  email: 'perez.carlos6566@gmail.com',
+};
 
 export const DEFAULT_CURRENCIES: Currency[] = [
   { code: 'PHP', symbol: '₱', name: 'Philippine Peso', exchangeRate: 61.0 },

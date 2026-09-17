@@ -213,7 +213,7 @@ export function QuickEntryForm({
               className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
             >
               <PlusCircle className="w-3 h-3" />
-              <span>Add {type} category</span>
+              <span>Add Category</span>
             </button>
           </div>
 

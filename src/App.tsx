@@ -7,16 +7,21 @@ import {
   Transaction,
   TransactionType,
   UserSettings,
+  UserProfile,
+  DBStatus,
+  AuthUser,
 } from './types';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_CURRENCIES,
   DEFAULT_SETTINGS,
+  DEFAULT_USER_PROFILE,
   SEED_DEBTS,
   SEED_GOALS,
   SEED_TRANSACTIONS,
 } from './data/initialData';
 import { Header, ActiveTab } from './components/Header';
+import { AuthScreen } from './components/AuthScreen';
 import { QuickEntryForm } from './components/QuickEntryForm';
 import { TrackerView } from './components/TrackerView';
 import { SummaryPanel } from './components/SummaryPanel';
@@ -41,6 +46,8 @@ const STORAGE_KEYS = {
   DEBTS: 'budget_tracker_debts_v1',
   GOALS: 'budget_tracker_goals_v1',
   SETTINGS: 'budget_tracker_settings_v1',
+  USER_PROFILE: 'budget_tracker_user_profile_v1',
+  CURRENT_USER: 'budget_tracker_current_user_v1',
 };
 
 export default function App() {
@@ -108,6 +115,24 @@ export default function App() {
     }
   });
 
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
+      return saved ? JSON.parse(saved) : DEFAULT_USER_PROFILE;
+    } catch {
+      return DEFAULT_USER_PROFILE;
+    }
+  });
+
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('tracker');
 
   // --- Modals State ---
@@ -116,6 +141,141 @@ export default function App() {
   const [categoriesInitialType, setCategoriesInitialType] = useState<TransactionType>('expense');
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
   const [showDonateModal, setShowDonateModal] = useState(false);
+
+  // --- MongoDB Database State & Cloud Sync ---
+  const [dbStatus, setDbStatus] = useState<DBStatus>({
+    configured: false,
+    hasPlaceholder: false,
+    connected: false,
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
+
+  // Check DB status on mount and poll occasionally
+  const checkDBStatus = async (): Promise<DBStatus | null> => {
+    try {
+      const res = await fetch('/api/db/status');
+      if (res.ok) {
+        const data: DBStatus = await res.json();
+        setDbStatus(data);
+        return data;
+      }
+    } catch {
+      // Offline / server not ready
+    }
+    return null;
+  };
+
+  const handleSyncWithDB = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      // Check status first
+      const status = await checkDBStatus();
+      if (!status?.connected) {
+        setIsSyncing(false);
+        return;
+      }
+
+      // Fetch existing data from MongoDB
+      const res = await fetch('/api/db/sync');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          if (json.isEmpty) {
+            // DB is empty: Seed it with current local state!
+            await fetch('/api/db/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                transactions,
+                categories,
+                currencies,
+                debts,
+                goals,
+                settings,
+                profile: userProfile,
+              }),
+            });
+          } else if (json.data) {
+            // DB has data: Update local state
+            if (Array.isArray(json.data.transactions) && json.data.transactions.length > 0) {
+              setTransactions(json.data.transactions);
+            }
+            if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
+              setCategories(json.data.categories);
+            }
+            if (Array.isArray(json.data.debts) && json.data.debts.length > 0) {
+              setDebts(json.data.debts);
+            }
+            if (Array.isArray(json.data.goals) && json.data.goals.length > 0) {
+              setGoals(json.data.goals);
+            }
+            if (json.data.settings) {
+              setSettings(json.data.settings);
+            }
+            if (json.data.profile) {
+              setUserProfile(json.data.profile);
+            }
+          }
+          const nowStr = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          setLastSyncedTime(nowStr);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync with MongoDB:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Initial DB check and sync on load
+  useEffect(() => {
+    checkDBStatus().then((status) => {
+      if (status?.connected) {
+        handleSyncWithDB();
+      }
+    });
+  }, []);
+
+  // Background sync to MongoDB whenever state changes
+  const isFirstSyncRender = useRef(true);
+  useEffect(() => {
+    if (isFirstSyncRender.current) {
+      isFirstSyncRender.current = false;
+      return;
+    }
+    if (!dbStatus.connected) return;
+
+    const timer = setTimeout(() => {
+      fetch('/api/db/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactions,
+          categories,
+          currencies,
+          debts,
+          goals,
+          settings,
+          profile: userProfile,
+        }),
+      })
+        .then(() => {
+          const nowStr = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          setLastSyncedTime(nowStr);
+        })
+        .catch(() => {});
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [transactions, categories, currencies, debts, goals, settings, userProfile, dbStatus.connected]);
 
   // --- Undo Delete State (§5 Requirement) ---
   const [pendingUndoTx, setPendingUndoTx] = useState<Transaction | null>(null);
@@ -147,6 +307,10 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   }, [settings]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
+  }, [userProfile]);
+
   // Clean up timer on unmount
   useEffect(() => {
     return () => {
@@ -162,6 +326,9 @@ export default function App() {
   const totalExpense = transactions
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
+
+  const expenseCount = transactions.filter((t) => t.type === 'expense').length;
+  const incomeCount = transactions.filter((t) => t.type === 'income').length;
 
   // Current Savings = Total Income minus Total Expenses as mandated by §7
   const currentSavings = totalIncome - totalExpense;
@@ -438,6 +605,36 @@ export default function App() {
     });
   };
 
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    } catch {}
+    setCurrentUser(null);
+  };
+
+  // If user is not signed in, render the uniform AuthScreen
+  if (!currentUser) {
+    return (
+      <AuthScreen
+        onLoginSuccess={(user, profileUpdate) => {
+          setCurrentUser(user);
+          try {
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+          } catch {}
+          if (profileUpdate) {
+            setUserProfile((prev) => ({
+              ...prev,
+              nickname: profileUpdate.nickname || prev.nickname,
+              avatarUrl: profileUpdate.avatarUrl !== undefined ? profileUpdate.avatarUrl : prev.avatarUrl,
+              email: profileUpdate.email || prev.email,
+            }));
+          }
+          handleSyncWithDB();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] text-[#18181B] font-sans antialiased">
       {/* Persistent Global Header */}
@@ -450,6 +647,16 @@ export default function App() {
         debtsYouOweTotal={totalYouOweUnsettled}
         debtsOwedToYouTotal={totalOwedToYouUnsettled}
         currencySymbol={currencySymbol}
+        userProfile={userProfile}
+        onUpdateProfile={setUserProfile}
+        expenseCount={expenseCount}
+        incomeCount={incomeCount}
+        dbStatus={dbStatus}
+        onSyncWithDB={handleSyncWithDB}
+        isSyncing={isSyncing}
+        lastSyncedTime={lastSyncedTime}
+        currentUser={currentUser}
+        onLogout={handleLogout}
         onOpenDonate={() => setShowDonateModal(true)}
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
         onOpenCategories={() => {
