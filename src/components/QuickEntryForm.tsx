@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   ArrowDownCircle,
   ArrowUpCircle,
-  ChevronDown,
   X,
   PlusCircle,
   Check,
@@ -10,6 +9,7 @@ import {
 import { Category, Currency, TransactionType } from '../types';
 import { CategoryIcon } from './CategoryIcon';
 import { getCurrent12HourTime, getTodayDateString } from '../utils/formatters';
+import { CurrencySelect } from './CurrencySelect';
 
 interface QuickEntryFormProps {
   currencies: Currency[];
@@ -25,6 +25,7 @@ interface QuickEntryFormProps {
     time: string;
   }) => void;
   onOpenAddCategory: (type: TransactionType) => void;
+  onOpenCurrencyManager?: () => void;
   isModal?: boolean;
   onClose?: () => void;
 }
@@ -35,6 +36,7 @@ export function QuickEntryForm({
   selectedCurrency,
   onSave,
   onOpenAddCategory,
+  onOpenCurrencyManager,
   isModal = false,
   onClose,
 }: QuickEntryFormProps) {
@@ -123,10 +125,10 @@ export function QuickEntryForm({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Row 1: Transaction Type Toggle & Currency & Amount */}
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-          {/* Type Toggle: Income / Expense (defaults to Expense) */}
-          <div className="sm:col-span-4">
+        {/* Horizontal Row: Expense/Income Toggle, Currency, Amount, and Description */}
+        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+          {/* Type Toggle: Income / Expense */}
+          <div className="shrink-0 w-full sm:w-44">
             <div
               role="group"
               aria-label="Transaction Type"
@@ -161,28 +163,20 @@ export function QuickEntryForm({
             </div>
           </div>
 
-          {/* Currency Dropdown */}
-          <div className="sm:col-span-3">
-            <div className="relative h-9">
-              <select
-                id="select-currency"
-                aria-label="Currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full h-full bg-white border border-zinc-200 text-xs px-2.5 pr-8 rounded-[4px] text-zinc-800 focus:outline-none focus:border-zinc-500 appearance-none font-mono"
-              >
-                {currencies.map((curr) => (
-                  <option key={curr.code} value={curr.code}>
-                    {curr.code} ({curr.symbol})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+          {/* Currency Dropdown - Lists all currencies with actual flags, no add/manage */}
+          <div className="shrink-0 w-full sm:w-36 h-9">
+            <CurrencySelect
+              id="select-currency"
+              ariaLabel="Select currency"
+              currencies={currencies}
+              value={currency}
+              onChange={setCurrency}
+              className="h-full"
+            />
           </div>
 
           {/* Amount Input */}
-          <div className="sm:col-span-5">
+          <div className="shrink-0 w-full sm:w-36">
             <div className="relative h-9">
               <input
                 id="input-amount"
@@ -195,6 +189,21 @@ export function QuickEntryForm({
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="Enter amount"
                 className="w-full h-full bg-white border border-zinc-200 text-sm font-mono font-medium px-3 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500 tabular-nums placeholder:text-zinc-400 placeholder:font-normal"
+              />
+            </div>
+          </div>
+
+          {/* Description Input (beside Enter Amount) */}
+          <div className="flex-1 w-full min-w-0 sm:min-w-[160px]">
+            <div className="relative h-9">
+              <input
+                id="input-note"
+                aria-label="Description"
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Description (optional)"
+                className="w-full h-full bg-white border border-zinc-200 text-xs px-3 rounded-[4px] text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
               />
             </div>
           </div>
@@ -242,24 +251,6 @@ export function QuickEntryForm({
               );
             })}
           </div>
-        </div>
-
-        {/* Row 3: Description / Note (Optional) - Date & Time are automatic */}
-        <div>
-          <label
-            htmlFor="input-note"
-            className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1"
-          >
-            Description (Optional)
-          </label>
-          <input
-            id="input-note"
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Description (optional)"
-            className="w-full bg-white border border-zinc-200 text-xs px-2.5 py-1.5 rounded-[4px] text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-500"
-          />
         </div>
 
         {/* Submit Button */}

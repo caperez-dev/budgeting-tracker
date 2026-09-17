@@ -7,12 +7,12 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
 };
 
 export const DEFAULT_CURRENCIES: Currency[] = [
-  { code: 'PHP', symbol: '₱', name: 'Philippine Peso', exchangeRate: 61.0 },
-  { code: 'USD', symbol: '$', name: 'US Dollar', exchangeRate: 1.0 },
-  { code: 'EUR', symbol: '€', name: 'Euro', exchangeRate: 0.92 },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen', exchangeRate: 155.0 },
-  { code: 'GBP', symbol: '£', name: 'British Pound', exchangeRate: 0.79 },
-  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', exchangeRate: 1.35 },
+  { code: 'PHP', symbol: '₱', name: 'Philippine Peso', flag: '🇵🇭', exchangeRate: 61.0 },
+  { code: 'USD', symbol: '$', name: 'US Dollar', flag: '🇺🇸', exchangeRate: 1.0 },
+  { code: 'EUR', symbol: '€', name: 'Euro', flag: '🇪🇺', exchangeRate: 0.92 },
+  { code: 'JPY', symbol: '¥', name: 'Japanese Yen', flag: '🇯🇵', exchangeRate: 155.0 },
+  { code: 'GBP', symbol: '£', name: 'British Pound', flag: '🇬🇧', exchangeRate: 0.79 },
+  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', flag: '🇸🇬', exchangeRate: 1.35 },
 ];
 
 export const DEFAULT_CATEGORIES: Category[] = [

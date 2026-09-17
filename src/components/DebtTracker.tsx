@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Currency, Debt } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
+import { CurrencySelect } from './CurrencySelect';
 
 interface DebtTrackerProps {
   debts: Debt[];
@@ -371,17 +372,12 @@ export function DebtTracker({
                 </div>
                 <div>
                   <label className="block text-zinc-500 font-medium mb-1">Currency</label>
-                  <select
+                  <CurrencySelect
+                    currencies={currencies}
                     value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono text-zinc-800"
-                  >
-                    {currencies.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code} ({c.symbol})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setCurrency}
+                    ariaLabel="Debt currency"
+                  />
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Category,
   Currency,
@@ -38,6 +38,11 @@ import {
   roundToCurrency,
   DEFAULT_EXCHANGE_RATES,
 } from './utils/currency';
+import {
+  getCurrencyFlag,
+  getWorldCurrency,
+  fetchLiveExchangeRates,
+} from './data/worldCurrencies';
 
 const STORAGE_KEYS = {
   TRANSACTIONS: 'budget_tracker_transactions_v1',
@@ -78,6 +83,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((c: Currency) => ({
             ...c,
+            flag: c.flag || getCurrencyFlag(c.code),
             exchangeRate: c.exchangeRate || DEFAULT_EXCHANGE_RATES[c.code] || 1.0,
           }));
         }
@@ -318,6 +324,79 @@ export default function App() {
     };
   }, []);
 
+  // Automatically fetch live exchange rates on mount and sync currencies
+  useEffect(() => {
+    fetchLiveExchangeRates().then((liveRates) => {
+      if (liveRates) {
+        setCurrencies((prev) =>
+          prev.map((c) => ({
+            ...c,
+            flag: c.flag || getCurrencyFlag(c.code),
+            exchangeRate: liveRates[c.code] || c.exchangeRate || DEFAULT_EXCHANGE_RATES[c.code] || 1.0,
+          }))
+        );
+      }
+    });
+  }, []);
+
+  // --- Month & Year Navigation State ---
+  const [selectedYearMonth, setSelectedYearMonth] = useState<string>(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`; // e.g. "2026-09"
+  });
+
+  const handlePrevMonth = () => {
+    setSelectedYearMonth((prev) => {
+      const [y, m] = prev.split('-').map(Number);
+      const d = new Date(y, m - 1 - 1, 1);
+      const newY = d.getFullYear();
+      const newM = String(d.getMonth() + 1).padStart(2, '0');
+      return `${newY}-${newM}`;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setSelectedYearMonth((prev) => {
+      const [y, m] = prev.split('-').map(Number);
+      const d = new Date(y, m - 1 + 1, 1);
+      const newY = d.getFullYear();
+      const newM = String(d.getMonth() + 1).padStart(2, '0');
+      return `${newY}-${newM}`;
+    });
+  };
+
+  const selectedMonthYearLabel = useMemo(() => {
+    const [y, m] = selectedYearMonth.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, 1);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      year: 'numeric',
+    }).format(dateObj);
+  }, [selectedYearMonth]);
+
+  // Monthly filtered transactions for the selected month
+  const monthlyTransactions = useMemo(() => {
+    return transactions.filter((t) => t.date.startsWith(selectedYearMonth));
+  }, [transactions, selectedYearMonth]);
+
+  // Monthly financial figures for the selected month
+  const monthlyIncome = useMemo(() => {
+    return monthlyTransactions
+      .filter((t) => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [monthlyTransactions]);
+
+  const monthlyExpense = useMemo(() => {
+    return monthlyTransactions
+      .filter((t) => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [monthlyTransactions]);
+
+  // Monthly Savings = Monthly Income minus Monthly Expenses
+  const monthlySavings = monthlyIncome - monthlyExpense;
+
   // --- Financial Computations ---
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
@@ -329,6 +408,7 @@ export default function App() {
 
   const expenseCount = transactions.filter((t) => t.type === 'expense').length;
   const incomeCount = transactions.filter((t) => t.type === 'income').length;
+  const debtCount = debts.filter((d) => !d.settled).length;
 
   // Current Savings = Total Income minus Total Expenses as mandated by §7
   const currentSavings = totalIncome - totalExpense;
@@ -360,6 +440,21 @@ export default function App() {
     time: string;
   }) => {
     const fromCurr = newTxData.currency || settings.defaultCurrency;
+
+    // If transaction used a world currency not yet in active list, auto-add it
+    if (newTxData.currency && !currencies.some((c) => c.code === newTxData.currency)) {
+      const wc = getWorldCurrency(newTxData.currency);
+      if (wc) {
+        handleAddCurrency({
+          code: wc.code,
+          symbol: wc.symbol,
+          name: wc.name,
+          flag: wc.flag,
+          exchangeRate: wc.exchangeRate || 1.0,
+        });
+      }
+    }
+
     const ratesMap: Record<string, number> = {};
     currencies.forEach((c) => {
       if (c.exchangeRate) ratesMap[c.code] = c.exchangeRate;
@@ -379,6 +474,11 @@ export default function App() {
       createdAt: Date.now(),
     };
     setTransactions((prev) => [newTx, ...prev]);
+
+    const txYearMonth = newTxData.date.slice(0, 7);
+    if (txYearMonth && txYearMonth !== selectedYearMonth) {
+      setSelectedYearMonth(txYearMonth);
+    }
   };
 
   const handleDeleteTransaction = (id: string) => {
@@ -510,8 +610,62 @@ export default function App() {
   };
 
   const handleAddCurrency = (newCurr: Currency) => {
-    setCurrencies((prev) => [...prev, newCurr]);
+    setCurrencies((prev) => {
+      if (prev.some((c) => c.code === newCurr.code)) return prev;
+      return [
+        ...prev,
+        {
+          ...newCurr,
+          flag: newCurr.flag || getCurrencyFlag(newCurr.code),
+        },
+      ];
+    });
   };
+
+  const handleUpdateRates = (newRates: Record<string, number>) => {
+    setCurrencies((prev) =>
+      prev.map((c) => ({
+        ...c,
+        flag: c.flag || getCurrencyFlag(c.code),
+        exchangeRate: newRates[c.code] || c.exchangeRate || 1.0,
+      }))
+    );
+  };
+
+  // Keep currency exchange rates as live as possible on mount, periodically, and when tab becomes active
+  useEffect(() => {
+    let isMounted = true;
+    const updateRates = async () => {
+      try {
+        const liveRates = await fetchLiveExchangeRates();
+        if (liveRates && isMounted) {
+          handleUpdateRates(liveRates);
+        }
+      } catch (err) {
+        console.warn('Auto-refresh rates error:', err);
+      }
+    };
+
+    // Immediate fetch on startup
+    updateRates();
+
+    // Auto-refresh every 10 minutes
+    const interval = setInterval(updateRates, 10 * 60 * 1000);
+
+    // Refresh when user returns to tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateRates();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const handleSelectDefaultCurrency = (newCode: string) => {
     const oldCode = settings.defaultCurrency;
@@ -641,16 +795,20 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        currentSavings={currentSavings}
-        totalIncome={totalIncome}
-        totalExpense={totalExpense}
+        currentSavings={monthlySavings}
+        totalIncome={monthlyIncome}
+        totalExpense={monthlyExpense}
         debtsYouOweTotal={totalYouOweUnsettled}
         debtsOwedToYouTotal={totalOwedToYouUnsettled}
         currencySymbol={currencySymbol}
+        selectedMonthYearLabel={selectedMonthYearLabel}
+        onPrevMonth={handlePrevMonth}
+        onNextMonth={handleNextMonth}
         userProfile={userProfile}
         onUpdateProfile={setUserProfile}
-        expenseCount={expenseCount}
-        incomeCount={incomeCount}
+        expenseCount={monthlyTransactions.filter((t) => t.type === 'expense').length}
+        incomeCount={monthlyTransactions.filter((t) => t.type === 'income').length}
+        debtCount={debtCount}
         dbStatus={dbStatus}
         onSyncWithDB={handleSyncWithDB}
         isSyncing={isSyncing}
@@ -678,13 +836,16 @@ export default function App() {
               setCategoriesInitialType(type);
               setShowCategoriesModal(true);
             }}
+            onOpenCurrencyManager={() => setShowCurrenciesModal(true)}
           />
         )}
 
         {/* Tab Views */}
         {activeTab === 'tracker' && (
           <TrackerView
-            transactions={transactions}
+            transactions={monthlyTransactions}
+            allTransactionsCount={transactions.length}
+            selectedMonthYearLabel={selectedMonthYearLabel}
             categories={categories}
             currencies={currencies}
             selectedCurrency={settings.defaultCurrency}
@@ -774,6 +935,10 @@ export default function App() {
               setCategoriesInitialType(type);
               setShowCategoriesModal(true);
             }}
+            onOpenCurrencyManager={() => {
+              setShowQuickEntryModal(false);
+              setShowCurrenciesModal(true);
+            }}
             isModal={true}
             onClose={() => setShowQuickEntryModal(false)}
           />
@@ -800,6 +965,7 @@ export default function App() {
           onSelectDefaultCurrency={handleSelectDefaultCurrency}
           onAddCurrency={handleAddCurrency}
           onDeleteCurrency={handleDeleteCurrency}
+          onUpdateRates={handleUpdateRates}
           onClose={() => setShowCurrenciesModal(false)}
         />
       )}

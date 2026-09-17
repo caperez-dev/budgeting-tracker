@@ -78,7 +78,7 @@ export function CategoryManagerModal({
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-100 shrink-0">
           <div>
-            <h3 className="text-sm font-semibold text-zinc-900">Category Management</h3>
+            <h3 className="text-sm font-semibold text-zinc-900">Category</h3>
             <p className="text-xs text-zinc-500">
               Customize categories, icons, and accent colors used in transaction rows.
             </p>
@@ -93,7 +93,7 @@ export function CategoryManagerModal({
 
         {/* Type Filter */}
         <div className="flex items-center justify-between gap-2 shrink-0">
-          <div className="grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 w-48 text-xs font-medium">
+          <div className="grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 w-44 text-xs font-medium">
             <button
               type="button"
               onClick={() => {
@@ -107,7 +107,7 @@ export function CategoryManagerModal({
                   : 'text-zinc-500'
               }`}
             >
-              Expenses ({categories.filter((c) => c.type === 'expense').length})
+              Expenses
             </button>
             <button
               type="button"
@@ -122,7 +122,7 @@ export function CategoryManagerModal({
                   : 'text-zinc-500'
               }`}
             >
-              Income ({categories.filter((c) => c.type === 'income').length})
+              Income
             </button>
           </div>
 

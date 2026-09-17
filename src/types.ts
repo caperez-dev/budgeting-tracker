@@ -4,6 +4,7 @@ export interface Currency {
   code: string;
   symbol: string;
   name: string;
+  flag?: string; // Flag emoji e.g. "🇵🇭"
   exchangeRate?: number; // Exchange rate relative to 1 USD
 }
 

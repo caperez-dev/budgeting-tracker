@@ -1,3 +1,5 @@
+import { WORLD_CURRENCIES } from '../data/worldCurrencies';
+
 // Currency conversion utilities and exchange rates table
 
 export const DEFAULT_EXCHANGE_RATES: Record<string, number> = {
@@ -20,6 +22,13 @@ export const DEFAULT_EXCHANGE_RATES: Record<string, number> = {
   CHF: 0.90,
   AED: 3.67,
 };
+
+// Seed any currencies from WORLD_CURRENCIES into the fallback rates table
+WORLD_CURRENCIES.forEach((wc) => {
+  if (wc.exchangeRate && !DEFAULT_EXCHANGE_RATES[wc.code]) {
+    DEFAULT_EXCHANGE_RATES[wc.code] = wc.exchangeRate;
+  }
+});
 
 /**
  * Converts an amount from one currency to another using the exchange rates table.

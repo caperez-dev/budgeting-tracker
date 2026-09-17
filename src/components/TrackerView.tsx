@@ -15,12 +15,15 @@ import {
 import { Category, Currency, Transaction } from '../types';
 import { formatCurrency, groupTransactions } from '../utils/formatters';
 import { CategoryIcon } from './CategoryIcon';
+import { CurrencySelect } from './CurrencySelect';
 
 interface TrackerViewProps {
   transactions: Transaction[];
   categories: Category[];
   currencies: Currency[];
   selectedCurrency: string;
+  selectedMonthYearLabel?: string;
+  allTransactionsCount?: number;
   onDeleteTransaction: (id: string) => void;
   onUpdateTransaction: (tx: Transaction) => void;
   pendingUndoTx: Transaction | null;
@@ -33,6 +36,8 @@ export function TrackerView({
   categories,
   currencies,
   selectedCurrency,
+  selectedMonthYearLabel,
+  allTransactionsCount,
   onDeleteTransaction,
   onUpdateTransaction,
   pendingUndoTx,
@@ -158,8 +163,15 @@ export function TrackerView({
         </div>
 
         <div className="text-xs font-mono text-zinc-500">
-          Showing <span className="font-semibold text-zinc-800">{filtered.length}</span> of{' '}
-          {transactions.length} entries
+          Showing <span className="font-semibold text-zinc-800">{filtered.length}</span> {filtered.length === 1 ? 'entry' : 'entries'}
+          {selectedMonthYearLabel && (
+            <span>
+              {' '}for <span className="font-semibold text-zinc-800">{selectedMonthYearLabel}</span>
+            </span>
+          )}
+          {allTransactionsCount !== undefined && allTransactionsCount !== filtered.length && (
+            <span className="text-zinc-400 ml-1">({allTransactionsCount} overall)</span>
+          )}
         </div>
       </div>
 
@@ -195,9 +207,13 @@ export function TrackerView({
         {monthGroups.length === 0 ? (
           <div className="p-12 text-center text-zinc-500">
             <Layers className="w-8 h-8 mx-auto text-zinc-300 mb-2" />
-            <p className="text-sm font-medium text-zinc-700">No transactions found</p>
+            <p className="text-sm font-medium text-zinc-700">
+              No transactions found {selectedMonthYearLabel ? `for ${selectedMonthYearLabel}` : ''}
+            </p>
             <p className="text-xs text-zinc-400 mt-1">
-              Add your first entry using the Quick-Entry form above.
+              {searchQuery || filterType !== 'all' || filterCategory !== 'all'
+                ? 'Try clearing your filters or search terms.'
+                : 'Add an entry using the Quick-Entry form above.'}
             </p>
           </div>
         ) : (
@@ -392,19 +408,15 @@ export function TrackerView({
                 <div>
                   <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Currency</label>
                   <div className="relative h-9">
-                    <select
+                    <CurrencySelect
+                      currencies={currencies}
                       value={editingTx.currency}
-                      onChange={(e) =>
-                        setEditingTx({ ...editingTx, currency: e.target.value })
+                      onChange={(code) =>
+                        setEditingTx({ ...editingTx, currency: code })
                       }
-                      className="w-full h-full bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs text-zinc-800"
-                    >
-                      {currencies.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.code} ({c.symbol})
-                        </option>
-                      ))}
-                    </select>
+                      ariaLabel="Transaction currency"
+                      className="h-full"
+                    />
                   </div>
                 </div>
                 <div>

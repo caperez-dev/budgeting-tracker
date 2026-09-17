@@ -8,8 +8,8 @@ import {
   Sparkles,
   HeartHandshake,
   Coins,
-  ArrowUpRight,
-  Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { UserProfile, DBStatus, AuthUser } from '../types';
@@ -26,10 +26,14 @@ interface HeaderProps {
   debtsYouOweTotal: number;
   debtsOwedToYouTotal: number;
   currencySymbol: string;
+  selectedMonthYearLabel: string;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
   userProfile: UserProfile;
   onUpdateProfile: (profile: UserProfile) => void;
   expenseCount: number;
   incomeCount: number;
+  debtCount?: number;
   dbStatus?: DBStatus;
   onSyncWithDB?: () => Promise<void>;
   isSyncing?: boolean;
@@ -50,10 +54,14 @@ export function Header({
   debtsYouOweTotal,
   debtsOwedToYouTotal,
   currencySymbol,
+  selectedMonthYearLabel,
+  onPrevMonth,
+  onNextMonth,
   userProfile,
   onUpdateProfile,
   expenseCount,
   incomeCount,
+  debtCount,
   dbStatus,
   onSyncWithDB,
   isSyncing,
@@ -66,49 +74,63 @@ export function Header({
 }: HeaderProps) {
   const hasActiveDebts = debtsYouOweTotal > 0.01 || debtsOwedToYouTotal > 0.01;
 
-  // Format current Month and Year indicator
-  const currentMonthYear = new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date());
-
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-zinc-200">
       {/* Top Banner: Global Financial Status & Branding */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
-        {/* Logo & Brand + Month/Year Indicator */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-[4px] bg-zinc-900 text-white flex items-center justify-center shadow-xs">
-              <Wallet className="w-4 h-4 text-zinc-100" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-semibold tracking-tight text-zinc-900">
-                  Budget Tracker
-                </h1>
-              </div>
-            </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3 relative">
+        {/* Logo & Brand */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-[4px] bg-zinc-900 text-white flex items-center justify-center shadow-xs">
+            <Wallet className="w-4 h-4 text-zinc-100" />
           </div>
-
-          {/* Month & Year Indicator */}
-          <div
-            id="header-month-year-indicator"
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-100 border border-zinc-200 rounded-[4px] text-xs font-medium text-zinc-700 font-mono"
-            title="Current Month and Year"
-          >
-            <Calendar className="w-3.5 h-3.5 text-zinc-500" />
-            <span>{currentMonthYear}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-semibold tracking-tight text-zinc-900">
+                Budget Tracker
+              </h1>
+            </div>
           </div>
         </div>
 
+        {/* Centered Month & Year Component with Previous and Next Buttons */}
+        <div
+          id="header-month-year-navigator"
+          className="flex items-center justify-center gap-1 sm:absolute sm:left-1/2 sm:-translate-x-1/2 order-3 sm:order-none w-full sm:w-auto"
+        >
+          <button
+            id="btn-prev-month"
+            type="button"
+            onClick={onPrevMonth}
+            aria-label="Previous month"
+            title="Previous month"
+            className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[4px] transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <span className="text-sm font-semibold text-zinc-800 select-none px-1 tracking-tight min-w-[130px] text-center">
+            {selectedMonthYearLabel}
+          </span>
+
+          <button
+            id="btn-next-month"
+            type="button"
+            onClick={onNextMonth}
+            aria-label="Next month"
+            title="Next month"
+            className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[4px] transition-colors cursor-pointer"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* Global Financial Metrics */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 ml-auto sm:ml-0">
           {/* Current Savings */}
           <div
             id="current-savings-display"
             className="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-[4px]"
-            title="Total Income minus Total Expenses"
+            title={`Savings for ${selectedMonthYearLabel}`}
           >
             <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
               Savings:
@@ -126,10 +148,10 @@ export function Header({
           <div
             id="total-earned-display"
             className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-[4px]"
-            title="Total income earned across all logged records"
+            title={`Earned for ${selectedMonthYearLabel}`}
           >
-            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider flex items-center gap-1">
-              <ArrowUpRight className="w-3 h-3 text-emerald-600" /> Earned:
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+              Earned:
             </span>
             <span className="font-mono text-sm font-semibold text-emerald-700 tabular-nums">
               {formatCurrency(totalIncome, currencySymbol)}
@@ -142,6 +164,11 @@ export function Header({
             onUpdateProfile={onUpdateProfile}
             expenseCount={expenseCount}
             incomeCount={incomeCount}
+            debtCount={debtCount}
+            totalExpense={totalExpense}
+            totalIncome={totalIncome}
+            totalDebt={debtsYouOweTotal}
+            currencySymbol={currencySymbol}
             dbStatus={dbStatus}
             onSyncWithDB={onSyncWithDB}
             isSyncing={isSyncing}
@@ -232,7 +259,7 @@ export function Header({
               id="btn-manage-currencies"
               onClick={onOpenCurrencies}
               className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap"
-              title="Edit currency list and set default currency"
+              title="Manage currencies and exchange rates"
             >
               <Coins className="w-3 h-3 text-zinc-500" />
               <span className="hidden sm:inline">Currencies</span>
