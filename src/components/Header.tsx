@@ -39,8 +39,10 @@ interface HeaderProps {
   isSyncing?: boolean;
   lastSyncedTime?: string | null;
   currentUser?: AuthUser | null;
+  onOpenSettings?: () => void;
   onLogout?: () => void;
   onOpenDonate: () => void;
+  onOpenAccounts: () => void;
   onOpenCurrencies: () => void;
   onOpenCategories: () => void;
 }
@@ -67,8 +69,10 @@ export function Header({
   isSyncing,
   lastSyncedTime,
   currentUser,
+  onOpenSettings,
   onLogout,
   onOpenDonate,
+  onOpenAccounts,
   onOpenCurrencies,
   onOpenCategories,
 }: HeaderProps) {
@@ -174,6 +178,7 @@ export function Header({
             isSyncing={isSyncing}
             lastSyncedTime={lastSyncedTime}
             currentUser={currentUser}
+            onOpenSettings={onOpenSettings}
             onLogout={onLogout}
           />
         </div>
@@ -253,8 +258,18 @@ export function Header({
             </button>
           </nav>
 
-          {/* Secondary Utilities: Currencies, Categories, Donate */}
+          {/* Secondary Utilities: Accounts, Currencies, Categories, Donate */}
           <div className="flex items-center gap-1.5 py-1.5">
+            <button
+              id="btn-manage-accounts"
+              onClick={onOpenAccounts}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
+              title="Manage accounts and assets (GCash, E-Wallet, Cash, etc.)"
+            >
+              <Wallet className="w-3 h-3 text-zinc-500" />
+              <span className="hidden sm:inline">Accounts</span>
+            </button>
+
             <button
               id="btn-manage-currencies"
               onClick={onOpenCurrencies}

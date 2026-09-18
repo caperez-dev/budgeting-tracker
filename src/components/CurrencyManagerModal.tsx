@@ -128,9 +128,6 @@ export function CurrencyManagerModal({
               <span className="text-xs font-semibold text-zinc-800 uppercase tracking-wider">
                 Active Currencies ({currencies.length})
               </span>
-              <span className="text-[11px] text-zinc-500">
-                Default: <strong className="text-zinc-800 font-mono">{selectedCurrency}</strong>
-              </span>
             </div>
 
             <div className="divide-y divide-zinc-100 border border-zinc-200 rounded-[4px] bg-zinc-50/50">

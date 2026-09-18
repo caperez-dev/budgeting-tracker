@@ -23,6 +23,12 @@ import {
   Shield,
   Smartphone,
   Sparkles,
+  Wallet,
+  Banknote,
+  Landmark,
+  PiggyBank,
+  Coins,
+  Receipt,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -50,6 +56,12 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Shield,
   Smartphone,
   Sparkles,
+  Wallet,
+  Banknote,
+  Landmark,
+  PiggyBank,
+  Coins,
+  Receipt,
 };
 
 interface CategoryIconProps {
@@ -60,5 +72,10 @@ interface CategoryIconProps {
 
 export function CategoryIcon({ name, className = 'w-4 h-4', style }: CategoryIconProps) {
   const IconComponent = ICON_MAP[name] || Tag;
+  return <IconComponent className={className} style={style} />;
+}
+
+export function AccountIcon({ name, className = 'w-4 h-4', style }: CategoryIconProps) {
+  const IconComponent = ICON_MAP[name] || Wallet;
   return <IconComponent className={className} style={style} />;
 }

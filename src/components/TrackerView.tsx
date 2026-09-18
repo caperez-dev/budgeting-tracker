@@ -12,15 +12,17 @@ import {
   Calendar,
   Layers,
 } from 'lucide-react';
-import { Category, Currency, Transaction } from '../types';
+import { Category, Currency, Transaction, Account } from '../types';
 import { formatCurrency, groupTransactions } from '../utils/formatters';
-import { CategoryIcon } from './CategoryIcon';
+import { CategoryIcon, AccountIcon } from './CategoryIcon';
 import { CurrencySelect } from './CurrencySelect';
+import { CategorySelect } from './CategorySelect';
 
 interface TrackerViewProps {
   transactions: Transaction[];
   categories: Category[];
   currencies: Currency[];
+  accounts?: Account[];
   selectedCurrency: string;
   selectedMonthYearLabel?: string;
   allTransactionsCount?: number;
@@ -35,6 +37,7 @@ export function TrackerView({
   transactions,
   categories,
   currencies,
+  accounts = [],
   selectedCurrency,
   selectedMonthYearLabel,
   allTransactionsCount,
@@ -47,14 +50,23 @@ export function TrackerView({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [visibleCount, setVisibleCount] = useState<number>(10);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+
+  // Reset pagination when filter criteria change
+  React.useEffect(() => {
+    setVisibleCount(10);
+  }, [filterType, filterCategory, searchQuery, selectedMonthYearLabel]);
 
   const currencyObj = currencies.find((c) => c.code === selectedCurrency);
   const currencySymbol = currencyObj?.symbol || '₱';
 
   const categoryMap = new Map<string, Category>();
   categories.forEach((c) => categoryMap.set(c.id, c));
+
+  const accountMap = new Map<string, Account>();
+  accounts.forEach((a) => accountMap.set(a.id, a));
 
   // Filter transactions
   const filtered = transactions.filter((tx) => {
@@ -64,17 +76,20 @@ export function TrackerView({
       const q = searchQuery.toLowerCase();
       const cat = categoryMap.get(tx.categoryId);
       const catName = cat ? cat.name.toLowerCase() : '';
+      const acc = tx.accountId ? accountMap.get(tx.accountId) : undefined;
+      const accName = acc ? acc.name.toLowerCase() : '';
       const matchesNote = tx.note.toLowerCase().includes(q);
       const matchesAmount = String(tx.amount).includes(q);
       const matchesDate = tx.date.includes(q);
-      if (!matchesNote && !catName.includes(q) && !matchesAmount && !matchesDate) {
+      if (!matchesNote && !catName.includes(q) && !accName.includes(q) && !matchesAmount && !matchesDate) {
         return false;
       }
     }
     return true;
   });
 
-  const monthGroups = groupTransactions(filtered);
+  const visibleTransactions = filtered.slice(0, visibleCount);
+  const monthGroups = groupTransactions(visibleTransactions);
 
   const handleDeleteClick = (id: string) => {
     setDeleteConfirmId(id);
@@ -145,32 +160,34 @@ export function TrackerView({
             </button>
           </div>
 
-          {/* Category Filter */}
-          <div className="relative">
-            <select
+          {/* Category Filter - custom styled matching CurrencySelect */}
+          <div className="h-8 min-w-[160px]">
+            <CategorySelect
+              id="filter-category-select"
+              ariaLabel="Filter by category"
+              categories={categories}
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="bg-zinc-50 border border-zinc-200 text-xs px-2.5 py-1.5 rounded-[4px] text-zinc-700 focus:outline-none focus:border-zinc-500"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name} ({cat.type})
-                </option>
-              ))}
-            </select>
+              onChange={setFilterCategory}
+              showAllOption={true}
+              className="h-full"
+              buttonClassName="min-h-[32px] h-8"
+            />
           </div>
         </div>
 
         <div className="text-xs font-mono text-zinc-500">
-          Showing <span className="font-semibold text-zinc-800">{filtered.length}</span> {filtered.length === 1 ? 'entry' : 'entries'}
+          Showing <span className="font-semibold text-zinc-800">{Math.min(visibleCount, filtered.length)}</span>{' '}
+          {filtered.length > visibleCount ? (
+            <span>
+              of <span className="font-semibold text-zinc-800">{filtered.length}</span> entries
+            </span>
+          ) : (
+            filtered.length === 1 ? 'entry' : 'entries'
+          )}
           {selectedMonthYearLabel && (
             <span>
               {' '}for <span className="font-semibold text-zinc-800">{selectedMonthYearLabel}</span>
             </span>
-          )}
-          {allTransactionsCount !== undefined && allTransactionsCount !== filtered.length && (
-            <span className="text-zinc-400 ml-1">({allTransactionsCount} overall)</span>
           )}
         </div>
       </div>
@@ -307,6 +324,18 @@ export function TrackerView({
                                       <span>{catName}</span>
                                     </span>
 
+                                    {/* Account Badge if available */}
+                                    {tx.accountId && accountMap.get(tx.accountId) && (
+                                      <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-600 bg-zinc-100/90 px-1.5 py-0.5 rounded-[3px] border border-zinc-200/60 whitespace-nowrap">
+                                        <span
+                                          className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
+                                          style={{ backgroundColor: accountMap.get(tx.accountId)!.color }}
+                                        />
+                                        <AccountIcon name={accountMap.get(tx.accountId)!.icon} className="w-3 h-3 shrink-0 text-zinc-500" />
+                                        <span>{accountMap.get(tx.accountId)!.name}</span>
+                                      </span>
+                                    )}
+
                                     {/* Description / Note */}
                                     {tx.note && (
                                       <span className="text-zinc-500 truncate max-w-[200px] sm:max-w-[320px]">
@@ -353,6 +382,23 @@ export function TrackerView({
               </div>
             </div>
           ))
+        )}
+
+        {/* Load More Button */}
+        {filtered.length > visibleCount && (
+          <div className="p-3.5 sm:p-4 text-center border-t border-zinc-100 bg-zinc-50/50">
+            <button
+              type="button"
+              id="btn-load-more"
+              onClick={() => setVisibleCount((prev) => prev + 10)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-zinc-50 text-zinc-800 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 text-xs font-semibold rounded-[4px] shadow-2xs transition-colors cursor-pointer"
+            >
+              <span>Load 10 more transactions</span>
+              <span className="text-[11px] text-zinc-400 font-mono font-normal">
+                (Showing {Math.min(visibleCount, filtered.length)} of {filtered.length})
+              </span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -424,47 +470,87 @@ export function TrackerView({
                   <div className="relative h-9">
                     <input
                       type="number"
-                      step="any"
+                      step="0.01"
+                      min="0.01"
+                      max="999999999.99"
                       required
-                      value={editingTx.amount}
-                      onChange={(e) =>
-                        setEditingTx({ ...editingTx, amount: parseFloat(e.target.value) || 0 })
-                      }
+                      value={editingTx.amount || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setEditingTx({ ...editingTx, amount: 0 });
+                        } else {
+                          const num = parseFloat(val);
+                          if (!isNaN(num) && num <= 999999999.99) {
+                            setEditingTx({ ...editingTx, amount: num });
+                          }
+                        }
+                      }}
                       placeholder="Enter amount"
-                      className="w-full h-full bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono font-semibold tabular-nums text-sm text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal"
+                      className="w-full h-full bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono font-semibold tabular-nums text-sm text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal focus:outline-none focus:border-zinc-500"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-zinc-500 font-medium mb-1">Category</label>
-                <select
-                  value={editingTx.categoryId}
-                  onChange={(e) =>
-                    setEditingTx({ ...editingTx, categoryId: e.target.value })
-                  }
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px]"
-                >
-                  {categories
-                    .filter((c) => c.type === editingTx.type)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                </select>
+                <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Category</label>
+                <div className="relative h-9">
+                  <CategorySelect
+                    id="edit-tx-category-select"
+                    ariaLabel="Transaction category"
+                    categories={categories.filter((c) => c.type === editingTx.type)}
+                    value={editingTx.categoryId}
+                    onChange={(catId) =>
+                      setEditingTx({ ...editingTx, categoryId: catId })
+                    }
+                    showAllOption={false}
+                    className="h-full"
+                  />
+                </div>
               </div>
 
+              {accounts.length > 0 && (
+                <div>
+                  <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Account</label>
+                  <div className="relative h-9">
+                    <select
+                      id="edit-tx-account-select"
+                      aria-label="Transaction account"
+                      value={editingTx.accountId || ''}
+                      onChange={(e) =>
+                        setEditingTx({ ...editingTx, accountId: e.target.value })
+                      }
+                      className="w-full h-full bg-white border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
+                    >
+                      <option value="">(No Account)</option>
+                      {accounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="block text-zinc-500 font-medium mb-1">Description (Optional)</label>
-                <input
-                  type="text"
-                  value={editingTx.note}
-                  onChange={(e) => setEditingTx({ ...editingTx, note: e.target.value })}
-                  placeholder="Description (optional)"
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px]"
-                />
+                <div className="flex items-center justify-between mb-1.5 h-4 leading-4">
+                  <label className="block text-zinc-500 font-medium">Description (Optional)</label>
+                  <span className="text-[10px] font-mono text-zinc-400">
+                    {(editingTx.note || '').length}/100
+                  </span>
+                </div>
+                <div className="relative h-9">
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={editingTx.note}
+                    onChange={(e) => setEditingTx({ ...editingTx, note: e.target.value.slice(0, 100) })}
+                    placeholder="Description (optional)"
+                    className="w-full h-full bg-white border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+                  />
+                </div>
               </div>
             </div>
 

@@ -10,6 +10,7 @@ import {
   UserProfile,
   DBStatus,
   AuthUser,
+  Account,
 } from './types';
 import {
   DEFAULT_CATEGORIES,
@@ -30,8 +31,11 @@ import { GoalsView } from './components/GoalsView';
 import { AIAdvisorModal } from './components/AIAdvisorModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { CurrencyManagerModal } from './components/CurrencyManagerModal';
+import { AccountManagerModal } from './components/AccountManagerModal';
 import { DonateModal } from './components/DonateModal';
-import { FileDown, Plus } from 'lucide-react';
+import { SettingsModal } from './components/SettingsModal';
+import { ExportPdfModal } from './components/ExportPdfModal';
+import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { generateBudgetPdf } from './utils/pdfExport';
 import {
   convertCurrency,
@@ -44,10 +48,33 @@ import {
   fetchLiveExchangeRates,
 } from './data/worldCurrencies';
 
+export const DEFAULT_ACCOUNTS: Account[] = [
+  {
+    id: 'gcash',
+    name: 'GCash',
+    type: 'ewallet',
+    color: '#007DFE',
+    icon: 'Smartphone',
+    isDefault: true,
+    initialBalance: 0,
+  },
+  {
+    id: 'ewallet',
+    name: 'E-Wallet',
+    type: 'ewallet',
+    color: '#059669',
+    icon: 'Wallet',
+    isDefault: false,
+    initialBalance: 0,
+  },
+];
+
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'budget_tracker_transactions_v1',
+  TRANSACTIONS_V1: 'budget_tracker_transactions_v1', // old shared key to purge
+  TRANSACTIONS_PREFIX: 'budget_tracker_transactions_v2',
   CATEGORIES: 'budget_tracker_categories_v1',
   CURRENCIES: 'budget_tracker_currencies_v1',
+  ACCOUNTS: 'budget_tracker_accounts_v1',
   DEBTS: 'budget_tracker_debts_v1',
   GOALS: 'budget_tracker_goals_v1',
   SETTINGS: 'budget_tracker_settings_v1',
@@ -55,14 +82,39 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'budget_tracker_current_user_v1',
 };
 
+const getUserStorageKey = (prefix: string, userId?: string | null) => {
+  return userId ? `${prefix}_${userId}` : `${prefix}_guest`;
+};
+
 export default function App() {
-  // --- Persistent State loaded from LocalStorage ---
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // --- Persistent State loaded from LocalStorage (isolated per user) ---
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      return saved ? JSON.parse(saved) : SEED_TRANSACTIONS;
+      // Discard deprecated shared v1 key
+      localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS_V1);
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+      if (!user?.id) return [];
+      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
+      const saved = localStorage.getItem(userKey);
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return SEED_TRANSACTIONS;
+      return [];
     }
   });
 
@@ -91,6 +143,21 @@ export default function App() {
       return DEFAULT_CURRENCIES;
     } catch {
       return DEFAULT_CURRENCIES;
+    }
+  });
+
+  const [accounts, setAccounts] = useState<Account[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      return DEFAULT_ACCOUNTS;
+    } catch {
+      return DEFAULT_ACCOUNTS;
     }
   });
 
@@ -130,25 +197,20 @@ export default function App() {
     }
   });
 
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
   const [activeTab, setActiveTab] = useState<ActiveTab>('tracker');
 
   // --- Modals State ---
   const [showQuickEntryModal, setShowQuickEntryModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [categoriesInitialType, setCategoriesInitialType] = useState<TransactionType>('expense');
+  const [showAccountsModal, setShowAccountsModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
   const [showDonateModal, setShowDonateModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showExportPdfModal, setShowExportPdfModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // --- MongoDB Database State & Cloud Sync ---
+  // --- Online Storage State & Sync ---
   const [dbStatus, setDbStatus] = useState<DBStatus>({
     configured: false,
     hasPlaceholder: false,
@@ -157,7 +219,7 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
 
-  // Check DB status on mount and poll occasionally
+  // Check connection status
   const checkDBStatus = async (): Promise<DBStatus | null> => {
     try {
       const res = await fetch('/api/db/status');
@@ -172,57 +234,48 @@ export default function App() {
     return null;
   };
 
-  const handleSyncWithDB = async () => {
+  const handleSyncWithDB = async (targetUserId?: string) => {
+    const uid = targetUserId || currentUser?.id;
+    if (!uid) return;
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      // Check status first
       const status = await checkDBStatus();
       if (!status?.connected) {
         setIsSyncing(false);
         return;
       }
 
-      // Fetch existing data from MongoDB
-      const res = await fetch('/api/db/sync');
+      // Fetch user's records from storage
+      const res = await fetch(`/api/db/sync?userId=${encodeURIComponent(uid)}`, {
+        headers: { 'x-user-id': uid },
+      });
       if (res.ok) {
         const json = await res.json();
-        if (json.success) {
-          if (json.isEmpty) {
-            // DB is empty: Seed it with current local state!
-            await fetch('/api/db/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                transactions,
-                categories,
-                currencies,
-                debts,
-                goals,
-                settings,
-                profile: userProfile,
-              }),
-            });
-          } else if (json.data) {
-            // DB has data: Update local state
-            if (Array.isArray(json.data.transactions) && json.data.transactions.length > 0) {
-              setTransactions(json.data.transactions);
-            }
-            if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
-              setCategories(json.data.categories);
-            }
-            if (Array.isArray(json.data.debts) && json.data.debts.length > 0) {
-              setDebts(json.data.debts);
-            }
-            if (Array.isArray(json.data.goals) && json.data.goals.length > 0) {
-              setGoals(json.data.goals);
-            }
-            if (json.data.settings) {
-              setSettings(json.data.settings);
-            }
-            if (json.data.profile) {
-              setUserProfile(json.data.profile);
-            }
+        if (json.success && json.data) {
+          if (Array.isArray(json.data.transactions)) {
+            setTransactions(json.data.transactions);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid),
+                JSON.stringify(json.data.transactions)
+              );
+            } catch {}
+          }
+          if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
+            setCategories(json.data.categories);
+          }
+          if (Array.isArray(json.data.debts)) {
+            setDebts(json.data.debts);
+          }
+          if (Array.isArray(json.data.goals)) {
+            setGoals(json.data.goals);
+          }
+          if (json.data.settings) {
+            setSettings(json.data.settings);
+          }
+          if (json.data.profile) {
+            setUserProfile(json.data.profile);
           }
           const nowStr = new Date().toLocaleTimeString('en-US', {
             hour: 'numeric',
@@ -232,38 +285,59 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error('Failed to sync with MongoDB:', err);
+      console.error('Failed to sync records:', err);
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Initial DB check and sync on load
+  // Switch user local records & sync when user logs in / switches
+  useEffect(() => {
+    if (currentUser?.id) {
+      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id);
+      try {
+        const saved = localStorage.getItem(userKey);
+        setTransactions(saved ? JSON.parse(saved) : []);
+      } catch {
+        setTransactions([]);
+      }
+      handleSyncWithDB(currentUser.id);
+    } else {
+      setTransactions([]);
+    }
+  }, [currentUser?.id]);
+
+  // Initial connection check on mount
   useEffect(() => {
     checkDBStatus().then((status) => {
-      if (status?.connected) {
-        handleSyncWithDB();
+      if (status?.connected && currentUser?.id) {
+        handleSyncWithDB(currentUser.id);
       }
     });
   }, []);
 
-  // Background sync to MongoDB whenever state changes
+  // Background sync whenever state changes
   const isFirstSyncRender = useRef(true);
   useEffect(() => {
     if (isFirstSyncRender.current) {
       isFirstSyncRender.current = false;
       return;
     }
-    if (!dbStatus.connected) return;
+    if (!dbStatus.connected || !currentUser?.id) return;
 
     const timer = setTimeout(() => {
       fetch('/api/db/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
         body: JSON.stringify({
-          transactions,
+          userId: currentUser.id,
+          transactions: transactions.map((t) => ({ ...t, userId: currentUser.id })),
           categories,
           currencies,
+          accounts,
           debts,
           goals,
           settings,
@@ -281,7 +355,7 @@ export default function App() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [transactions, categories, currencies, debts, goals, settings, userProfile, dbStatus.connected]);
+  }, [transactions, categories, currencies, accounts, debts, goals, settings, userProfile, dbStatus.connected, currentUser?.id]);
 
   // --- Undo Delete State (§5 Requirement) ---
   const [pendingUndoTx, setPendingUndoTx] = useState<Transaction | null>(null);
@@ -290,8 +364,11 @@ export default function App() {
 
   // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-  }, [transactions]);
+    try {
+      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser?.id);
+      localStorage.setItem(userKey, JSON.stringify(transactions));
+    } catch {}
+  }, [transactions, currentUser?.id]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
@@ -300,6 +377,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CURRENCIES, JSON.stringify(currencies));
   }, [currencies]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+  }, [accounts]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.DEBTS, JSON.stringify(debts));
@@ -470,6 +551,7 @@ export default function App() {
       amount: finalAmount,
       currency: settings.defaultCurrency,
       id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      userId: currentUser?.id,
       timestamp: new Date(`${newTxData.date}T${new Date().toTimeString().slice(0, 8)}`).getTime(),
       createdAt: Date.now(),
     };
@@ -494,6 +576,14 @@ export default function App() {
 
     // Remove row from list
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+
+    // Request deletion on server if authenticated
+    if (currentUser?.id) {
+      fetch(`/api/db/transactions/${id}?userId=${encodeURIComponent(currentUser.id)}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': currentUser.id },
+      }).catch(() => {});
+    }
 
     // Start 6-second timer to finalize deletion
     let secondsRemaining = 6;
@@ -607,6 +697,24 @@ export default function App() {
 
   const handleDeleteCategory = (id: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  // --- Handlers: Accounts ---
+  const handleAddAccount = (accData: Omit<Account, 'id'>) => {
+    const newAcc: Account = {
+      ...accData,
+      id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    };
+    setAccounts((prev) => [...prev, newAcc]);
+  };
+
+  const handleUpdateAccount = (updatedAcc: Account) => {
+    setAccounts((prev) => prev.map((a) => (a.id === updatedAcc.id ? updatedAcc : a)));
+  };
+
+  const handleDeleteAccount = (id: string) => {
+    if (accounts.length <= 1) return;
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
   };
 
   const handleAddCurrency = (newCurr: Currency) => {
@@ -745,18 +853,9 @@ export default function App() {
     }
   };
 
-  // Export PDF Report
+  // Export PDF Report - Open location and export choice dialog
   const handleExportPdf = () => {
-    generateBudgetPdf({
-      transactions,
-      categories,
-      debts,
-      goals,
-      currentSavings,
-      totalIncome,
-      totalExpense,
-      currencySymbol,
-    });
+    setShowExportPdfModal(true);
   };
 
   const handleLogout = () => {
@@ -764,6 +863,58 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     } catch {}
     setCurrentUser(null);
+    setTransactions([]);
+  };
+
+  const handleUpdateAccountSettings = async (data: {
+    nickname: string;
+    email: string;
+    password?: string;
+    avatarUrl?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch('/api/user/update-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || '',
+        },
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          nickname: data.nickname,
+          email: data.email,
+          password: data.password,
+          avatarUrl: data.avatarUrl,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const updatedUser: AuthUser = {
+          id: currentUser?.id || json.user?.id || 'user-local',
+          email: json.user?.email || data.email,
+          nickname: json.user?.nickname || data.nickname,
+          avatarUrl: json.user?.avatarUrl !== undefined ? json.user.avatarUrl : data.avatarUrl,
+        };
+        setCurrentUser(updatedUser);
+        try {
+          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+        } catch {}
+
+        setUserProfile((prev) => ({
+          ...prev,
+          nickname: data.nickname,
+          email: data.email,
+          avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : prev.avatarUrl,
+        }));
+
+        return { success: true };
+      } else {
+        return { success: false, error: json.error || 'Failed to update settings.' };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An error occurred while updating your settings.' };
+    }
   };
 
   // If user is not signed in, render the uniform AuthScreen
@@ -783,7 +934,15 @@ export default function App() {
               email: profileUpdate.email || prev.email,
             }));
           }
-          handleSyncWithDB();
+          // Load this user's stored transactions immediately
+          try {
+            const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
+            const saved = localStorage.getItem(userKey);
+            setTransactions(saved ? JSON.parse(saved) : []);
+          } catch {
+            setTransactions([]);
+          }
+          handleSyncWithDB(user.id);
         }}
       />
     );
@@ -814,8 +973,10 @@ export default function App() {
         isSyncing={isSyncing}
         lastSyncedTime={lastSyncedTime}
         currentUser={currentUser}
-        onLogout={handleLogout}
+        onOpenSettings={() => setShowSettingsModal(true)}
+        onLogout={() => setShowLogoutConfirm(true)}
         onOpenDonate={() => setShowDonateModal(true)}
+        onOpenAccounts={() => setShowAccountsModal(true)}
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
         onOpenCategories={() => {
           setCategoriesInitialType('expense');
@@ -830,12 +991,14 @@ export default function App() {
           <QuickEntryForm
             currencies={currencies}
             categories={categories}
+            accounts={accounts}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
             onOpenAddCategory={(type) => {
               setCategoriesInitialType(type);
               setShowCategoriesModal(true);
             }}
+            onOpenAddAccount={() => setShowAccountsModal(true)}
             onOpenCurrencyManager={() => setShowCurrenciesModal(true)}
           />
         )}
@@ -848,6 +1011,7 @@ export default function App() {
             selectedMonthYearLabel={selectedMonthYearLabel}
             categories={categories}
             currencies={currencies}
+            accounts={accounts}
             selectedCurrency={settings.defaultCurrency}
             onDeleteTransaction={handleDeleteTransaction}
             onUpdateTransaction={handleUpdateTransaction}
@@ -912,9 +1076,11 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             <button
+              id="button-export-pdf"
+              type="button"
               onClick={handleExportPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-700 hover:text-zinc-900 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-[4px] transition-colors shadow-2xs"
-              title="Download comprehensive PDF report"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-700 hover:text-zinc-900 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-[4px] transition-colors shadow-2xs cursor-pointer"
+              title="Export report as PDF"
             >
               <FileDown className="w-3.5 h-3.5 text-zinc-600" />
               <span className="font-medium">Export PDF</span>
@@ -979,6 +1145,67 @@ export default function App() {
           }
           onClose={() => setShowDonateModal(false)}
         />
+      )}
+
+      {/* Account Settings Modal */}
+      {showSettingsModal && (
+        <SettingsModal
+          currentUser={currentUser}
+          profile={userProfile}
+          onClose={() => setShowSettingsModal(false)}
+          onSave={handleUpdateAccountSettings}
+        />
+      )}
+
+      {/* Export PDF Modal with Location Choice */}
+      {showExportPdfModal && (
+        <ExportPdfModal
+          options={{
+            transactions,
+            categories,
+            debts,
+            goals,
+            currentSavings,
+            totalIncome,
+            totalExpense,
+            currencySymbol,
+          }}
+          onClose={() => setShowExportPdfModal(false)}
+        />
+      )}
+
+      {/* Logout Confirmation Modal - matching the delete transaction modal design */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 animate-fade-in">
+            <div className="flex items-center gap-2 text-rose-600">
+              <AlertCircle className="w-5 h-5" />
+              <h4 className="text-sm font-semibold text-zinc-900">Sign out of your account?</h4>
+            </div>
+            <p className="text-xs text-zinc-600">
+              Are you sure you want to log out? You will need to sign in again to access your finances.
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  handleLogout();
+                }}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

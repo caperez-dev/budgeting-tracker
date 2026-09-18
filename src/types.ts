@@ -17,12 +17,26 @@ export interface Category {
   isDefault?: boolean;
 }
 
+export type AccountType = 'ewallet' | 'cash' | 'bank' | 'credit_card' | 'other';
+
+export interface Account {
+  id: string;
+  name: string;
+  type: AccountType;
+  color: string;
+  icon: string; // Lucide icon identifier
+  initialBalance?: number;
+  isDefault?: boolean;
+}
+
 export interface Transaction {
   id: string;
+  userId?: string;
   type: TransactionType;
   amount: number;
   currency: string;
   categoryId: string;
+  accountId?: string;
   note: string;
   date: string; // YYYY-MM-DD
   time: string; // 12-hour format e.g. "2:14 PM"

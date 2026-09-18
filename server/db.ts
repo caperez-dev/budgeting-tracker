@@ -58,6 +58,7 @@ export function getDBStatus() {
 const TransactionSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, index: true, default: '' },
     type: { type: String, required: true, enum: ['income', 'expense'] },
     amount: { type: Number, required: true },
     categoryId: { type: String, default: '' },
@@ -71,6 +72,7 @@ const TransactionSchema = new mongoose.Schema(
 const CategorySchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, index: true, default: '' },
     name: { type: String, required: true },
     type: { type: String, required: true, enum: ['income', 'expense'] },
     icon: { type: String, default: 'Tag' },
@@ -93,6 +95,7 @@ const CurrencySchema = new mongoose.Schema(
 const DebtSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, index: true, default: '' },
     person: { type: String, required: true },
     amount: { type: Number, required: true },
     type: { type: String, required: true, enum: ['you_owe', 'owed_to_you'] },
@@ -107,6 +110,7 @@ const DebtSchema = new mongoose.Schema(
 const GoalSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, index: true, default: '' },
     name: { type: String, required: true },
     targetAmount: { type: Number, required: true },
     currentAmount: { type: Number, default: 0 },
@@ -119,7 +123,8 @@ const GoalSchema = new mongoose.Schema(
 
 const UserSettingsSchema = new mongoose.Schema(
   {
-    singletonId: { type: String, default: 'default_settings', unique: true },
+    singletonId: { type: String, default: 'default_settings', index: true },
+    userId: { type: String, index: true, default: '' },
     primaryCurrency: { type: String, default: 'PHP' },
     soundEnabled: { type: Boolean, default: true },
     autoBackup: { type: Boolean, default: true },
@@ -131,7 +136,8 @@ const UserSettingsSchema = new mongoose.Schema(
 
 const UserProfileSchema = new mongoose.Schema(
   {
-    singletonId: { type: String, default: 'default_profile', unique: true },
+    singletonId: { type: String, default: 'default_profile', index: true },
+    userId: { type: String, index: true, default: '' },
     nickname: { type: String, default: 'Carlos' },
     avatarUrl: { type: String, default: '' },
     email: { type: String, default: 'perez.carlos6566@gmail.com' },

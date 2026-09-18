@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { Transaction, Category, Debt, Goal } from '../types';
 import { formatCurrency } from './formatters';
 
-interface ExportPdfOptions {
+export interface ExportPdfOptions {
   transactions: Transaction[];
   categories: Category[];
   debts: Debt[];
@@ -14,7 +14,7 @@ interface ExportPdfOptions {
   currencySymbol: string;
 }
 
-export function generateBudgetPdf({
+export function buildBudgetPdfDoc({
   transactions,
   categories,
   debts,
@@ -23,7 +23,7 @@ export function generateBudgetPdf({
   totalIncome,
   totalExpense,
   currencySymbol,
-}: ExportPdfOptions) {
+}: ExportPdfOptions): { doc: jsPDF; defaultFilename: string } {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -286,7 +286,72 @@ export function generateBudgetPdf({
     );
   }
 
-  // Save the PDF
-  const filename = `budget_tracker_report_${now.toISOString().slice(0, 10)}.pdf`;
-  doc.save(filename);
+  const defaultFilename = `budget_tracker_report_${now.toISOString().slice(0, 10)}.pdf`;
+  return { doc, defaultFilename };
+}
+
+/**
+ * Saves the PDF directly using browser download
+ */
+export function exportPdfToFile(doc: jsPDF, filename: string): void {
+  const cleanName = filename.trim().endsWith('.pdf') ? filename.trim() : `${filename.trim()}.pdf`;
+  doc.save(cleanName);
+}
+
+/**
+ * Prompts the user with the native operating system file/folder picker to choose the save location.
+ */
+export async function exportPdfWithFolderPicker(
+  doc: jsPDF,
+  filename: string
+): Promise<{ success: boolean; cancelled?: boolean; error?: string }> {
+  const cleanName = filename.trim().endsWith('.pdf') ? filename.trim() : `${filename.trim()}.pdf`;
+  const blob = doc.output('blob');
+
+  if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: cleanName,
+        types: [
+          {
+            description: 'PDF Document (*.pdf)',
+            accept: { 'application/pdf': ['.pdf'] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return { success: true };
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return { success: false, cancelled: true };
+      }
+      return {
+        success: false,
+        error: err.message || 'Unable to open file location picker in this browser window.',
+      };
+    }
+  }
+
+  return {
+    success: false,
+    error: 'Folder selection is not directly supported by this browser. You can save using standard download or preview.',
+  };
+}
+
+/**
+ * Creates an object URL for previewing the PDF in the browser
+ */
+export function getPdfBlobUrl(doc: jsPDF): string {
+  const blob = doc.output('blob');
+  return URL.createObjectURL(blob);
+}
+
+/**
+ * Backward-compatible helper that automatically downloads
+ */
+export function generateBudgetPdf(options: ExportPdfOptions) {
+  const { doc, defaultFilename } = buildBudgetPdfDoc(options);
+  exportPdfToFile(doc, defaultFilename);
 }

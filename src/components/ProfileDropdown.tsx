@@ -2,12 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   User,
   ChevronDown,
-  Camera,
   Edit2,
   Check,
   X,
-  AlertCircle,
   LogOut,
+  Settings,
 } from 'lucide-react';
 import { UserProfile, DBStatus, AuthUser } from '../types';
 
@@ -26,6 +25,7 @@ interface ProfileDropdownProps {
   isSyncing?: boolean;
   lastSyncedTime?: string | null;
   currentUser?: AuthUser | null;
+  onOpenSettings?: () => void;
   onLogout?: () => void;
 }
 
@@ -40,15 +40,14 @@ export function ProfileDropdown({
   isSyncing = false,
   lastSyncedTime,
   currentUser,
+  onOpenSettings,
   onLogout,
 }: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [tempNickname, setTempNickname] = useState(profile.nickname);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync temp nickname if prop changes
   useEffect(() => {
@@ -61,7 +60,6 @@ export function ProfileDropdown({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setIsEditingNickname(false);
-        setUploadError(null);
       }
     };
 
@@ -69,7 +67,6 @@ export function ProfileDropdown({
       if (event.key === 'Escape') {
         setIsOpen(false);
         setIsEditingNickname(false);
-        setUploadError(null);
       }
     };
 
@@ -92,28 +89,6 @@ export function ProfileDropdown({
       setTempNickname(profile.nickname);
     }
     setIsEditingNickname(false);
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setUploadError('Please select an image smaller than 5MB.');
-        return;
-      }
-      setUploadError(null);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          onUpdateProfile({ ...profile, avatarUrl: reader.result });
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-    // reset input so same file can be re-uploaded if desired
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   return (
@@ -156,8 +131,8 @@ export function ProfileDropdown({
         >
           {/* Top Section: Avatar & Nickname */}
           <div className="flex items-center gap-3">
-            {/* Avatar with edit overlay */}
-            <div className="relative group">
+            {/* Avatar */}
+            <div className="relative shrink-0">
               {profile.avatarUrl ? (
                 <img
                   src={profile.avatarUrl}
@@ -170,15 +145,6 @@ export function ProfileDropdown({
                   {profile.nickname.charAt(0).toUpperCase() || 'U'}
                 </div>
               )}
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 p-1 bg-zinc-900 hover:bg-zinc-800 text-white rounded-full shadow-xs transition-transform hover:scale-105 cursor-pointer"
-                title="Upload profile photo"
-              >
-                <Camera className="w-3 h-3" />
-              </button>
             </div>
 
             {/* Nickname & info */}
@@ -232,38 +198,8 @@ export function ProfileDropdown({
               <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
                 {profile.email || 'Personal Account'}
               </p>
-
-              {/* Hidden file input triggered by camera icon */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-
-              {profile.avatarUrl && (
-                <div className="mt-1">
-                  <button
-                    type="button"
-                    onClick={() => onUpdateProfile({ ...profile, avatarUrl: '' })}
-                    className="text-[10px] text-zinc-400 hover:text-red-600 transition-colors cursor-pointer"
-                    title="Remove profile photo"
-                  >
-                    Remove photo
-                  </button>
-                </div>
-              )}
             </div>
           </div>
-
-          {/* Upload error notice if any */}
-          {uploadError && (
-            <div className="p-2 rounded-[4px] bg-red-50 border border-red-200 text-red-700 text-[10px] flex items-center gap-1.5">
-              <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />
-              <span>{uploadError}</span>
-            </div>
-          )}
 
           {/* Divider */}
           <div className="border-t border-zinc-100" />
@@ -303,6 +239,22 @@ export function ProfileDropdown({
 
           {/* Divider */}
           <div className="border-t border-zinc-100 pt-1" />
+
+          {/* Settings Navigation Action */}
+          {onOpenSettings && (
+            <button
+              type="button"
+              id="btn-profile-settings"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenSettings();
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-[5px] text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors group cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-800 transition-transform group-hover:rotate-45" />
+              <span>Settings</span>
+            </button>
+          )}
 
           {/* Log Out Action */}
           {onLogout && (

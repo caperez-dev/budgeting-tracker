@@ -146,7 +146,117 @@ app.post("/api/auth/login", async (req, res) => {
   // If database is not connected, require online database
   res.status(503).json({
     success: false,
-    error: "Database is currently unreachable. Please ensure your database connection is active in Settings.",
+    error: "Account service is currently unreachable. Please check your connection in Settings.",
+  });
+});
+
+// Update user profile credentials (username, email, password, profile picture)
+app.post("/api/user/update-profile", async (req, res) => {
+  const userId = req.body.userId || (req.headers["x-user-id"] as string);
+  const { email, nickname, password, avatarUrl } = req.body;
+
+  if (!userId) {
+    res.status(400).json({ success: false, error: "Active account session required" });
+    return;
+  }
+
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
+  const cleanNickname = nickname ? nickname.trim() : "";
+
+  if (email !== undefined && !cleanEmail) {
+    res.status(400).json({ success: false, error: "Email address cannot be empty." });
+    return;
+  }
+
+  if (password && password.trim().length > 0 && password.trim().length < 6) {
+    res.status(400).json({ success: false, error: "Password must be at least 6 characters long." });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      // Check if another account already uses this email
+      if (cleanEmail) {
+        const existingWithEmail = await (UserModel as any).findOne({
+          email: cleanEmail,
+          id: { $ne: userId },
+        });
+        if (existingWithEmail) {
+          res.status(400).json({
+            success: false,
+            error: "An account with this email address already exists.",
+          });
+          return;
+        }
+      }
+
+      // Update UserModel
+      let user = await (UserModel as any).findOne({ id: userId });
+      if (!user && cleanEmail) {
+        user = await (UserModel as any).findOne({ email: cleanEmail });
+      }
+
+      if (user) {
+        if (cleanEmail) user.email = cleanEmail;
+        if (cleanNickname) user.nickname = cleanNickname;
+        if (password && password.trim().length >= 6) {
+          user.password = password.trim();
+        }
+        if (avatarUrl !== undefined) {
+          user.avatarUrl = avatarUrl;
+        }
+        await user.save();
+      }
+
+      // Update UserProfileModel
+      const profileFilter = {
+        $or: [
+          { userId },
+          { singletonId: `profile_${userId}` },
+          { singletonId: "default_profile" },
+        ],
+      };
+
+      const profileUpdate: any = { userId };
+      if (cleanNickname) profileUpdate.nickname = cleanNickname;
+      if (cleanEmail) profileUpdate.email = cleanEmail;
+      if (avatarUrl !== undefined) profileUpdate.avatarUrl = avatarUrl;
+
+      await (UserProfileModel as any).findOneAndUpdate(
+        profileFilter,
+        { $set: profileUpdate },
+        { upsert: true, new: true }
+      );
+
+      res.json({
+        success: true,
+        user: {
+          id: user ? user.id : userId,
+          email: cleanEmail || user?.email || "",
+          nickname: cleanNickname || user?.nickname || "User",
+          avatarUrl: avatarUrl !== undefined ? avatarUrl : (user?.avatarUrl || ""),
+        },
+      });
+      return;
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: err.message || "Unable to save your profile changes. Please try again.",
+      });
+      return;
+    }
+  }
+
+  // Offline fallback
+  res.json({
+    success: true,
+    user: {
+      id: userId,
+      email: cleanEmail,
+      nickname: cleanNickname || "User",
+      avatarUrl: avatarUrl || "",
+    },
   });
 });
 
@@ -363,26 +473,56 @@ app.get("/api/db/status", async (_req, res) => {
 });
 
 // Full Sync - Retrieve data from MongoDB
-app.get("/api/db/sync", async (_req, res) => {
+app.get("/api/db/sync", async (req, res) => {
   const connected = await connectDB();
   if (!connected) {
-    res.status(503).json({ error: "Database not connected", status: getDBStatus() });
+    res.status(503).json({ error: "Storage not connected", status: getDBStatus() });
     return;
   }
 
+  const userId =
+    (req.query.userId as string) ||
+    (req.headers["x-user-id"] as string) ||
+    "";
+
   try {
+    // Unique user scoping for transactions:
+    // If a userId is supplied, fetch only this user's transactions.
+    // If no userId is supplied, return empty transactions (never leak other users' transactions).
+    const txQuery: any = userId ? { userId } : { userId: "__none__" };
+    const debtQuery: any = userId
+      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
+      : { userId: "__none__" };
+    const goalQuery: any = userId
+      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
+      : { userId: "__none__" };
+
     const [transactions, categories, currencies, debts, goals, settingsDoc, profileDoc] =
       await Promise.all([
-        (TransactionModel as any).find({}).sort({ date: -1 }).lean().exec(),
+        (TransactionModel as any).find(txQuery).sort({ date: -1 }).lean().exec(),
         (CategoryModel as any).find({}).lean().exec(),
         (CurrencyModel as any).find({}).lean().exec(),
-        (DebtModel as any).find({}).sort({ date: -1 }).lean().exec(),
-        (GoalModel as any).find({}).lean().exec(),
-        (UserSettingsModel as any).findOne({ singletonId: "default_settings" }).lean().exec(),
-        (UserProfileModel as any).findOne({ singletonId: "default_profile" }).lean().exec(),
+        (DebtModel as any).find(debtQuery).sort({ date: -1 }).lean().exec(),
+        (GoalModel as any).find(goalQuery).lean().exec(),
+        (UserSettingsModel as any)
+          .findOne(
+            userId
+              ? { $or: [{ userId }, { singletonId: `settings_${userId}` }, { singletonId: "default_settings" }] }
+              : { singletonId: "default_settings" }
+          )
+          .lean()
+          .exec(),
+        (UserProfileModel as any)
+          .findOne(
+            userId
+              ? { $or: [{ userId }, { singletonId: `profile_${userId}` }, { singletonId: "default_profile" }] }
+              : { singletonId: "default_profile" }
+          )
+          .lean()
+          .exec(),
       ]);
 
-    const isEmpty = (!transactions || transactions.length === 0) && (!categories || categories.length === 0);
+    const isEmpty = (!transactions || transactions.length === 0);
 
     res.json({
       success: true,
@@ -398,7 +538,7 @@ app.get("/api/db/sync", async (_req, res) => {
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to fetch data from MongoDB" });
+    res.status(500).json({ error: err.message || "Failed to fetch data" });
   }
 });
 
@@ -406,16 +546,42 @@ app.get("/api/db/sync", async (_req, res) => {
 app.post("/api/db/sync", async (req, res) => {
   const connected = await connectDB();
   if (!connected) {
-    res.status(503).json({ error: "Database not connected", status: getDBStatus() });
+    res.status(503).json({ error: "Storage not connected", status: getDBStatus() });
     return;
   }
 
+  const userId =
+    req.body.userId ||
+    (req.headers["x-user-id"] as string) ||
+    (req.query.userId as string) ||
+    "";
   const { transactions, categories, currencies, debts, goals, settings, profile } = req.body;
 
   try {
     const promises: Promise<any>[] = [];
 
-    if (Array.isArray(transactions) && transactions.length > 0) {
+    // Transactions: enforce user-scoping so transactions are strictly unique to each user
+    if (userId && Array.isArray(transactions)) {
+      const userTxList = transactions.map((t: any) => ({ ...t, userId }));
+      const activeIds = userTxList.map((t: any) => t.id);
+
+      // Remove any transactions for this user that are no longer present
+      await (TransactionModel as any).deleteMany({ userId, id: { $nin: activeIds } });
+
+      if (userTxList.length > 0) {
+        promises.push(
+          (TransactionModel as any).bulkWrite(
+            userTxList.map((t: any) => ({
+              updateOne: {
+                filter: { id: t.id, userId },
+                update: { $set: t },
+                upsert: true,
+              },
+            }))
+          )
+        );
+      }
+    } else if (!userId && Array.isArray(transactions) && transactions.length > 0) {
       promises.push(
         (TransactionModel as any).bulkWrite(
           transactions.map((t: any) => ({
@@ -457,66 +623,115 @@ app.post("/api/db/sync", async (req, res) => {
       );
     }
 
-    if (Array.isArray(debts) && debts.length > 0) {
-      promises.push(
-        (DebtModel as any).bulkWrite(
-          debts.map((d: any) => ({
-            updateOne: {
-              filter: { id: d.id },
-              update: { $set: d },
-              upsert: true,
-            },
-          }))
-        )
-      );
+    if (Array.isArray(debts)) {
+      const userDebts = debts.map((d: any) => ({ ...d, userId: d.userId || userId || "" }));
+      if (userId) {
+        const activeDebtIds = userDebts.map((d: any) => d.id);
+        await (DebtModel as any).deleteMany({ userId, id: { $nin: activeDebtIds } });
+      }
+      if (userDebts.length > 0) {
+        promises.push(
+          (DebtModel as any).bulkWrite(
+            userDebts.map((d: any) => ({
+              updateOne: {
+                filter: { id: d.id },
+                update: { $set: d },
+                upsert: true,
+              },
+            }))
+          )
+        );
+      }
     }
 
-    if (Array.isArray(goals) && goals.length > 0) {
-      promises.push(
-        (GoalModel as any).bulkWrite(
-          goals.map((g: any) => ({
-            updateOne: {
-              filter: { id: g.id },
-              update: { $set: g },
-              upsert: true,
-            },
-          }))
-        )
-      );
+    if (Array.isArray(goals)) {
+      const userGoals = goals.map((g: any) => ({ ...g, userId: g.userId || userId || "" }));
+      if (userId) {
+        const activeGoalIds = userGoals.map((g: any) => g.id);
+        await (GoalModel as any).deleteMany({ userId, id: { $nin: activeGoalIds } });
+      }
+      if (userGoals.length > 0) {
+        promises.push(
+          (GoalModel as any).bulkWrite(
+            userGoals.map((g: any) => ({
+              updateOne: {
+                filter: { id: g.id },
+                update: { $set: g },
+                upsert: true,
+              },
+            }))
+          )
+        );
+      }
     }
 
     if (settings) {
+      const filter = userId
+        ? { $or: [{ userId }, { singletonId: `settings_${userId}` }] }
+        : { singletonId: "default_settings" };
       promises.push(
         (UserSettingsModel as any).findOneAndUpdate(
-          { singletonId: "default_settings" },
-          { $set: { ...settings, singletonId: "default_settings" } },
+          filter,
+          {
+            $set: {
+              ...settings,
+              userId: userId || "",
+              singletonId: userId ? `settings_${userId}` : "default_settings",
+            },
+          },
           { upsert: true, new: true }
         )
       );
     }
 
     if (profile) {
+      const filter = userId
+        ? { $or: [{ userId }, { singletonId: `profile_${userId}` }] }
+        : { singletonId: "default_profile" };
       promises.push(
         (UserProfileModel as any).findOneAndUpdate(
-          { singletonId: "default_profile" },
-          { $set: { ...profile, singletonId: "default_profile" } },
+          filter,
+          {
+            $set: {
+              ...profile,
+              userId: userId || "",
+              singletonId: userId ? `profile_${userId}` : "default_profile",
+            },
+          },
           { upsert: true, new: true }
         )
       );
     }
 
     await Promise.all(promises);
-    res.json({ success: true, message: "Database synchronized successfully" });
+    res.json({ success: true, message: "Records synchronized successfully" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to sync data to MongoDB" });
+    res.status(500).json({ error: err.message || "Failed to sync data" });
   }
 });
 
 // Single Transaction Deletion
 app.delete("/api/db/transactions/:id", async (req, res) => {
+  const userId = (req.query.userId as string) || (req.headers["x-user-id"] as string) || "";
   const connected = await connectDB();
   if (connected) {
-    await TransactionModel.deleteOne({ id: req.params.id }).catch(() => {});
+    const filter: any = { id: req.params.id };
+    if (userId) filter.userId = userId;
+    await TransactionModel.deleteOne(filter).catch(() => {});
+  }
+  res.json({ success: true });
+});
+
+// Bulk Delete / Reset transactions for a user
+app.delete("/api/db/transactions", async (req, res) => {
+  const userId = (req.query.userId as string) || (req.headers["x-user-id"] as string) || "";
+  const connected = await connectDB();
+  if (connected) {
+    if (userId) {
+      await TransactionModel.deleteMany({ userId }).catch(() => {});
+    } else {
+      await TransactionModel.deleteMany({}).catch(() => {});
+    }
   }
   res.json({ success: true });
 });
