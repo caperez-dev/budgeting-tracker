@@ -14,7 +14,7 @@ import {
   UserSettingsModel,
   UserProfileModel,
   UserModel,
-} from "./server/db";
+} from "./server/db.ts";
 
 dotenv.config();
 
