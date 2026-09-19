@@ -43,7 +43,14 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+      const currentOrigin = window.location.origin;
+      const isAllowed =
+        origin === currentOrigin ||
+        origin.endsWith('.run.app') ||
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost');
+
+      if (!isAllowed) {
         return;
       }
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data.user) {
@@ -70,12 +77,21 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     try {
       const origin = window.location.origin;
       const res = await fetch(`/api/auth/google/url?origin=${encodeURIComponent(origin)}`);
-      const data = await res.json();
-
-      if (!res.ok || !data.configured || !data.url) {
+      
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
         throw new Error(
-          data.error ||
-            'Google Sign-In is not set up yet. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Settings, or sign in below with your email.'
+          'Google Sign-In is temporarily unavailable on this deployment. Please sign in with your email below.'
+        );
+      }
+
+      if (!res.ok || !data || !data.configured || !data.url) {
+        throw new Error(
+          data?.error ||
+            'Google Sign-In is not set up on this deployment yet. Please sign in below using your email and password.'
         );
       }
 
@@ -102,6 +118,20 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       setErrorMessage(err.message || 'Unable to open Google sign-in. Please try again.');
       setIsGoogleLoading(false);
     }
+  };
+
+  const handleContinueAsGuest = () => {
+    const guestUser: AuthUser = {
+      id: 'local_guest',
+      email: 'guest@budgettracker.local',
+      nickname: 'Guest',
+      avatarUrl: AVATAR_PRESETS[0],
+    };
+    onLoginSuccess(guestUser, {
+      nickname: 'Guest',
+      avatarUrl: AVATAR_PRESETS[0],
+      email: 'guest@budgettracker.local',
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -146,10 +176,16 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         body: JSON.stringify(bodyPayload),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Unable to connect right now. You can continue as a guest below or try again shortly.');
+      }
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Something went wrong. Please check your details and try again.');
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Something went wrong. Please check your details and try again.');
       }
 
       setSuccessMessage(mode === 'login' ? 'Signed in successfully!' : 'Account created successfully!');
@@ -416,6 +452,17 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               )}
             </button>
           </form>
+
+          {/* Guest / Offline Mode Option */}
+          <div className="pt-2 border-t border-zinc-100 text-center">
+            <button
+              type="button"
+              onClick={handleContinueAsGuest}
+              className="text-xs text-zinc-500 hover:text-zinc-800 font-medium transition-colors cursor-pointer py-1"
+            >
+              Continue as Guest (Use locally on this device)
+            </button>
+          </div>
         </div>
 
         {/* Friendly bottom note */}

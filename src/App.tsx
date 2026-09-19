@@ -224,9 +224,14 @@ export default function App() {
     try {
       const res = await fetch('/api/db/status');
       if (res.ok) {
-        const data: DBStatus = await res.json();
-        setDbStatus(data);
-        return data;
+        const text = await res.text();
+        try {
+          const data: DBStatus = JSON.parse(text);
+          setDbStatus(data);
+          return data;
+        } catch {
+          return null;
+        }
       }
     } catch {
       // Offline / server not ready
@@ -888,8 +893,13 @@ export default function App() {
         }),
       });
 
-      const json = await res.json();
-      if (res.ok && json.success) {
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(text);
+      } catch {}
+
+      if (res.ok && json?.success) {
         const updatedUser: AuthUser = {
           id: currentUser?.id || json.user?.id || 'user-local',
           email: json.user?.email || data.email,
@@ -910,7 +920,7 @@ export default function App() {
 
         return { success: true };
       } else {
-        return { success: false, error: json.error || 'Failed to update settings.' };
+        return { success: false, error: json?.error || 'Unable to update profile settings.' };
       }
     } catch (err: any) {
       return { success: false, error: err.message || 'An error occurred while updating your settings.' };
