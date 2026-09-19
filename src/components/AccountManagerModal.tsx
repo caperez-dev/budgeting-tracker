@@ -14,21 +14,6 @@ interface AccountManagerModalProps {
   onClose: () => void;
 }
 
-const PRESET_COLORS = [
-  '#007DFE', // GCash Blue
-  '#059669', // Emerald
-  '#0284C7', // Sky
-  '#2563EB', // Blue
-  '#4F46E5', // Indigo
-  '#7C3AED', // Violet
-  '#9333EA', // Purple
-  '#DB2777', // Pink
-  '#E11D48', // Rose
-  '#EA580C', // Orange
-  '#D97706', // Amber
-  '#52525B', // Zinc
-];
-
 const ACCOUNT_ICONS = [
   'Smartphone',
   'Wallet',
@@ -50,11 +35,11 @@ const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
 ];
 
 const QUICK_SUGGESTIONS = [
-  { name: 'Cash', type: 'cash' as AccountType, icon: 'Banknote', color: '#059669' },
-  { name: 'Credit Card', type: 'credit_card' as AccountType, icon: 'CreditCard', color: '#E11D48' },
-  { name: 'Bank Account', type: 'bank' as AccountType, icon: 'Landmark', color: '#2563EB' },
-  { name: 'Maya', type: 'ewallet' as AccountType, icon: 'Smartphone', color: '#059669' },
-  { name: 'Savings', type: 'bank' as AccountType, icon: 'PiggyBank', color: '#4F46E5' },
+  { name: 'Cash', type: 'cash' as AccountType, icon: 'Banknote' },
+  { name: 'Credit Card', type: 'credit_card' as AccountType, icon: 'CreditCard' },
+  { name: 'Bank Account', type: 'bank' as AccountType, icon: 'Landmark' },
+  { name: 'Maya', type: 'ewallet' as AccountType, icon: 'Smartphone' },
+  { name: 'Savings', type: 'bank' as AccountType, icon: 'PiggyBank' },
 ];
 
 export function AccountManagerModal({
@@ -72,7 +57,6 @@ export function AccountManagerModal({
   // New Account State
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('ewallet');
-  const [color, setColor] = useState(PRESET_COLORS[0]);
   const [icon, setIcon] = useState('Smartphone');
   const [initialBalance, setInitialBalance] = useState<string>('0');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -129,7 +113,7 @@ export function AccountManagerModal({
     onAddAccount({
       name: name.trim(),
       type,
-      color,
+      color: '#52525B',
       icon,
       initialBalance: initBal,
       isDefault: accounts.length === 0,
@@ -137,7 +121,6 @@ export function AccountManagerModal({
 
     setName('');
     setType('ewallet');
-    setColor(PRESET_COLORS[0]);
     setIcon('Smartphone');
     setInitialBalance('0');
     setErrorMessage(null);
@@ -155,7 +138,6 @@ export function AccountManagerModal({
     setName(sug.name);
     setType(sug.type);
     setIcon(sug.icon);
-    setColor(sug.color);
     setErrorMessage(null);
   };
 
@@ -337,27 +319,6 @@ export function AccountManagerModal({
                 </div>
               </div>
 
-              {/* Color Selection */}
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-700 mb-1.5">
-                  Accent Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setColor(c)}
-                      className={`w-6 h-6 rounded-full transition-transform cursor-pointer ${
-                        color === c ? 'ring-2 ring-zinc-900 ring-offset-2 scale-110' : 'hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: c }}
-                      aria-label={`Select color ${c}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
               {errorMessage && (
                 <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px] flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -486,31 +447,6 @@ export function AccountManagerModal({
                 </div>
               </div>
 
-              {/* Color selection */}
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-700 mb-1.5">
-                  Accent Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() =>
-                        setEditingAccount({ ...editingAccount, color: c })
-                      }
-                      className={`w-6 h-6 rounded-full transition-transform cursor-pointer ${
-                        editingAccount.color === c
-                          ? 'ring-2 ring-zinc-900 ring-offset-2 scale-110'
-                          : 'hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: c }}
-                      aria-label={`Select color ${c}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
               <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200">
                 <button
                   type="button"
@@ -548,11 +484,8 @@ export function AccountManagerModal({
                 >
                   {/* Left: Icon & Info */}
                   <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="w-9 h-9 rounded-[5px] flex items-center justify-center text-white shrink-0 shadow-2xs"
-                      style={{ backgroundColor: acc.color }}
-                    >
-                      <AccountIcon name={acc.icon} className="w-4 h-4 text-white" />
+                    <div className="w-9 h-9 rounded-[5px] flex items-center justify-center bg-zinc-100 text-zinc-700 shrink-0 border border-zinc-200/60">
+                      <AccountIcon name={acc.icon} className="w-4 h-4 text-zinc-700" />
                     </div>
 
                     <div className="min-w-0">

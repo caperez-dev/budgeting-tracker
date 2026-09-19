@@ -95,9 +95,25 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         );
       }
 
-      // Use the API-generated Google auth URL directly instead of opening a separate custom popup modal.
-      window.location.assign(data.url);
-      return;
+      const authWindow = window.open(
+        data.url,
+        'google_oauth_popup',
+        'width=520,height=640,left=200,top=100'
+      );
+
+      if (!authWindow) {
+        throw new Error(
+          'Your browser blocked the pop-up window. Please allow pop-ups for this site to sign in with Google.'
+        );
+      }
+
+      // Check if popup closed by user
+      const timer = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(timer);
+          setIsGoogleLoading(false);
+        }
+      }, 1000);
     } catch (err: any) {
       setErrorMessage(err.message || 'Unable to open Google sign-in. Please try again.');
       setIsGoogleLoading(false);

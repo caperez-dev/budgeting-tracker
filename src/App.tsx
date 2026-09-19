@@ -72,6 +72,13 @@ export const DEFAULT_ACCOUNTS: Account[] = [
 const STORAGE_KEYS = {
   TRANSACTIONS_V1: 'budget_tracker_transactions_v1', // old shared key to purge
   TRANSACTIONS_PREFIX: 'budget_tracker_transactions_v2',
+  CATEGORIES_PREFIX: 'budget_tracker_categories_v2',
+  CURRENCIES_PREFIX: 'budget_tracker_currencies_v2',
+  ACCOUNTS_PREFIX: 'budget_tracker_accounts_v2',
+  DEBTS_PREFIX: 'budget_tracker_debts_v2',
+  GOALS_PREFIX: 'budget_tracker_goals_v2',
+  SETTINGS_PREFIX: 'budget_tracker_settings_v2',
+  USER_PROFILE_PREFIX: 'budget_tracker_user_profile_v2',
   CATEGORIES: 'budget_tracker_categories_v1',
   CURRENCIES: 'budget_tracker_currencies_v1',
   ACCOUNTS: 'budget_tracker_accounts_v1',
@@ -120,7 +127,21 @@ export default function App() {
 
   const [categories, setCategories] = useState<Category[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+      let saved = null;
+      if (user?.id) {
+        saved = localStorage.getItem(getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, user.id));
+      }
+      if (!saved) {
+        saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+      }
       return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
     } catch {
       return DEFAULT_CATEGORIES;
@@ -129,7 +150,21 @@ export default function App() {
 
   const [currencies, setCurrencies] = useState<Currency[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CURRENCIES);
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+      let saved = null;
+      if (user?.id) {
+        saved = localStorage.getItem(getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, user.id));
+      }
+      if (!saved) {
+        saved = localStorage.getItem(STORAGE_KEYS.CURRENCIES);
+      }
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -148,7 +183,21 @@ export default function App() {
 
   const [accounts, setAccounts] = useState<Account[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+      let saved = null;
+      if (user?.id) {
+        saved = localStorage.getItem(getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, user.id));
+      }
+      if (!saved) {
+        saved = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+      }
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -163,7 +212,21 @@ export default function App() {
 
   const [debts, setDebts] = useState<Debt[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.DEBTS);
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+      let saved = null;
+      if (user?.id) {
+        saved = localStorage.getItem(getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, user.id));
+      }
+      if (!saved) {
+        saved = localStorage.getItem(STORAGE_KEYS.DEBTS);
+      }
       return saved ? JSON.parse(saved) : SEED_DEBTS;
     } catch {
       return SEED_DEBTS;
@@ -172,7 +235,21 @@ export default function App() {
 
   const [goals, setGoals] = useState<Goal[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.GOALS);
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+      let saved = null;
+      if (user?.id) {
+        saved = localStorage.getItem(getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, user.id));
+      }
+      if (!saved) {
+        saved = localStorage.getItem(STORAGE_KEYS.GOALS);
+      }
       return saved ? JSON.parse(saved) : SEED_GOALS;
     } catch {
       return SEED_GOALS;
@@ -181,8 +258,44 @@ export default function App() {
 
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+
+      if (user?.id) {
+        const userKey = getUserStorageKey(STORAGE_KEYS.SETTINGS_PREFIX, user.id);
+        const savedSettings = localStorage.getItem(userKey);
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          return {
+            ...DEFAULT_SETTINGS,
+            ...parsed,
+            defaultCurrency: parsed.defaultCurrency || user.defaultCurrency || 'PHP',
+          };
+        }
+        if (user.defaultCurrency) {
+          return {
+            ...DEFAULT_SETTINGS,
+            defaultCurrency: user.defaultCurrency,
+          };
+        }
+      }
+
       const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          defaultCurrency: parsed.defaultCurrency || 'PHP',
+        };
+      }
+      return DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -224,19 +337,128 @@ export default function App() {
     try {
       const res = await fetch('/api/db/status');
       if (res.ok) {
-        const text = await res.text();
-        try {
-          const data: DBStatus = JSON.parse(text);
-          setDbStatus(data);
-          return data;
-        } catch {
-          return null;
-        }
+        const data: DBStatus = await res.json();
+        setDbStatus(data);
+        return data;
       }
     } catch {
       // Offline / server not ready
     }
     return null;
+  };
+
+  const loadUserDataForUser = (user: AuthUser) => {
+    // 1. Settings & default currency
+    let userSettings: UserSettings = DEFAULT_SETTINGS;
+    let foundDefaultCurrency = user.defaultCurrency;
+
+    try {
+      const savedUserKey = getUserStorageKey(STORAGE_KEYS.SETTINGS_PREFIX, user.id);
+      const rawSettings = localStorage.getItem(savedUserKey);
+      if (rawSettings) {
+        const parsed = JSON.parse(rawSettings);
+        userSettings = { ...DEFAULT_SETTINGS, ...parsed };
+        if (parsed.defaultCurrency) {
+          foundDefaultCurrency = parsed.defaultCurrency;
+        }
+      } else {
+        const rawAccounts = localStorage.getItem('budget_tracker_saved_accounts_v1');
+        if (rawAccounts) {
+          const accs = JSON.parse(rawAccounts);
+          const matched = accs.find(
+            (a: any) => a.id === user.id || a.email?.toLowerCase() === user.email?.toLowerCase()
+          );
+          if (matched?.defaultCurrency) {
+            foundDefaultCurrency = matched.defaultCurrency;
+          }
+        }
+      }
+    } catch {}
+
+    const resolvedCurrency = foundDefaultCurrency || userSettings.defaultCurrency || 'PHP';
+    userSettings.defaultCurrency = resolvedCurrency;
+    setSettings(userSettings);
+
+    // 2. Currencies
+    try {
+      const currKey = getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, user.id);
+      const rawCurrs = localStorage.getItem(currKey);
+      if (rawCurrs) {
+        const parsed = JSON.parse(rawCurrs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const mapped = parsed.map((c: Currency) => ({
+            ...c,
+            flag: c.flag || getCurrencyFlag(c.code),
+            exchangeRate: c.exchangeRate || DEFAULT_EXCHANGE_RATES[c.code] || 1.0,
+          }));
+          if (!mapped.some((c: Currency) => c.code === resolvedCurrency)) {
+            const worldCurr = getWorldCurrency(resolvedCurrency);
+            if (worldCurr) {
+              mapped.push({
+                code: worldCurr.code,
+                symbol: worldCurr.symbol,
+                name: worldCurr.name,
+                flag: worldCurr.flag,
+                exchangeRate: worldCurr.exchangeRate || 1.0,
+              });
+            }
+          }
+          setCurrencies(mapped);
+        }
+      } else {
+        let baseCurrs = [...DEFAULT_CURRENCIES];
+        if (!baseCurrs.some((c) => c.code === resolvedCurrency)) {
+          const worldCurr = getWorldCurrency(resolvedCurrency);
+          if (worldCurr) {
+            baseCurrs.push({
+              code: worldCurr.code,
+              symbol: worldCurr.symbol,
+              name: worldCurr.name,
+              flag: worldCurr.flag,
+              exchangeRate: worldCurr.exchangeRate || 1.0,
+            });
+          }
+        }
+        setCurrencies(baseCurrs);
+      }
+    } catch {}
+
+    // 3. Transactions
+    try {
+      const txKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
+      const savedTx = localStorage.getItem(txKey);
+      setTransactions(savedTx ? JSON.parse(savedTx) : []);
+    } catch {
+      setTransactions([]);
+    }
+
+    // 4. Debts
+    try {
+      const debtKey = getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, user.id);
+      const savedDebts = localStorage.getItem(debtKey);
+      if (savedDebts) setDebts(JSON.parse(savedDebts));
+    } catch {}
+
+    // 5. Goals
+    try {
+      const goalKey = getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, user.id);
+      const savedGoals = localStorage.getItem(goalKey);
+      if (savedGoals) setGoals(JSON.parse(savedGoals));
+    } catch {}
+
+    // 6. Accounts
+    try {
+      const accKey = getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, user.id);
+      const savedAccs = localStorage.getItem(accKey);
+      if (savedAccs) setAccounts(JSON.parse(savedAccs));
+    } catch {}
+
+    // 7. Categories
+    try {
+      const catKey = getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, user.id);
+      const savedCats = localStorage.getItem(catKey);
+      if (savedCats) setCategories(JSON.parse(savedCats));
+    } catch {}
   };
 
   const handleSyncWithDB = async (targetUserId?: string) => {
@@ -269,18 +491,67 @@ export default function App() {
           }
           if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
             setCategories(json.data.categories);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, uid),
+                JSON.stringify(json.data.categories)
+              );
+            } catch {}
           }
           if (Array.isArray(json.data.debts)) {
             setDebts(json.data.debts);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, uid),
+                JSON.stringify(json.data.debts)
+              );
+            } catch {}
           }
           if (Array.isArray(json.data.goals)) {
             setGoals(json.data.goals);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, uid),
+                JSON.stringify(json.data.goals)
+              );
+            } catch {}
           }
           if (json.data.settings) {
-            setSettings(json.data.settings);
+            const serverCurrency =
+              json.data.settings.defaultCurrency ||
+              json.data.settings.primaryCurrency;
+            setSettings((prev) => {
+              const updated = {
+                ...prev,
+                ...json.data.settings,
+                defaultCurrency: serverCurrency || prev.defaultCurrency || 'PHP',
+              };
+              try {
+                localStorage.setItem(
+                  getUserStorageKey(STORAGE_KEYS.SETTINGS_PREFIX, uid),
+                  JSON.stringify(updated)
+                );
+              } catch {}
+              return updated;
+            });
+          }
+          if (Array.isArray(json.data.currencies) && json.data.currencies.length > 0) {
+            setCurrencies(json.data.currencies);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, uid),
+                JSON.stringify(json.data.currencies)
+              );
+            } catch {}
           }
           if (json.data.profile) {
             setUserProfile(json.data.profile);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, uid),
+                JSON.stringify(json.data.profile)
+              );
+            } catch {}
           }
           const nowStr = new Date().toLocaleTimeString('en-US', {
             hour: 'numeric',
@@ -299,13 +570,7 @@ export default function App() {
   // Switch user local records & sync when user logs in / switches
   useEffect(() => {
     if (currentUser?.id) {
-      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id);
-      try {
-        const saved = localStorage.getItem(userKey);
-        setTransactions(saved ? JSON.parse(saved) : []);
-      } catch {
-        setTransactions([]);
-      }
+      loadUserDataForUser(currentUser);
       handleSyncWithDB(currentUser.id);
     } else {
       setTransactions([]);
@@ -376,32 +641,88 @@ export default function App() {
   }, [transactions, currentUser?.id]);
 
   useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, currentUser.id),
+          JSON.stringify(categories)
+        );
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
-  }, [categories]);
+  }, [categories, currentUser?.id]);
 
   useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, currentUser.id),
+          JSON.stringify(currencies)
+        );
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.CURRENCIES, JSON.stringify(currencies));
-  }, [currencies]);
+  }, [currencies, currentUser?.id]);
 
   useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, currentUser.id),
+          JSON.stringify(accounts)
+        );
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
-  }, [accounts]);
+  }, [accounts, currentUser?.id]);
 
   useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, currentUser.id),
+          JSON.stringify(debts)
+        );
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.DEBTS, JSON.stringify(debts));
-  }, [debts]);
+  }, [debts, currentUser?.id]);
 
   useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, currentUser.id),
+          JSON.stringify(goals)
+        );
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
-  }, [goals]);
+  }, [goals, currentUser?.id]);
 
   useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.SETTINGS_PREFIX, currentUser.id),
+          JSON.stringify(settings)
+        );
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-  }, [settings]);
+  }, [settings, currentUser?.id]);
 
   useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, currentUser.id),
+          JSON.stringify(userProfile)
+        );
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
-  }, [userProfile]);
+  }, [userProfile, currentUser?.id]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -781,8 +1102,7 @@ export default function App() {
   }, []);
 
   const handleSelectDefaultCurrency = (newCode: string) => {
-    const oldCode = settings.defaultCurrency;
-    if (newCode === oldCode) return;
+    const oldCode = settings.defaultCurrency || 'PHP';
 
     // Build custom rates map
     const ratesMap: Record<string, number> = {};
@@ -790,9 +1110,13 @@ export default function App() {
       if (c.exchangeRate) ratesMap[c.code] = c.exchangeRate;
     });
 
-    // 1. Convert all transactions
-    setTransactions((prev) =>
-      prev.map((t) => {
+    let updatedTransactions = transactions;
+    let updatedDebts = debts;
+    let updatedGoals = goals;
+
+    if (newCode !== oldCode) {
+      // 1. Convert all transactions
+      updatedTransactions = transactions.map((t) => {
         const fromCurr = t.currency || oldCode;
         const converted = convertCurrency(t.amount, fromCurr, newCode, ratesMap);
         return {
@@ -800,27 +1124,26 @@ export default function App() {
           amount: roundToCurrency(converted),
           currency: newCode,
         };
-      })
-    );
+      });
+      setTransactions(updatedTransactions);
 
-    // Convert pending undo transaction if any
-    if (pendingUndoTx) {
-      setPendingUndoTx((prev) =>
-        prev
-          ? {
-              ...prev,
-              amount: roundToCurrency(
-                convertCurrency(prev.amount, prev.currency || oldCode, newCode, ratesMap)
-              ),
-              currency: newCode,
-            }
-          : null
-      );
-    }
+      // Convert pending undo transaction if any
+      if (pendingUndoTx) {
+        setPendingUndoTx((prev) =>
+          prev
+            ? {
+                ...prev,
+                amount: roundToCurrency(
+                  convertCurrency(prev.amount, prev.currency || oldCode, newCode, ratesMap)
+                ),
+                currency: newCode,
+              }
+            : null
+        );
+      }
 
-    // 2. Convert all debts
-    setDebts((prev) =>
-      prev.map((d) => {
+      // 2. Convert all debts
+      updatedDebts = debts.map((d) => {
         const fromCurr = d.currency || oldCode;
         const converted = convertCurrency(d.amount, fromCurr, newCode, ratesMap);
         return {
@@ -828,12 +1151,11 @@ export default function App() {
           amount: roundToCurrency(converted),
           currency: newCode,
         };
-      })
-    );
+      });
+      setDebts(updatedDebts);
 
-    // 3. Convert all goals
-    setGoals((prev) =>
-      prev.map((g) => {
+      // 3. Convert all goals
+      updatedGoals = goals.map((g) => {
         const fromCurr = g.currency || oldCode;
         const convertedTarget = convertCurrency(g.targetPrice, fromCurr, newCode, ratesMap);
         const convertedEarmarked = convertCurrency(g.earmarkedAmount, fromCurr, newCode, ratesMap);
@@ -843,11 +1165,91 @@ export default function App() {
           earmarkedAmount: roundToCurrency(convertedEarmarked),
           currency: newCode,
         };
-      })
-    );
+      });
+      setGoals(updatedGoals);
+    }
 
     // 4. Update default currency in settings
-    setSettings((prev) => ({ ...prev, defaultCurrency: newCode }));
+    const updatedSettings: UserSettings = {
+      ...settings,
+      defaultCurrency: newCode,
+      primaryCurrency: newCode,
+    };
+    setSettings(updatedSettings);
+
+    // 5. Explicitly associate and persist to active user account
+    if (currentUser) {
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        defaultCurrency: newCode,
+      };
+      setCurrentUser(updatedUser);
+      try {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+      } catch {}
+
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.SETTINGS_PREFIX, currentUser.id),
+          JSON.stringify(updatedSettings)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, currentUser.id),
+          JSON.stringify(currencies)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id),
+          JSON.stringify(updatedTransactions)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, currentUser.id),
+          JSON.stringify(updatedDebts)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, currentUser.id),
+          JSON.stringify(updatedGoals)
+        );
+      } catch {}
+
+      // Update in saved device accounts list
+      try {
+        const rawAccounts = localStorage.getItem('budget_tracker_saved_accounts_v1');
+        if (rawAccounts) {
+          const accs = JSON.parse(rawAccounts);
+          const updated = accs.map((a: any) => {
+            if (a.id === currentUser.id || a.email?.toLowerCase() === currentUser.email?.toLowerCase()) {
+              return { ...a, defaultCurrency: newCode };
+            }
+            return a;
+          });
+          localStorage.setItem('budget_tracker_saved_accounts_v1', JSON.stringify(updated));
+        }
+      } catch {}
+
+      // Sync with server
+      fetch('/api/db/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          settings: updatedSettings,
+          currencies,
+          transactions: updatedTransactions.map((t) => ({ ...t, userId: currentUser.id })),
+          debts: updatedDebts,
+          goals: updatedGoals,
+          accounts,
+          categories,
+          profile: userProfile,
+        }),
+      }).catch(() => {});
+    }
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updatedSettings));
+    } catch {}
   };
 
   const handleDeleteCurrency = (code: string) => {
@@ -864,11 +1266,44 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.SETTINGS_PREFIX, currentUser.id),
+          JSON.stringify(settings)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, currentUser.id),
+          JSON.stringify(currencies)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id),
+          JSON.stringify(transactions)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, currentUser.id),
+          JSON.stringify(debts)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, currentUser.id),
+          JSON.stringify(goals)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, currentUser.id),
+          JSON.stringify(accounts)
+        );
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, currentUser.id),
+          JSON.stringify(categories)
+        );
+      } catch {}
+    }
     try {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     } catch {}
     setCurrentUser(null);
     setTransactions([]);
+    setSettings(DEFAULT_SETTINGS);
   };
 
   const handleUpdateAccountSettings = async (data: {
@@ -878,50 +1313,54 @@ export default function App() {
     avatarUrl?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch('/api/user/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser?.id || '',
-        },
-        body: JSON.stringify({
-          userId: currentUser?.id,
-          nickname: data.nickname,
-          email: data.email,
-          password: data.password,
-          avatarUrl: data.avatarUrl,
-        }),
-      });
-
-      const text = await res.text();
-      let json: any = null;
       try {
-        json = JSON.parse(text);
+        const res = await fetch('/api/user/update-profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser?.id || '',
+          },
+          body: JSON.stringify({
+            userId: currentUser?.id,
+            nickname: data.nickname,
+            email: data.email,
+            password: data.password,
+            avatarUrl: data.avatarUrl,
+          }),
+        });
+
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json();
+          if (!res.ok && !json.success && json.error) {
+            console.warn('Online sync during profile update:', json.error);
+          }
+        }
+      } catch {
+        // Backend offline or running on static hosting
+      }
+
+      // Always update on device
+      const updatedUser: AuthUser = {
+        id: currentUser?.id || 'user-local',
+        email: data.email,
+        nickname: data.nickname,
+        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : currentUser?.avatarUrl,
+        defaultCurrency: currentUser?.defaultCurrency || settings.defaultCurrency || 'PHP',
+      };
+      setCurrentUser(updatedUser);
+      try {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
       } catch {}
 
-      if (res.ok && json?.success) {
-        const updatedUser: AuthUser = {
-          id: currentUser?.id || json.user?.id || 'user-local',
-          email: json.user?.email || data.email,
-          nickname: json.user?.nickname || data.nickname,
-          avatarUrl: json.user?.avatarUrl !== undefined ? json.user.avatarUrl : data.avatarUrl,
-        };
-        setCurrentUser(updatedUser);
-        try {
-          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
-        } catch {}
+      setUserProfile((prev) => ({
+        ...prev,
+        nickname: data.nickname,
+        email: data.email,
+        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : prev.avatarUrl,
+      }));
 
-        setUserProfile((prev) => ({
-          ...prev,
-          nickname: data.nickname,
-          email: data.email,
-          avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : prev.avatarUrl,
-        }));
-
-        return { success: true };
-      } else {
-        return { success: false, error: json?.error || 'Unable to update profile settings.' };
-      }
+      return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'An error occurred while updating your settings.' };
     }
@@ -944,14 +1383,7 @@ export default function App() {
               email: profileUpdate.email || prev.email,
             }));
           }
-          // Load this user's stored transactions immediately
-          try {
-            const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
-            const saved = localStorage.getItem(userKey);
-            setTransactions(saved ? JSON.parse(saved) : []);
-          } catch {
-            setTransactions([]);
-          }
+          loadUserDataForUser(user);
           handleSyncWithDB(user.id);
         }}
       />
