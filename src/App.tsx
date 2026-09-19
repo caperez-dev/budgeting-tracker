@@ -103,30 +103,6 @@ export default function App() {
     }
   });
 
-  useEffect(() => {
-    try {
-      const pendingGoogleAuth = localStorage.getItem('budget_tracker_google_auth');
-      if (!pendingGoogleAuth) return;
-
-      const parsed = JSON.parse(pendingGoogleAuth);
-      if (parsed?.type === 'OAUTH_AUTH_SUCCESS' && parsed?.user) {
-        const user: AuthUser = {
-          id: parsed.user.id,
-          email: parsed.user.email,
-          nickname: parsed.user.nickname,
-          avatarUrl: parsed.user.avatarUrl || '',
-          defaultCurrency: parsed.user.defaultCurrency || 'PHP',
-        };
-
-        setCurrentUser(user);
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-        localStorage.removeItem('budget_tracker_google_auth');
-      }
-    } catch {
-      localStorage.removeItem('budget_tracker_google_auth');
-    }
-  }, []);
-
   // --- Persistent State loaded from LocalStorage (isolated per user) ---
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {

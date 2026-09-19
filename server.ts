@@ -14,7 +14,7 @@ import {
   UserSettingsModel,
   UserProfileModel,
   UserModel,
-} from "./server/db.ts";
+} from "./server/db";
 
 dotenv.config();
 
@@ -445,16 +445,8 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
             <p style="font-size: 13px; color: #71717A; margin: 0;">Connecting your account... This window will close shortly.</p>
           </div>
           <script>
-            const payload = ${authPayload};
-            try {
-              localStorage.setItem('budget_tracker_google_auth', JSON.stringify(payload));
-            } catch (err) {}
-
             if (window.opener) {
-              window.opener.postMessage(payload, '*');
-              try {
-                window.opener.location.href = '/';
-              } catch (err) {}
+              window.opener.postMessage(${authPayload}, '*');
               setTimeout(() => { window.close(); }, 400);
             } else {
               window.location.href = '/';
