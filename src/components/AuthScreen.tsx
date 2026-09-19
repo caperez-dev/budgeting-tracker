@@ -12,12 +12,15 @@ import {
   AlertCircle,
   RefreshCw,
   LogIn,
+  Sparkles,
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, profileUpdate?: Partial<UserProfile>) => void;
 }
+
+const LOCAL_ACCOUNTS_KEY = 'budget_tracker_saved_accounts_v1';
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -70,12 +73,20 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     try {
       const origin = window.location.origin;
       const res = await fetch(`/api/auth/google/url?origin=${encodeURIComponent(origin)}`);
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(
+          'Google Sign-In is only available with an active cloud connection. Please sign in below or continue on this device.'
+        );
+      }
+
       const data = await res.json();
 
       if (!res.ok || !data.configured || !data.url) {
         throw new Error(
           data.error ||
-            'Google Sign-In is not set up yet. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Settings, or sign in below with your email.'
+            'Google Sign-In is not set up yet. Please sign in below with your email or continue on this device.'
         );
       }
 
@@ -99,9 +110,28 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         }
       }, 1000);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to open Google sign-in. Please try again.');
+      setErrorMessage(err.message || 'Unable to open Google sign-in. Please try again or continue on this device.');
       setIsGoogleLoading(false);
     }
+  };
+
+  const handleContinueOnDevice = () => {
+    setErrorMessage(null);
+    const guestUser: AuthUser = {
+      id: `user_device_${Date.now()}`,
+      email: 'device@budget.tracker',
+      nickname: 'My Budget',
+      avatarUrl: selectedAvatar || AVATAR_PRESETS[0],
+    };
+
+    setSuccessMessage('Welcome! Starting on this device...');
+    setTimeout(() => {
+      onLoginSuccess(guestUser, {
+        nickname: guestUser.nickname,
+        avatarUrl: guestUser.avatarUrl,
+        email: guestUser.email,
+      });
+    }, 250);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,7 +139,9 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const cleanEmail = email.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanNickname = (nickname.trim() || cleanEmail.split('@')[0] || 'User').trim();
+
     if (!cleanEmail || !password) {
       setErrorMessage('Please enter both your email and password.');
       return;
@@ -136,33 +168,136 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           : {
               email: cleanEmail,
               password,
-              nickname: nickname.trim() || cleanEmail.split('@')[0],
+              nickname: cleanNickname,
               avatarUrl: selectedAvatar,
             };
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload),
-      });
+      let isOnlineSuccess = false;
+      let onlineUser: any = null;
+      let onlineError: string | null = null;
 
-      const data = await res.json();
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyPayload),
+        });
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Something went wrong. Please check your details and try again.');
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          if (res.ok && data?.success && data?.user) {
+            isOnlineSuccess = true;
+            onlineUser = data.user;
+          } else if (data?.error) {
+            onlineError = data.error;
+          }
+        }
+      } catch {
+        // Online network connection failed or server unreachable
       }
 
-      setSuccessMessage(mode === 'login' ? 'Signed in successfully!' : 'Account created successfully!');
+      // 1. If online service responded successfully
+      if (isOnlineSuccess && onlineUser) {
+        setSuccessMessage(mode === 'login' ? 'Signed in successfully!' : 'Account created successfully!');
+        setTimeout(() => {
+          onLoginSuccess(onlineUser, {
+            nickname: onlineUser.nickname,
+            avatarUrl: onlineUser.avatarUrl || selectedAvatar,
+            email: onlineUser.email,
+          });
+        }, 350);
+        return;
+      }
 
-      setTimeout(() => {
-        onLoginSuccess(data.user, {
-          nickname: data.user.nickname,
-          avatarUrl: data.user.avatarUrl || selectedAvatar,
-          email: data.user.email,
+      // 2. If online service returned an explicit account validation error (e.g. wrong password or duplicate email)
+      if (
+        onlineError &&
+        !onlineError.toLowerCase().includes('database') &&
+        !onlineError.toLowerCase().includes('unreachable') &&
+        !onlineError.toLowerCase().includes('offline') &&
+        !onlineError.toLowerCase().includes('sync')
+      ) {
+        setErrorMessage(onlineError);
+        return;
+      }
+
+      // 3. Fallback: Authenticate and store directly on this device
+      let localAccounts: any[] = [];
+      try {
+        const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
+        localAccounts = raw ? JSON.parse(raw) : [];
+      } catch {
+        localAccounts = [];
+      }
+
+      if (mode === 'register') {
+        const existing = localAccounts.find((a: any) => a.email?.toLowerCase() === cleanEmail);
+        if (existing) {
+          setErrorMessage('An account with this email already exists on this device. Please sign in instead.');
+          return;
+        }
+
+        const newLocalUser: AuthUser = {
+          id: `user_device_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          email: cleanEmail,
+          nickname: cleanNickname,
+          avatarUrl: selectedAvatar,
+        };
+
+        localAccounts.push({
+          ...newLocalUser,
+          password,
         });
-      }, 350);
+
+        try {
+          localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(localAccounts));
+        } catch {}
+
+        setSuccessMessage('Account created! Saved safely on this device.');
+        setTimeout(() => {
+          onLoginSuccess(newLocalUser, {
+            nickname: newLocalUser.nickname,
+            avatarUrl: newLocalUser.avatarUrl || selectedAvatar,
+            email: newLocalUser.email,
+          });
+        }, 350);
+        return;
+      } else {
+        // Sign In mode
+        const found = localAccounts.find((a: any) => a.email?.toLowerCase() === cleanEmail);
+        if (found) {
+          if (found.password === password) {
+            setSuccessMessage('Signed in successfully!');
+            setTimeout(() => {
+              onLoginSuccess(
+                {
+                  id: found.id,
+                  email: found.email,
+                  nickname: found.nickname,
+                  avatarUrl: found.avatarUrl,
+                },
+                {
+                  nickname: found.nickname,
+                  avatarUrl: found.avatarUrl,
+                  email: found.email,
+                }
+              );
+            }, 350);
+            return;
+          } else {
+            setErrorMessage('Incorrect password. Please re-enter your password.');
+            return;
+          }
+        }
+
+        // If no local account exists yet
+        setErrorMessage(
+          'No saved account found for this email on this device. Switch to "Create Account" above to set up your profile, or click "Continue on this device" below.'
+        );
+      }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to connect right now. Please try again.');
+      setErrorMessage(err.message || 'Unable to sign in right now. Please try again or continue on this device.');
     } finally {
       setIsLoading(false);
     }
@@ -416,6 +551,26 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               )}
             </button>
           </form>
+
+          {/* Quick Access without account */}
+          <div className="pt-2">
+            <div className="relative flex items-center justify-center py-2">
+              <div className="w-full border-t border-zinc-200" />
+              <span className="bg-white px-2.5 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider relative">
+                or get started immediately
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleContinueOnDevice}
+              disabled={isLoading}
+              className="w-full py-2.5 px-4 bg-zinc-50 hover:bg-zinc-100 active:bg-zinc-200/70 border border-zinc-200 text-zinc-700 rounded-[5px] font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-zinc-600" />
+              <span>Continue on this device</span>
+            </button>
+          </div>
         </div>
 
         {/* Friendly bottom note */}
