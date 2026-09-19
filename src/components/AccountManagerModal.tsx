@@ -3,7 +3,7 @@ import { Plus, Trash2, Edit2, Check, X, Wallet, Smartphone, Banknote, Landmark, 
 import { Account, AccountType, Transaction } from '../types';
 import { AccountIcon } from './CategoryIcon';
 import { formatCurrency } from '../utils/formatters';
-
+// TESTING
 interface AccountManagerModalProps {
   accounts: Account[];
   transactions: Transaction[];
