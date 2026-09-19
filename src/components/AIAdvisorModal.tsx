@@ -94,7 +94,7 @@ export function AIAdvisorModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ financialContext }),
       });
-      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+      if (res.ok) {
         const data = await res.json();
         if (data.data?.insights) {
           setInsights(data.data.insights);
@@ -136,7 +136,7 @@ export function AIAdvisorModal({
         }),
       });
 
-      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+      if (res.ok) {
         const data = await res.json();
         setMessages((prev) => [...prev, { role: 'model', text: data.reply }]);
       } else {

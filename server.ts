@@ -81,10 +81,10 @@ app.post("/api/auth/register", async (req, res) => {
     }
   }
 
-  // If online storage is not connected
+  // If database is not connected, require online database
   res.status(503).json({
     success: false,
-    error: "Online cloud sync is currently offline. You can continue directly on this device without interruption.",
+    error: "Database is currently unreachable. Please ensure your database connection is active in Settings.",
   });
 });
 
@@ -1047,9 +1047,4 @@ async function startServer() {
   });
 }
 
-// In standard environments, start the Express dev/prod server
-if (!process.env.VERCEL) {
-  startServer();
-}
-
-export default app;
+startServer();

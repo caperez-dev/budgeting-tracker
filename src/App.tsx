@@ -873,53 +873,45 @@ export default function App() {
     avatarUrl?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      try {
-        const res = await fetch('/api/user/update-profile', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': currentUser?.id || '',
-          },
-          body: JSON.stringify({
-            userId: currentUser?.id,
-            nickname: data.nickname,
-            email: data.email,
-            password: data.password,
-            avatarUrl: data.avatarUrl,
-          }),
-        });
+      const res = await fetch('/api/user/update-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || '',
+        },
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          nickname: data.nickname,
+          email: data.email,
+          password: data.password,
+          avatarUrl: data.avatarUrl,
+        }),
+      });
 
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const json = await res.json();
-          if (!res.ok && !json.success && json.error) {
-            console.warn('Online sync during profile update:', json.error);
-          }
-        }
-      } catch {
-        // Backend offline or running on static hosting
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const updatedUser: AuthUser = {
+          id: currentUser?.id || json.user?.id || 'user-local',
+          email: json.user?.email || data.email,
+          nickname: json.user?.nickname || data.nickname,
+          avatarUrl: json.user?.avatarUrl !== undefined ? json.user.avatarUrl : data.avatarUrl,
+        };
+        setCurrentUser(updatedUser);
+        try {
+          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+        } catch {}
+
+        setUserProfile((prev) => ({
+          ...prev,
+          nickname: data.nickname,
+          email: data.email,
+          avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : prev.avatarUrl,
+        }));
+
+        return { success: true };
+      } else {
+        return { success: false, error: json.error || 'Failed to update settings.' };
       }
-
-      // Always update on device
-      const updatedUser: AuthUser = {
-        id: currentUser?.id || 'user-local',
-        email: data.email,
-        nickname: data.nickname,
-        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : currentUser?.avatarUrl,
-      };
-      setCurrentUser(updatedUser);
-      try {
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
-      } catch {}
-
-      setUserProfile((prev) => ({
-        ...prev,
-        nickname: data.nickname,
-        email: data.email,
-        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : prev.avatarUrl,
-      }));
-
-      return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'An error occurred while updating your settings.' };
     }
