@@ -348,10 +348,6 @@ export function QuickEntryForm({
                         : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
                     }`}
                   >
-                    <span
-                      className="w-2 h-2 rounded-full inline-block shrink-0"
-                      style={{ backgroundColor: acc.color }}
-                    />
                     <AccountIcon name={acc.icon} className="w-3.5 h-3.5 shrink-0" />
                     <span>{acc.name}</span>
                   </button>

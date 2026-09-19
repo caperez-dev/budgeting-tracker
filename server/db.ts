@@ -88,8 +88,9 @@ const CurrencySchema = new mongoose.Schema(
     symbol: { type: String, required: true },
     name: { type: String, required: true },
     exchangeRate: { type: Number, required: true },
+    flag: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 const DebtSchema = new mongoose.Schema(
@@ -104,7 +105,7 @@ const DebtSchema = new mongoose.Schema(
     isSettled: { type: Boolean, default: false },
     settledDate: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 const GoalSchema = new mongoose.Schema(
@@ -118,20 +119,23 @@ const GoalSchema = new mongoose.Schema(
     category: { type: String, default: 'Other' },
     isCompleted: { type: Boolean, default: false },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 const UserSettingsSchema = new mongoose.Schema(
   {
     singletonId: { type: String, default: 'default_settings', index: true },
     userId: { type: String, index: true, default: '' },
+    defaultCurrency: { type: String, default: 'PHP' },
     primaryCurrency: { type: String, default: 'PHP' },
+    includeDebtInNetWorth: { type: Boolean, default: false },
+    donateInfo: { type: mongoose.Schema.Types.Mixed },
     soundEnabled: { type: Boolean, default: true },
     autoBackup: { type: Boolean, default: true },
     dailyReminder: { type: Boolean, default: false },
     theme: { type: String, default: 'light' },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 const UserProfileSchema = new mongoose.Schema(
@@ -142,7 +146,7 @@ const UserProfileSchema = new mongoose.Schema(
     avatarUrl: { type: String, default: '' },
     email: { type: String, default: 'perez.carlos6566@gmail.com' },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 const UserSchema = new mongoose.Schema(
@@ -152,8 +156,9 @@ const UserSchema = new mongoose.Schema(
     password: { type: String, required: true },
     nickname: { type: String, default: 'Carlos' },
     avatarUrl: { type: String, default: '' },
+    defaultCurrency: { type: String, default: 'PHP' },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 export const TransactionModel: mongoose.Model<any> =

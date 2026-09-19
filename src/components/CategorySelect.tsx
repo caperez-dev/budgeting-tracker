@@ -91,7 +91,7 @@ export function CategorySelect({
         aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full h-full min-h-[36px] bg-white border border-zinc-200 hover:border-zinc-300 text-xs px-2.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500 flex items-center justify-between gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName}`}
+        className={`w-full h-full min-h-[32px] bg-white border border-zinc-200 hover:border-zinc-300 text-xs px-2.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500 flex items-center justify-between gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName}`}
       >
         <div className="flex items-center gap-2 min-w-0">
           {selectedCategory ? (

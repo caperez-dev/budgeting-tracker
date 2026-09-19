@@ -101,6 +101,7 @@ export interface AuthUser {
   email: string;
   nickname: string;
   avatarUrl?: string;
+  defaultCurrency?: string;
 }
 
 export interface DBStatus {
