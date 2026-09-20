@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  X,
 } from 'lucide-react';
 import { ImageSlider } from '@/components/ui/image-slider';
 import { Button } from '@/components/ui/button';
@@ -63,42 +62,47 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleEmail, setGoogleEmail] = useState('');
-  const [googleName, setGoogleName] = useState('');
-  const [savedGoogleAccounts, setSavedGoogleAccounts] = useState<any[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  const getSavedGoogleAccounts = () => {
-    try {
-      const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
-      const accounts = raw ? JSON.parse(raw) : [];
-      return accounts.filter(
-        (a: any) =>
-          a.provider === 'google' ||
-          (typeof a.email === 'string' && a.email.toLowerCase().endsWith('@gmail.com'))
-      );
-    } catch {
-      return [];
-    }
-  };
 
   // Listen for Google OAuth popup message
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && !origin.includes('vercel.app')) {
-        return;
-      }
+      const isAllowedOrigin =
+        origin === window.location.origin ||
+        origin.endsWith('.run.app') ||
+        origin.includes('localhost') ||
+        origin.includes('vercel.app');
+
+      if (!isAllowedOrigin) return;
+
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data.user) {
+        const googleUser = event.data.user;
         setIsGoogleLoading(false);
         setSuccessMessage('Signed in with Google!');
+
+        try {
+          const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          const idx = list.findIndex(
+            (a: any) =>
+              a.email?.toLowerCase() === googleUser.email?.toLowerCase() ||
+              a.id === googleUser.id
+          );
+          if (idx >= 0) {
+            list[idx] = { ...list[idx], ...googleUser, provider: 'google' };
+          } else {
+            list.push({ ...googleUser, provider: 'google' });
+          }
+          localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(list));
+        } catch {}
+
         setTimeout(() => {
-          onLoginSuccess(event.data.user, {
-            nickname: event.data.user.nickname,
-            avatarUrl: event.data.user.avatarUrl,
-            email: event.data.user.email,
+          onLoginSuccess(googleUser, {
+            nickname: googleUser.nickname,
+            avatarUrl: googleUser.avatarUrl,
+            email: googleUser.email,
           });
         }, 350);
       }
@@ -112,7 +116,6 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     setIsGoogleLoading(true);
     setErrorMessage(null);
 
-    // Try online Google OAuth endpoint first if configured
     try {
       const origin = window.location.origin;
       const res = await fetch(`/api/auth/google/url?origin=${encodeURIComponent(origin)}`);
@@ -121,10 +124,15 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       if (contentType.includes('application/json')) {
         const data = await res.json();
         if (res.ok && data?.configured && data?.url) {
+          const width = 520;
+          const height = 640;
+          const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+          const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+
           const authWindow = window.open(
             data.url,
             'google_oauth_popup',
-            'width=520,height=640,left=200,top=100'
+            `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
           );
 
           if (authWindow) {
@@ -133,88 +141,26 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 clearInterval(timer);
                 setIsGoogleLoading(false);
               }
-            }, 1000);
+            }, 800);
+            return;
+          } else {
+            // If popup was blocked by browser, redirect directly
+            window.location.href = data.url;
             return;
           }
+        } else if (data?.error) {
+          setErrorMessage(data.error);
+          setIsGoogleLoading(false);
+          return;
         }
       }
-    } catch {
-      // Offline or static deployment
+
+      setErrorMessage('Unable to connect to Google sign-in. Please try again.');
+      setIsGoogleLoading(false);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Unable to connect to Google sign-in. Please try again.');
+      setIsGoogleLoading(false);
     }
-
-    // Seamless Google sign-in directly on device
-    setIsGoogleLoading(false);
-    const existingGoogle = getSavedGoogleAccounts();
-    setSavedGoogleAccounts(existingGoogle);
-
-    if (existingGoogle.length > 0) {
-      setGoogleEmail(existingGoogle[0].email || '');
-      setGoogleName(existingGoogle[0].nickname || '');
-    } else if (email.trim()) {
-      setGoogleEmail(email.trim());
-      setGoogleName(nickname.trim() || email.split('@')[0]);
-    } else {
-      setGoogleEmail('');
-      setGoogleName('');
-    }
-
-    setShowGoogleModal(true);
-  };
-
-  const handleConfirmGoogleSignIn = (targetEmail?: string, targetName?: string) => {
-    const cleanEmail = (targetEmail || googleEmail).trim().toLowerCase();
-    if (!cleanEmail) {
-      setErrorMessage('Please enter your Google account email.');
-      return;
-    }
-
-    const cleanName = (targetName || googleName || cleanEmail.split('@')[0] || 'User').trim();
-
-    let localAccounts: any[] = [];
-    try {
-      const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
-      localAccounts = raw ? JSON.parse(raw) : [];
-    } catch {
-      localAccounts = [];
-    }
-
-    const existingIdx = localAccounts.findIndex((a: any) => a.email?.toLowerCase() === cleanEmail);
-    const existingAcc = existingIdx >= 0 ? localAccounts[existingIdx] : null;
-    const googleUser: AuthUser = {
-      id: existingAcc ? existingAcc.id : `user_google_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      email: cleanEmail,
-      nickname: cleanName,
-      avatarUrl: existingAcc?.avatarUrl,
-      defaultCurrency: existingAcc?.defaultCurrency || 'PHP',
-    };
-
-    if (existingIdx >= 0) {
-      localAccounts[existingIdx] = {
-        ...localAccounts[existingIdx],
-        ...googleUser,
-        provider: 'google',
-      };
-    } else {
-      localAccounts.push({
-        ...googleUser,
-        provider: 'google',
-      });
-    }
-
-    try {
-      localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(localAccounts));
-    } catch {}
-
-    setShowGoogleModal(false);
-    setSuccessMessage('Welcome! Signed in with your Google account.');
-
-    setTimeout(() => {
-      onLoginSuccess(googleUser, {
-        nickname: googleUser.nickname,
-        avatarUrl: googleUser.avatarUrl,
-        email: googleUser.email,
-      });
-    }, 300);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -733,148 +679,6 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           </motion.div>
         </div>
       </motion.div>
-
-      {/* Google Sign-in Modal */}
-      {showGoogleModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-zinc-200 rounded-xl shadow-2xl max-w-sm w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <GoogleIcon className="w-5 h-5 shrink-0" />
-                <h3 className="text-sm font-semibold text-zinc-900">Sign in with Google</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGoogleModal(false)}
-                className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors cursor-pointer"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4">
-              {/* Previous saved Google accounts on this device */}
-              {savedGoogleAccounts.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
-                    Previously used on this device
-                  </p>
-                  <div className="space-y-1.5">
-                    {savedGoogleAccounts.map((acc, idx) => (
-                      <button
-                        key={acc.id || idx}
-                        type="button"
-                        onClick={() => handleConfirmGoogleSignIn(acc.email, acc.nickname)}
-                        className="w-full p-2.5 bg-zinc-50 hover:bg-zinc-100 active:bg-zinc-200/60 border border-zinc-200/80 rounded-lg flex items-center justify-between gap-3 text-left transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {acc.avatarUrl ? (
-                            <img
-                              src={acc.avatarUrl}
-                              alt={acc.nickname || 'Google Account'}
-                              className="w-7 h-7 rounded-full object-cover border border-zinc-200 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded-full bg-zinc-900 text-white font-mono text-[11px] font-semibold flex items-center justify-center shrink-0">
-                              {(acc.nickname || acc.email || 'U').charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-zinc-900 truncate">
-                              {acc.nickname || 'Google User'}
-                            </div>
-                            <div className="text-[11px] text-zinc-500 truncate">
-                              {acc.email}
-                            </div>
-                          </div>
-                        </div>
-                        <span className="text-[11px] font-medium text-blue-600 shrink-0">
-                          Continue
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="relative flex items-center justify-center py-2">
-                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                      <div className="w-full border-t border-zinc-200" />
-                    </div>
-                    <span className="relative bg-white px-2 text-[10px] text-zinc-400 uppercase tracking-wider">
-                      or use another account
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleConfirmGoogleSignIn();
-                }}
-                className="space-y-3"
-              >
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                    Google Account Email
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      autoFocus
-                      value={googleEmail}
-                      onChange={(e) => setGoogleEmail(e.target.value)}
-                      placeholder="yourname@gmail.com"
-                      className="block w-full pl-9 pr-3 py-2 text-xs bg-zinc-50/50 border border-zinc-200 rounded-md text-zinc-900 placeholder-zinc-400 focus:outline-hidden focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                    Your Name (Optional)
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="text"
-                      value={googleName}
-                      onChange={(e) => setGoogleName(e.target.value)}
-                      placeholder="e.g. Carlos Perez"
-                      className="block w-full pl-9 pr-3 py-2 text-xs bg-zinc-50/50 border border-zinc-200 rounded-md text-zinc-900 placeholder-zinc-400 focus:outline-hidden focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowGoogleModal(false)}
-                    className="px-3 py-2 text-xs font-medium text-zinc-600 hover:text-zinc-900 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                  >
-                    <GoogleIcon className="w-3.5 h-3.5" />
-                    <span>Continue with Google</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
