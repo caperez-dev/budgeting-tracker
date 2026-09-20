@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
   Wallet,
   Mail,
@@ -7,50 +6,25 @@ import {
   User,
   Eye,
   EyeOff,
-  ArrowRight,
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
+  ArrowRight,
+  Sparkles,
+  HelpCircle,
 } from 'lucide-react';
-import { ImageSlider } from '@/components/ui/image-slider';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { AuthUser, UserProfile } from '../types';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, profileUpdate?: Partial<UserProfile>) => void;
 }
 
-const LOCAL_ACCOUNTS_KEY = 'budget_tracker_saved_accounts_v1';
-
-export const GoogleIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24">
-    <path
-      fill="#4285F4"
-      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-    />
-    <path
-      fill="#34A853"
-      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
-    />
-    <path
-      fill="#FBBC05"
-      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.97 0 12s.45 3.84 1.25 5.42l4.03-3.15z"
-    />
-    <path
-      fill="#EA4335"
-      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-    />
-  </svg>
-);
-
-const SLIDER_IMAGES = [
-  'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=1200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&auto=format&fit=crop&q=80',
+const AVATAR_PRESETS = [
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
 ];
 
 export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
@@ -59,50 +33,38 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[1]);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [infoNotice, setInfoNotice] = useState<string | null>(null);
 
   // Listen for Google OAuth popup message
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const origin = event.origin;
-      const isAllowedOrigin =
-        origin === window.location.origin ||
+      const currentOrigin = window.location.origin;
+      const isAllowed =
+        origin === currentOrigin ||
         origin.endsWith('.run.app') ||
-        origin.includes('localhost') ||
-        origin.includes('vercel.app');
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost');
 
-      if (!isAllowedOrigin) return;
-
+      if (!isAllowed) {
+        return;
+      }
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data.user) {
-        const googleUser = event.data.user;
         setIsGoogleLoading(false);
         setSuccessMessage('Signed in with Google!');
-
-        try {
-          const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
-          const list = raw ? JSON.parse(raw) : [];
-          const idx = list.findIndex(
-            (a: any) =>
-              a.email?.toLowerCase() === googleUser.email?.toLowerCase() ||
-              a.id === googleUser.id
-          );
-          if (idx >= 0) {
-            list[idx] = { ...list[idx], ...googleUser, provider: 'google' };
-          } else {
-            list.push({ ...googleUser, provider: 'google' });
-          }
-          localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(list));
-        } catch {}
-
         setTimeout(() => {
-          onLoginSuccess(googleUser, {
-            nickname: googleUser.nickname,
-            avatarUrl: googleUser.avatarUrl,
-            email: googleUser.email,
+          onLoginSuccess(event.data.user, {
+            nickname: event.data.user.nickname,
+            avatarUrl: event.data.user.avatarUrl,
+            email: event.data.user.email,
           });
         }, 350);
       }
@@ -115,62 +77,82 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
+    setInfoNotice(null);
 
     try {
       const origin = window.location.origin;
       const res = await fetch(`/api/auth/google/url?origin=${encodeURIComponent(origin)}`);
-      const contentType = res.headers.get('content-type') || '';
 
-      if (contentType.includes('application/json')) {
-        const data = await res.json();
-        if (res.ok && data?.configured && data?.url) {
-          const width = 520;
-          const height = 640;
-          const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
-          const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
-
-          const authWindow = window.open(
-            data.url,
-            'google_oauth_popup',
-            `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-          );
-
-          if (authWindow) {
-            const timer = setInterval(() => {
-              if (authWindow.closed) {
-                clearInterval(timer);
-                setIsGoogleLoading(false);
-              }
-            }, 800);
-            return;
-          } else {
-            // If popup was blocked by browser, redirect directly
-            window.location.href = data.url;
-            return;
-          }
-        } else if (data?.error) {
-          setErrorMessage(data.error);
-          setIsGoogleLoading(false);
-          return;
-        }
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(
+          'Google Sign-In is temporarily unavailable on this deployment. Please sign in with your email below.'
+        );
       }
 
-      setErrorMessage('Unable to connect to Google sign-in. Please try again.');
-      setIsGoogleLoading(false);
+      if (!res.ok || !data || !data.configured || !data.url) {
+        throw new Error(
+          data?.error ||
+            'Google Sign-In is not set up on this deployment yet. Please sign in below using your email and password.'
+        );
+      }
+
+      const authWindow = window.open(
+        data.url,
+        'google_oauth_popup',
+        'width=520,height=640,left=200,top=100'
+      );
+
+      if (!authWindow) {
+        throw new Error(
+          'Your browser blocked the pop-up window. Please allow pop-ups for this site to sign in with Google.'
+        );
+      }
+
+      const timer = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(timer);
+          setIsGoogleLoading(false);
+        }
+      }, 1000);
+
+      return;
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to connect to Google sign-in. Please try again.');
+      setErrorMessage(err.message || 'Unable to open Google sign-in. Please try again.');
       setIsGoogleLoading(false);
     }
+  };
+
+  const handleContinueAsGuest = () => {
+    const guestUser: AuthUser = {
+      id: 'local_guest',
+      email: 'guest@budgettracker.local',
+      nickname: 'Guest',
+      avatarUrl: AVATAR_PRESETS[0],
+    };
+    onLoginSuccess(guestUser, {
+      nickname: 'Guest',
+      avatarUrl: AVATAR_PRESETS[0],
+      email: 'guest@budgettracker.local',
+    });
+  };
+
+  const handleForgotPassword = () => {
+    setInfoNotice(
+      'To reset your password, please contact support or sign in with Google / continue as guest on this device.'
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setInfoNotice(null);
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanNickname = (nickname.trim() || cleanEmail.split('@')[0] || 'User').trim();
-
+    const cleanEmail = email.trim();
     if (!cleanEmail || !password) {
       setErrorMessage('Please enter both your email and password.');
       return;
@@ -197,464 +179,133 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           : {
               email: cleanEmail,
               password,
-              nickname: cleanNickname,
+              nickname: nickname.trim() || cleanEmail.split('@')[0],
+              avatarUrl: selectedAvatar,
             };
 
-      let isOnlineSuccess = false;
-      let onlineUser: any = null;
-      let onlineError: string | null = null;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload),
+      });
 
+      const text = await res.text();
+      let data: any = null;
       try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bodyPayload),
-        });
-
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const data = await res.json();
-          if (res.ok && data?.success && data?.user) {
-            isOnlineSuccess = true;
-            onlineUser = data.user;
-          } else if (data?.error) {
-            onlineError = data.error;
-          }
-        }
+        data = JSON.parse(text);
       } catch {
-        // Online network connection failed or server unreachable
+        throw new Error('Unable to connect right now. You can continue as a guest below or try again shortly.');
       }
 
-      // 1. If online service responded successfully
-      if (isOnlineSuccess && onlineUser) {
-        try {
-          const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
-          const list = raw ? JSON.parse(raw) : [];
-          const idx = list.findIndex(
-            (a: any) => a.email?.toLowerCase() === onlineUser.email?.toLowerCase() || a.id === onlineUser.id
-          );
-          if (idx >= 0) {
-            list[idx] = { ...list[idx], ...onlineUser };
-          } else {
-            list.push({ ...onlineUser });
-          }
-          localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(list));
-        } catch {}
-
-        setSuccessMessage(mode === 'login' ? 'Signed in successfully!' : 'Account created successfully!');
-        setTimeout(() => {
-          onLoginSuccess(onlineUser, {
-            nickname: onlineUser.nickname,
-            avatarUrl: onlineUser.avatarUrl,
-            email: onlineUser.email,
-          });
-        }, 350);
-        return;
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Something went wrong. Please check your details and try again.');
       }
 
-      // 2. If online service returned an explicit account validation error
-      if (
-        onlineError &&
-        !onlineError.toLowerCase().includes('database') &&
-        !onlineError.toLowerCase().includes('unreachable') &&
-        !onlineError.toLowerCase().includes('offline') &&
-        !onlineError.toLowerCase().includes('sync')
-      ) {
-        setErrorMessage(onlineError);
-        return;
-      }
+      setSuccessMessage(mode === 'login' ? 'Signed in successfully!' : 'Account created successfully!');
 
-      // 3. Fallback: Authenticate and store directly on this device
-      let localAccounts: any[] = [];
-      try {
-        const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
-        localAccounts = raw ? JSON.parse(raw) : [];
-      } catch {
-        localAccounts = [];
-      }
-
-      if (mode === 'register') {
-        const existing = localAccounts.find((a: any) => a.email?.toLowerCase() === cleanEmail);
-        if (existing) {
-          setErrorMessage('An account with this email already exists on this device. Please sign in instead.');
-          return;
-        }
-
-        const newLocalUser: AuthUser = {
-          id: `user_device_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          email: cleanEmail,
-          nickname: cleanNickname,
-          defaultCurrency: 'PHP',
-        };
-
-        localAccounts.push({
-          ...newLocalUser,
-          password,
+      setTimeout(() => {
+        onLoginSuccess(data.user, {
+          nickname: data.user.nickname,
+          avatarUrl: data.user.avatarUrl || selectedAvatar,
+          email: data.user.email,
         });
-
-        try {
-          localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(localAccounts));
-        } catch {}
-
-        setSuccessMessage('Account created! Saved safely on this device.');
-        setTimeout(() => {
-          onLoginSuccess(newLocalUser, {
-            nickname: newLocalUser.nickname,
-            avatarUrl: newLocalUser.avatarUrl,
-            email: newLocalUser.email,
-          });
-        }, 350);
-        return;
-      } else {
-        // Sign In mode
-        const found = localAccounts.find((a: any) => a.email?.toLowerCase() === cleanEmail);
-        if (found) {
-          if (found.password === password) {
-            setSuccessMessage('Signed in successfully!');
-            setTimeout(() => {
-              onLoginSuccess(
-                {
-                  id: found.id,
-                  email: found.email,
-                  nickname: found.nickname,
-                  avatarUrl: found.avatarUrl,
-                  defaultCurrency: found.defaultCurrency || 'PHP',
-                },
-                {
-                  nickname: found.nickname,
-                  avatarUrl: found.avatarUrl,
-                  email: found.email,
-                }
-              );
-            }, 350);
-            return;
-          } else {
-            setErrorMessage('Incorrect password. Please re-enter your password.');
-            return;
-          }
-        }
-
-        setErrorMessage(
-          'No saved account found for this email on this device. Switch to "Create Account" to set up your profile.'
-        );
-      }
+      }, 350);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to sign in right now. Please check your credentials.');
+      setErrorMessage(err.message || 'Unable to connect right now. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08,
-        delayChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { y: 12, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: 'spring',
-        stiffness: 120,
-        damping: 14,
-      },
-    },
-  };
-
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-zinc-100/80 p-4 sm:p-6 lg:p-10 font-sans">
-      <motion.div
-        className="w-full max-w-5xl min-h-[640px] grid grid-cols-1 lg:grid-cols-2 rounded-2xl overflow-hidden shadow-xl border border-zinc-200 bg-white"
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-      >
-        {/* Left Side: Modern Image Slider & Visual Banner */}
-        <div className="relative hidden lg:block h-full min-h-[640px]">
-          <ImageSlider images={SLIDER_IMAGES} interval={4500} className="h-full" />
-          
-          <div className="absolute inset-0 flex flex-col justify-between p-10 z-10 text-white pointer-events-none">
-            {/* Top Brand Header */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/25 shadow-sm">
-                <Wallet className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <span className="font-bold text-base tracking-tight text-white block">Budget Tracker</span>
-                <span className="text-[11px] text-white/70 block">Smart Financial Management</span>
-              </div>
-            </div>
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-white text-zinc-900 font-sans selection:bg-zinc-900 selection:text-white">
+      {/* Left Panel - Brand / Image Section */}
+      <div className="hidden lg:flex lg:flex-1 relative overflow-hidden bg-zinc-950">
+        {/* Background visual photo */}
+        <div className="absolute inset-0">
+          <img
+            src="https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?q=80&w=1400&auto=format&fit=crop"
+            alt="Budget Tracker Visual"
+            className="w-full h-full object-cover opacity-45 mix-blend-luminosity scale-105 transition-transform duration-1000 ease-out hover:scale-100"
+            referrerPolicy="no-referrer"
+          />
+          {/* Gradient overlays for readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-zinc-950/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/80 via-transparent to-transparent" />
+        </div>
 
-            {/* Bottom Value Proposition */}
-            <div className="space-y-2 max-w-md">
-              <h2 className="text-2xl font-bold tracking-tight text-white leading-tight">
-                Control your expenses, debt, and savings effortlessly.
-              </h2>
-              <p className="text-xs text-white/80 leading-relaxed">
-                Seamlessly organize your daily transactions, monitor balances across multiple accounts, and reach your goals in Philippine Peso and world currencies.
-              </p>
-            </div>
+        {/* Brand header at top */}
+        <div className="absolute top-10 left-10 z-10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-md">
+            <Wallet className="w-5 h-5 text-zinc-100" />
+          </div>
+          <div>
+            <span className="text-base font-bold tracking-tight text-white block">Budget Tracker</span>
+            <span className="text-[11px] text-zinc-400 font-medium">Smart Personal Finance</span>
           </div>
         </div>
 
-        {/* Right Side: Authentication Panel */}
-        <div className="w-full h-full bg-white flex flex-col justify-center p-6 sm:p-10 md:p-12 overflow-y-auto">
-          <motion.div
-            className="w-full max-w-md mx-auto space-y-6"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            {/* Mobile Header Logo */}
-            <motion.div variants={itemVariants} className="lg:hidden flex items-center gap-2.5 mb-2">
-              <div className="w-9 h-9 rounded-lg bg-zinc-900 text-white flex items-center justify-center">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-base font-bold text-zinc-900 leading-none">Budget Tracker</h1>
-                <p className="text-[11px] text-zinc-500 mt-0.5">Your personal financial dashboard</p>
-              </div>
-            </motion.div>
+        {/* Feature showcase at bottom */}
+        <div className="relative z-10 flex flex-col justify-end p-12 text-white max-w-xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-medium mb-5 w-fit text-zinc-200">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Smart Financial Clarity</span>
+          </div>
 
-            {/* Title & Mode Switch */}
-            <motion.div variants={itemVariants} className="space-y-1.5">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900">
-                {mode === 'login' ? 'Welcome Back' : 'Create an Account'}
-              </h1>
-              <p className="text-xs sm:text-sm text-zinc-500">
-                {mode === 'login'
-                  ? 'Sign in to access your finances and synchronized records.'
-                  : 'Start tracking your daily expenses and reaching your savings goals.'}
-              </p>
-            </motion.div>
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-3 leading-tight">
+            Take complete control of your spending and savings.
+          </h2>
 
-            {/* Google Sign-in Option */}
-            <motion.div variants={itemVariants} className="space-y-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleGoogleSignIn}
-                disabled={isGoogleLoading || isLoading}
-                className="w-full h-11 border-zinc-200 hover:bg-zinc-50 text-zinc-800 font-medium text-xs flex items-center justify-center gap-2.5 shadow-2xs transition-colors cursor-pointer"
-              >
-                {isGoogleLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-zinc-500" />
-                    <span>Connecting with Google...</span>
-                  </>
-                ) : (
-                  <>
-                    <GoogleIcon className="w-4 h-4 shrink-0" />
-                    <span className="font-semibold text-xs text-zinc-800">Continue with Google</span>
-                  </>
-                )}
-              </Button>
+          <p className="text-sm text-zinc-300 leading-relaxed mb-8 max-w-md">
+            Log transactions in seconds, monitor savings targets, manage debts, and gain confidence with visual analytics.
+          </p>
 
-              {/* Divider */}
-              <div className="relative flex items-center justify-center py-2">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="w-full border-t border-zinc-200" />
-                </div>
-                <span className="relative bg-white px-3 text-[11px] text-zinc-400 font-medium uppercase tracking-wider">
-                  Or continue with email
-                </span>
-              </div>
-            </motion.div>
+          {/* Value cards */}
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
+            <div className="bg-white/5 backdrop-blur-xs border border-white/10 rounded-xl p-3">
+              <div className="text-xs font-semibold text-white">Accounts & Wallets</div>
+              <div className="text-[11px] text-zinc-400 mt-0.5">Track GCash, Maya, cash, and banks</div>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xs border border-white/10 rounded-xl p-3">
+              <div className="text-xs font-semibold text-white">Goals & Debts</div>
+              <div className="text-[11px] text-zinc-400 mt-0.5">Stay on track for targets that matter</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            {/* Mode Switcher Tabs */}
-            <motion.div variants={itemVariants}>
-              <div className="grid grid-cols-2 p-1 bg-zinc-100 rounded-lg border border-zinc-200/70 text-xs font-medium">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setErrorMessage(null);
-                    setSuccessMessage(null);
-                  }}
-                  className={`py-2 text-center rounded-md transition-all cursor-pointer ${
-                    mode === 'login'
-                      ? 'bg-white text-zinc-900 font-semibold shadow-2xs'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('register');
-                    setErrorMessage(null);
-                    setSuccessMessage(null);
-                  }}
-                  className={`py-2 text-center rounded-md transition-all cursor-pointer ${
-                    mode === 'register'
-                      ? 'bg-white text-zinc-900 font-semibold shadow-2xs'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  Create Account
-                </button>
-              </div>
-            </motion.div>
+      {/* Right Panel - Form Section */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 lg:p-14 bg-white min-h-screen">
+        <div className="w-full max-w-md">
+          {/* Mobile Brand Header */}
+          <div className="lg:hidden flex items-center gap-2.5 mb-6">
+            <div className="w-9 h-9 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-xs">
+              <Wallet className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-sm font-bold tracking-tight text-zinc-900 block">Budget Tracker</span>
+              <span className="text-[11px] text-zinc-500">Personal Finance</span>
+            </div>
+          </div>
 
-            {/* Error / Success Feedback */}
-            {errorMessage && (
-              <motion.div
-                variants={itemVariants}
-                className="p-3 rounded-md bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-xs text-rose-700"
-              >
-                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{errorMessage}</span>
-              </motion.div>
-            )}
-
-            {successMessage && (
-              <motion.div
-                variants={itemVariants}
-                className="p-3 rounded-md bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-800"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{successMessage}</span>
-              </motion.div>
-            )}
-
-            {/* Main Email & Password Form */}
-            <motion.form variants={itemVariants} onSubmit={handleSubmit} className="space-y-4">
-              {/* Name (Sign Up only) */}
-              {mode === 'register' && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="nickname">Your Name</Label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <Input
-                      id="nickname"
-                      type="text"
-                      required
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      placeholder="e.g. Carlos Perez"
-                      className="pl-9 h-10 text-xs"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Email Address */}
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Email Address</Label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="pl-9 h-10 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="pl-9 pr-10 h-10 text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 cursor-pointer"
-                    tabIndex={-1}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Password (Sign Up only) */}
-              {mode === 'register' && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <Input
-                      id="confirmPassword"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      autoComplete="new-password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="pl-9 h-10 text-xs"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full h-11 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer mt-2"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>{mode === 'login' ? 'Sign In' : 'Create Account'}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </Button>
-            </motion.form>
-
-            {/* Toggle Footer Link */}
-            <motion.p variants={itemVariants} className="text-center text-xs text-zinc-500 pt-2">
+          {/* Heading */}
+          <div className="mb-6">
+            <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-2">
+              {mode === 'login' ? 'Welcome Back' : 'Create an Account'}
+            </h1>
+            <p className="text-sm text-zinc-600">
               {mode === 'login' ? (
                 <>
-                  Don't have an account?{' '}
+                  Don&apos;t have an account?{' '}
                   <button
                     type="button"
                     onClick={() => {
                       setMode('register');
                       setErrorMessage(null);
                       setSuccessMessage(null);
+                      setInfoNotice(null);
                     }}
-                    className="font-semibold text-zinc-900 hover:underline cursor-pointer"
+                    className="text-zinc-900 hover:text-black font-semibold hover:underline cursor-pointer"
                   >
                     Sign up
                   </button>
@@ -668,17 +319,287 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       setMode('login');
                       setErrorMessage(null);
                       setSuccessMessage(null);
+                      setInfoNotice(null);
                     }}
-                    className="font-semibold text-zinc-900 hover:underline cursor-pointer"
+                    className="text-zinc-900 hover:text-black font-semibold hover:underline cursor-pointer"
                   >
                     Sign in
                   </button>
                 </>
               )}
-            </motion.p>
-          </motion.div>
+            </p>
+          </div>
+
+          {/* Google Sign-in Action (No GitHub) */}
+          <div>
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleLoading || isLoading}
+              className="w-full flex items-center justify-center px-4 py-3 border border-zinc-200 rounded-xl hover:bg-zinc-50 active:bg-zinc-100 transition-colors font-medium text-sm text-zinc-700 gap-3 shadow-2xs cursor-pointer disabled:opacity-50"
+            >
+              {isGoogleLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-zinc-500" />
+                  <span>Opening Google Sign-In...</span>
+                </>
+              ) : (
+                <>
+                  {/* Google SVG */}
+                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  <span>Continue with Google</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-zinc-200"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-3 bg-white text-zinc-400 font-medium">
+                or continue with email
+              </span>
+            </div>
+          </div>
+
+          {/* Feedback messages */}
+          {errorMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{errorMessage}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-800">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {infoNotice && (
+            <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2.5 text-xs text-blue-800">
+              <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{infoNotice}</span>
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Nickname / Name (Sign Up only) */}
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                  Your Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="e.g. Carlos Perez"
+                    className="w-full pl-10 pr-4 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Email Address */}
+            <div>
+              <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                Email Address
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full pl-10 pr-4 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-11 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password (Sign Up only) */}
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-11 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Choose Avatar Preset (Sign Up only) */}
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 mb-2">
+                  Choose a Profile Photo
+                </label>
+                <div className="flex items-center gap-3">
+                  {AVATAR_PRESETS.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setSelectedAvatar(preset)}
+                      className={`relative rounded-full p-0.5 transition-all cursor-pointer ${
+                        selectedAvatar === preset
+                          ? 'ring-2 ring-zinc-900 scale-105 shadow-sm'
+                          : 'opacity-70 hover:opacity-100 hover:scale-105'
+                      }`}
+                    >
+                      <img
+                        src={preset}
+                        alt={`Photo option ${idx + 1}`}
+                        className="w-10 h-10 rounded-full object-cover border border-zinc-200"
+                        referrerPolicy="no-referrer"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Remember Me + Forgot Password (Login only) */}
+            {mode === 'login' && (
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center space-x-2 text-xs text-zinc-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900 accent-zinc-900 cursor-pointer"
+                  />
+                  <span>Remember me</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-xs text-zinc-600 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-zinc-900 hover:bg-zinc-800 active:scale-[0.99] text-white py-3 px-4 rounded-xl font-medium text-sm transition-all shadow-xs disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 mt-2"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
+                </>
+              ) : (
+                <>
+                  <span>{mode === 'login' ? 'Sign In' : 'Create Account'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Guest Mode Option */}
+          <div className="pt-5 mt-5 border-t border-zinc-100 text-center">
+            <button
+              type="button"
+              onClick={handleContinueAsGuest}
+              className="text-xs text-zinc-500 hover:text-zinc-800 font-medium transition-colors cursor-pointer inline-flex items-center gap-1.5 py-1"
+            >
+              <span>Continue as Guest</span>
+              <span className="text-zinc-400 font-normal">(Use locally on this device)</span>
+            </button>
+          </div>
+
+          {/* Bottom Security Note */}
+          <p className="mt-5 text-center text-[11px] text-zinc-400">
+            Your transactions and financial data are private and secure.
+          </p>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
+
