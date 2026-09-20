@@ -27,6 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Particles } from '@/components/ui/particles';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, profileUpdate?: Partial<UserProfile>) => void;
@@ -251,9 +252,27 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 bg-zinc-50/60 font-sans selection:bg-zinc-900 selection:text-white">
-      <div className="w-full max-w-md">
-        <Card className="border border-zinc-200/80 bg-white shadow-lg rounded-2xl overflow-hidden transition-all">
+    <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 bg-zinc-50 font-sans selection:bg-zinc-900 selection:text-white overflow-x-hidden">
+      {/* Interactive Particles Background */}
+      <Particles
+        color="#666666"
+        quantity={120}
+        ease={20}
+        className="absolute inset-0"
+      />
+
+      {/* Ambient Radial Gradient Glows */}
+      <div
+        aria-hidden
+        className="absolute inset-0 isolate -z-10 pointer-events-none overflow-hidden"
+      >
+        <div className="bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,rgba(0,0,0,0.06)_0,rgba(140,140,140,0.02)_50%,rgba(0,0,0,0.01)_80%)] absolute top-0 left-0 h-[80rem] w-[35rem] -translate-y-[21.875rem] -rotate-45 rounded-full" />
+        <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] [translate:5%_-50%] -rotate-45 rounded-full" />
+        <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] -translate-y-[21.875rem] -rotate-45 rounded-full" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-md">
+        <Card className="border border-zinc-200/80 bg-white/95 backdrop-blur-md shadow-xl rounded-2xl overflow-hidden transition-all">
           {/* Header with Logo and Title */}
           <CardHeader className="flex flex-col items-center space-y-2 pb-4 pt-8 text-center">
             <div className="relative mb-1">
@@ -442,33 +461,6 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                         <Eye className="h-4 w-4" />
                       )}
                     </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Avatar Picker (Sign Up only) */}
-              {mode === 'register' && (
-                <div className="space-y-1.5 pt-1">
-                  <Label>Profile Picture</Label>
-                  <div className="flex items-center gap-3">
-                    {AVATAR_PRESETS.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setSelectedAvatar(preset)}
-                        className={`relative rounded-full p-0.5 transition-all cursor-pointer ${
-                          selectedAvatar === preset
-                            ? 'ring-2 ring-zinc-900 scale-105 shadow-xs'
-                            : 'opacity-65 hover:opacity-100 hover:scale-105'
-                        }`}
-                      >
-                        <img
-                          src={preset}
-                          alt={`Avatar ${idx + 1}`}
-                          className="w-9 h-9 rounded-full object-cover"
-                        />
-                      </button>
-                    ))}
                   </div>
                 </div>
               )}
