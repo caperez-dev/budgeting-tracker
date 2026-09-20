@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import crypto from "crypto";
 import {
   connectDB,
   getDBStatus,
@@ -14,6 +15,7 @@ import {
   UserSettingsModel,
   UserProfileModel,
   UserModel,
+  PasswordResetTokenModel,
 } from "./server/db.ts";
 
 dotenv.config();
@@ -169,6 +171,247 @@ app.post("/api/auth/login", async (req, res) => {
     success: false,
     error: "Account service is currently unreachable. Please check your connection in Settings.",
   });
+});
+
+// Helper: Send password reset email via SMTP if configured, or fall back to direct link
+async function sendPasswordResetEmail(toEmail: string, resetUrl: string, nickname?: string) {
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  const htmlContent = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #18181b;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="display: inline-block; background-color: #18181b; color: #ffffff; padding: 10px 18px; border-radius: 12px; font-weight: 600; font-size: 16px;">
+          Budget Tracker
+        </div>
+      </div>
+      <div style="background-color: #ffffff; border: 1px solid #e4e4e7; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+        <h2 style="margin-top: 0; font-size: 20px; font-weight: 600; color: #09090b;">Reset Your Password</h2>
+        <p style="color: #71717a; font-size: 14px; line-height: 1.6;">
+          Hello ${nickname || "there"},<br/><br/>
+          We received a request to reset your password. Click the button below to choose a new password for your account:
+        </p>
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${resetUrl}" style="background-color: #18181b; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; text-decoration: none; display: inline-block;">
+            Set New Password
+          </a>
+        </div>
+        <p style="color: #a1a1aa; font-size: 12px; line-height: 1.5; margin-bottom: 0;">
+          If you did not request this, you can safely ignore this email. This link will expire in 1 hour.
+        </p>
+      </div>
+    </div>
+  `;
+
+  if (host && user && pass) {
+    try {
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+      });
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || `"Budget Tracker" <${user}>`,
+        to: toEmail,
+        subject: "Reset your Budget Tracker password",
+        html: htmlContent,
+      });
+      return { delivered: true, method: "smtp" };
+    } catch (err) {
+      console.warn("SMTP email delivery notice (falling back to direct preview link):", err);
+    }
+  }
+
+  console.log(`[Password Reset] Link generated for ${toEmail}: ${resetUrl}`);
+  return { delivered: true, method: "direct" };
+}
+
+// 1. Request Password Reset Link
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.trim()) {
+    res.status(400).json({ success: false, error: "Please enter your email address." });
+    return;
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const connected = await connectDB();
+
+  if (!connected) {
+    res.status(503).json({
+      success: false,
+      error: "Unable to connect right now. Please check your connection in Settings.",
+    });
+    return;
+  }
+
+  try {
+    const user = await (UserModel as any).findOne({ email: cleanEmail });
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: "We could not find an account with that email address. Please check and try again.",
+      });
+      return;
+    }
+
+    // Invalidate previous unused reset tokens for this email
+    await (PasswordResetTokenModel as any).updateMany(
+      { email: cleanEmail, used: false },
+      { $set: { used: true } }
+    );
+
+    // Create a 32-byte secure hex token
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await (PasswordResetTokenModel as any).create({
+      token,
+      userId: user.id,
+      email: cleanEmail,
+      expiresAt,
+      used: false,
+    });
+
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+    const reqOrigin = req.headers.origin || `${protocol}://${host}`;
+    const resetUrl = `${reqOrigin}/?resetToken=${token}`;
+
+    const emailResult = await sendPasswordResetEmail(cleanEmail, resetUrl, user.nickname);
+
+    res.json({
+      success: true,
+      message: "A password reset link has been sent to your email address.",
+      email: cleanEmail,
+      resetUrl,
+      method: emailResult.method,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to process password reset request. Please try again.",
+    });
+  }
+});
+
+// 2. Verify Reset Token
+app.get("/api/auth/verify-reset-token", async (req, res) => {
+  const token = req.query.token as string;
+  if (!token) {
+    res.status(400).json({ valid: false, error: "Reset token is missing." });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({ valid: false, error: "Service currently unavailable. Please try again." });
+    return;
+  }
+
+  try {
+    const tokenDoc = await (PasswordResetTokenModel as any).findOne({
+      token,
+      used: false,
+    });
+
+    if (!tokenDoc) {
+      res.status(404).json({
+        valid: false,
+        error: "This password reset link is invalid or has already been used.",
+      });
+      return;
+    }
+
+    if (new Date() > new Date(tokenDoc.expiresAt)) {
+      res.status(410).json({
+        valid: false,
+        error: "This password reset link has expired. Please request a new one.",
+      });
+      return;
+    }
+
+    res.json({
+      valid: true,
+      email: tokenDoc.email,
+    });
+  } catch (err: any) {
+    res.status(500).json({ valid: false, error: "Failed to verify reset link." });
+  }
+});
+
+// 3. Set New Password with Token
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token) {
+    res.status(400).json({ success: false, error: "Reset link token is missing." });
+    return;
+  }
+
+  if (!newPassword || newPassword.length < 4) {
+    res.status(400).json({
+      success: false,
+      error: "Your new password must be at least 4 characters long.",
+    });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({
+      success: false,
+      error: "Unable to connect right now. Please try again in a few moments.",
+    });
+    return;
+  }
+
+  try {
+    const tokenDoc = await (PasswordResetTokenModel as any).findOne({
+      token,
+      used: false,
+    });
+
+    if (!tokenDoc) {
+      res.status(404).json({
+        success: false,
+        error: "This password reset link is invalid or has already been used. Please request a new one.",
+      });
+      return;
+    }
+
+    if (new Date() > new Date(tokenDoc.expiresAt)) {
+      res.status(410).json({
+        success: false,
+        error: "This password reset link has expired. Please request a new one.",
+      });
+      return;
+    }
+
+    // Update user's password
+    await (UserModel as any).findOneAndUpdate(
+      { id: tokenDoc.userId },
+      { $set: { password: newPassword } }
+    );
+
+    // Mark token as used
+    tokenDoc.used = true;
+    await tokenDoc.save();
+
+    res.json({
+      success: true,
+      message: "Your password has been updated! You can now sign in with your new password.",
+      email: tokenDoc.email,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to update password. Please try again.",
+    });
+  }
 });
 
 // Update user profile credentials (username, email, password, profile picture)

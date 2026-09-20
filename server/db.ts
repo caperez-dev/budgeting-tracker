@@ -161,6 +161,17 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true, strict: false }
 );
 
+const PasswordResetTokenSchema = new mongoose.Schema(
+  {
+    token: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, required: true, index: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
+    expiresAt: { type: Date, required: true },
+    used: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
 export const TransactionModel: mongoose.Model<any> =
   mongoose.models.Transaction || mongoose.model('Transaction', TransactionSchema);
 export const CategoryModel: mongoose.Model<any> =
@@ -177,3 +188,6 @@ export const UserProfileModel: mongoose.Model<any> =
   mongoose.models.UserProfile || mongoose.model('UserProfile', UserProfileSchema);
 export const UserModel: mongoose.Model<any> =
   mongoose.models.User || mongoose.model('User', UserSchema);
+export const PasswordResetTokenModel: mongoose.Model<any> =
+  mongoose.models.PasswordResetToken || mongoose.model('PasswordResetToken', PasswordResetTokenSchema);
+
