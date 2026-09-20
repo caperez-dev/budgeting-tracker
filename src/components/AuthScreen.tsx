@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+"use client";
+
+import React, { useState, useEffect, JSX, SVGProps } from 'react';
 import {
-  Wallet,
   Mail,
   Lock,
   User,
@@ -11,10 +12,21 @@ import {
   AlertCircle,
   RefreshCw,
   ArrowRight,
-  Sparkles,
   HelpCircle,
+  Wallet,
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, profileUpdate?: Partial<UserProfile>) => void;
@@ -27,6 +39,36 @@ const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
 ];
 
+export const Logo = (props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) => (
+  <svg
+    fill="currentColor"
+    height="48"
+    viewBox="0 0 40 48"
+    width="40"
+    {...props}
+  >
+    <clipPath id="a">
+      <path d="m0 0h40v48h-40z" />
+    </clipPath>
+    <g clipPath="url(#a)">
+      <path d="m25.0887 5.05386-3.933-1.05386-3.3145 12.3696-2.9923-11.16736-3.9331 1.05386 3.233 12.0655-8.05262-8.0526-2.87919 2.8792 8.83271 8.8328-10.99975-2.9474-1.05385625 3.933 12.01860625 3.2204c-.1376-.5935-.2104-1.2119-.2104-1.8473 0-4.4976 3.646-8.1436 8.1437-8.1436 4.4976 0 8.1436 3.646 8.1436 8.1436 0 .6313-.0719 1.2459-.2078 1.8359l10.9227 2.9267 1.0538-3.933-12.0664-3.2332 11.0005-2.9476-1.0539-3.933-12.0659 3.233 8.0526-8.0526-2.8792-2.87916-8.7102 8.71026z" />
+      <path d="m27.8723 26.2214c-.3372 1.4256-1.0491 2.7063-2.0259 3.7324l7.913 7.9131 2.8792-2.8792z" />
+      <path d="m25.7665 30.0366c-.9886 1.0097-2.2379 1.7632-3.6389 2.1515l2.8794 10.746 3.933-1.0539z" />
+      <path d="m21.9807 32.2274c-.65.1671-1.3313.2559-2.0334.2559-.7522 0-1.4806-.102-2.1721-.2929l-2.882 10.7558 3.933 1.0538z" />
+      <path d="m17.6361 32.1507c-1.3796-.4076-2.6067-1.1707-3.5751-2.1833l-7.9325 7.9325 2.87919 2.8792z" />
+      <path d="m13.9956 29.8973c-.9518-1.019-1.6451-2.2826-1.9751-3.6862l-10.95836 2.9363 1.05385 3.933z" />
+    </g>
+  </svg>
+);
+
+export const GoogleIcon = (
+  props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>
+) => (
+  <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
+    <path d="M3.06364 7.50914C4.70909 4.24092 8.09084 2 12 2C14.6954 2 16.959 2.99095 18.6909 4.60455L15.8227 7.47274C14.7864 6.48185 13.4681 5.97727 12 5.97727C9.39542 5.97727 7.19084 7.73637 6.40455 10.1C6.2045 10.7 6.09086 11.3409 6.09086 12C6.09086 12.6591 6.2045 13.3 6.40455 13.9C7.19084 16.2636 9.39542 18.0227 12 18.0227C13.3454 18.0227 14.4909 17.6682 15.3864 17.0682C16.4454 16.3591 17.15 15.3 17.3818 14.05H12V10.1818H21.4181C21.5364 10.8363 21.6 11.5182 21.6 12.2273C21.6 15.2727 20.5091 17.8363 18.6181 19.5773C16.9636 21.1046 14.7 22 12 22C8.09084 22 4.70909 19.7591 3.06364 16.4909C2.38638 15.1409 2 13.6136 2 12C2 10.3864 2.38638 8.85911 3.06364 7.50914Z" />
+  </svg>
+);
+
 export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -37,13 +79,14 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [agreedToTerms, setAgreedToTerms] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [infoNotice, setInfoNotice] = useState<string | null>(null);
 
-  // Listen for Google OAuth popup message
+  // Listen for Google OAuth popup message (Backend OAuth integration unchanged)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const origin = event.origin;
@@ -126,23 +169,9 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     }
   };
 
-  const handleContinueAsGuest = () => {
-    const guestUser: AuthUser = {
-      id: 'local_guest',
-      email: 'guest@budgettracker.local',
-      nickname: 'Guest',
-      avatarUrl: AVATAR_PRESETS[0],
-    };
-    onLoginSuccess(guestUser, {
-      nickname: 'Guest',
-      avatarUrl: AVATAR_PRESETS[0],
-      email: 'guest@budgettracker.local',
-    });
-  };
-
   const handleForgotPassword = () => {
     setInfoNotice(
-      'To reset your password, please contact support or sign in with Google / continue as guest on this device.'
+      'To reset your password or recover your account, please connect with Google or contact support.'
     );
   };
 
@@ -165,6 +194,10 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       }
       if (password !== confirmPassword) {
         setErrorMessage('Passwords do not match. Please re-enter.');
+        return;
+      }
+      if (!agreedToTerms) {
+        setErrorMessage('Please agree to the Terms and Conditions to create your account.');
         return;
       }
     }
@@ -194,7 +227,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error('Unable to connect right now. You can continue as a guest below or try again shortly.');
+        throw new Error('Unable to connect right now. Please try again shortly.');
       }
 
       if (!res.ok || !data?.success) {
@@ -218,388 +251,337 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-white text-zinc-900 font-sans selection:bg-zinc-900 selection:text-white">
-      {/* Left Panel - Brand / Image Section */}
-      <div className="hidden lg:flex lg:flex-1 relative overflow-hidden bg-zinc-950">
-        {/* Background visual photo */}
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?q=80&w=1400&auto=format&fit=crop"
-            alt="Budget Tracker Visual"
-            className="w-full h-full object-cover opacity-45 mix-blend-luminosity scale-105 transition-transform duration-1000 ease-out hover:scale-100"
-            referrerPolicy="no-referrer"
-          />
-          {/* Gradient overlays for readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-zinc-950/30" />
-          <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/80 via-transparent to-transparent" />
-        </div>
-
-        {/* Brand header at top */}
-        <div className="absolute top-10 left-10 z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-md">
-            <Wallet className="w-5 h-5 text-zinc-100" />
-          </div>
-          <div>
-            <span className="text-base font-bold tracking-tight text-white block">Budget Tracker</span>
-            <span className="text-[11px] text-zinc-400 font-medium">Smart Personal Finance</span>
-          </div>
-        </div>
-
-        {/* Feature showcase at bottom */}
-        <div className="relative z-10 flex flex-col justify-end p-12 text-white max-w-xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-medium mb-5 w-fit text-zinc-200">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Smart Financial Clarity</span>
-          </div>
-
-          <h2 className="text-3xl font-bold tracking-tight text-white mb-3 leading-tight">
-            Take complete control of your spending and savings.
-          </h2>
-
-          <p className="text-sm text-zinc-300 leading-relaxed mb-8 max-w-md">
-            Log transactions in seconds, monitor savings targets, manage debts, and gain confidence with visual analytics.
-          </p>
-
-          {/* Value cards */}
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
-            <div className="bg-white/5 backdrop-blur-xs border border-white/10 rounded-xl p-3">
-              <div className="text-xs font-semibold text-white">Accounts & Wallets</div>
-              <div className="text-[11px] text-zinc-400 mt-0.5">Track GCash, Maya, cash, and banks</div>
+    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 bg-zinc-50/60 font-sans selection:bg-zinc-900 selection:text-white">
+      <div className="w-full max-w-md">
+        <Card className="border border-zinc-200/80 bg-white shadow-lg rounded-2xl overflow-hidden transition-all">
+          {/* Header with Logo and Title */}
+          <CardHeader className="flex flex-col items-center space-y-2 pb-4 pt-8 text-center">
+            <div className="relative mb-1">
+              <div className="w-14 h-14 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-md">
+                <Wallet className="w-7 h-7 text-zinc-100" />
+              </div>
             </div>
-            <div className="bg-white/5 backdrop-blur-xs border border-white/10 rounded-xl p-3">
-              <div className="text-xs font-semibold text-white">Goals & Debts</div>
-              <div className="text-[11px] text-zinc-400 mt-0.5">Stay on track for targets that matter</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Right Panel - Form Section */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 lg:p-14 bg-white min-h-screen">
-        <div className="w-full max-w-md">
-          {/* Mobile Brand Header */}
-          <div className="lg:hidden flex items-center gap-2.5 mb-6">
-            <div className="w-9 h-9 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-xs">
-              <Wallet className="w-4 h-4" />
+            <div className="space-y-1 flex flex-col items-center">
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
+                {mode === 'login' ? 'Welcome back' : 'Create an account'}
+              </h1>
+              <p className="text-xs sm:text-sm text-zinc-500 max-w-xs leading-relaxed">
+                {mode === 'login'
+                  ? 'Sign in to access your budget, accounts, and insights.'
+                  : 'Welcome! Create an account to start tracking your finances.'}
+              </p>
             </div>
-            <div>
-              <span className="text-sm font-bold tracking-tight text-zinc-900 block">Budget Tracker</span>
-              <span className="text-[11px] text-zinc-500">Personal Finance</span>
+          </CardHeader>
+
+          <CardContent className="space-y-5 px-6 sm:px-8">
+            {/* Google Sign-in Button */}
+            <div className="space-y-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleLoading || isLoading}
+                className="w-full h-11 justify-center gap-2.5 rounded-xl border-zinc-300 font-medium text-sm text-zinc-800 hover:bg-zinc-50 hover:text-zinc-950 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+              >
+                {isGoogleLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />
+                    <span>Opening Google Sign-In...</span>
+                  </>
+                ) : (
+                  <>
+                    <GoogleIcon className="h-4 w-4 text-zinc-800" />
+                    <span>{mode === 'login' ? 'Sign in with Google' : 'Sign up with Google'}</span>
+                  </>
+                )}
+              </Button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <Separator className="flex-1 bg-zinc-200" />
+                <span className="text-xs text-zinc-400 font-medium tracking-wide uppercase">
+                  {mode === 'login' ? 'or sign in with email' : 'or register with email'}
+                </span>
+                <Separator className="flex-1 bg-zinc-200" />
+              </div>
             </div>
-          </div>
 
-          {/* Heading */}
-          <div className="mb-6">
-            <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-2">
-              {mode === 'login' ? 'Welcome Back' : 'Create an Account'}
-            </h1>
-            <p className="text-sm text-zinc-600">
-              {mode === 'login' ? (
-                <>
-                  Don&apos;t have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('register');
-                      setErrorMessage(null);
-                      setSuccessMessage(null);
-                      setInfoNotice(null);
-                    }}
-                    className="text-zinc-900 hover:text-black font-semibold hover:underline cursor-pointer"
-                  >
-                    Sign up
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('login');
-                      setErrorMessage(null);
-                      setSuccessMessage(null);
-                      setInfoNotice(null);
-                    }}
-                    className="text-zinc-900 hover:text-black font-semibold hover:underline cursor-pointer"
-                  >
-                    Sign in
-                  </button>
-                </>
-              )}
-            </p>
-          </div>
-
-          {/* Google Sign-in Action (No GitHub) */}
-          <div>
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading || isLoading}
-              className="w-full flex items-center justify-center px-4 py-3 border border-zinc-200 rounded-xl hover:bg-zinc-50 active:bg-zinc-100 transition-colors font-medium text-sm text-zinc-700 gap-3 shadow-2xs cursor-pointer disabled:opacity-50"
-            >
-              {isGoogleLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-zinc-500" />
-                  <span>Opening Google Sign-In...</span>
-                </>
-              ) : (
-                <>
-                  {/* Google SVG */}
-                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  <span>Continue with Google</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-200"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-white text-zinc-400 font-medium">
-                or continue with email
-              </span>
-            </div>
-          </div>
-
-          {/* Feedback messages */}
-          {errorMessage && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700">
-              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{errorMessage}</span>
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-800">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {infoNotice && (
-            <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2.5 text-xs text-blue-800">
-              <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{infoNotice}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Nickname / Name (Sign Up only) */}
-            {mode === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                  Your Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value)}
-                    placeholder="e.g. Carlos Perez"
-                    className="w-full pl-10 pr-4 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
-                  />
-                </div>
+            {/* Status Notifications */}
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700 animate-in fade-in duration-200">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{errorMessage}</span>
               </div>
             )}
 
-            {/* Email Address */}
-            <div>
-              <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
-                  <Mail className="w-4 h-4" />
-                </div>
-                <input
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-11 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Confirm Password (Sign Up only) */}
-            {mode === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-11 py-2.5 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
-                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+            {successMessage && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-800 animate-in fade-in duration-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{successMessage}</span>
               </div>
             )}
 
-            {/* Choose Avatar Preset (Sign Up only) */}
-            {mode === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-2">
-                  Choose a Profile Photo
-                </label>
-                <div className="flex items-center gap-3">
-                  {AVATAR_PRESETS.map((preset, idx) => (
+            {infoNotice && (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2.5 text-xs text-blue-800 animate-in fade-in duration-200">
+                <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{infoNotice}</span>
+              </div>
+            )}
+
+            {/* Email / Password Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Name / Display Name (Sign Up only) */}
+              {mode === 'register' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="nickname">Full Name or Nickname</Label>
+                  <div className="relative">
+                    <Input
+                      id="nickname"
+                      type="text"
+                      required
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="e.g. Carlos Perez"
+                      className="ps-10"
+                    />
+                    <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                      <User className="h-4 w-4" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Email Address */}
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email address</Label>
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="ps-10"
+                  />
+                  <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                    <Mail className="h-4 w-4" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  {mode === 'login' && (
                     <button
-                      key={idx}
                       type="button"
-                      onClick={() => setSelectedAvatar(preset)}
-                      className={`relative rounded-full p-0.5 transition-all cursor-pointer ${
-                        selectedAvatar === preset
-                          ? 'ring-2 ring-zinc-900 scale-105 shadow-sm'
-                          : 'opacity-70 hover:opacity-100 hover:scale-105'
-                      }`}
+                      onClick={handleForgotPassword}
+                      className="text-xs text-zinc-500 hover:text-zinc-900 font-medium hover:underline transition-colors cursor-pointer"
                     >
-                      <img
-                        src={preset}
-                        alt={`Photo option ${idx + 1}`}
-                        className="w-10 h-10 rounded-full object-cover border border-zinc-200"
-                        referrerPolicy="no-referrer"
-                      />
+                      Forgot Password?
                     </button>
-                  ))}
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="ps-10 pe-10"
+                  />
+                  <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
-            )}
 
-            {/* Remember Me + Forgot Password (Login only) */}
-            {mode === 'login' && (
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center space-x-2 text-xs text-zinc-600 cursor-pointer">
-                  <input
-                    type="checkbox"
+              {/* Confirm Password (Sign Up only) */}
+              {mode === 'register' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="ps-10 pe-10"
+                    />
+                    <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
+                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Avatar Picker (Sign Up only) */}
+              {mode === 'register' && (
+                <div className="space-y-1.5 pt-1">
+                  <Label>Profile Picture</Label>
+                  <div className="flex items-center gap-3">
+                    {AVATAR_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedAvatar(preset)}
+                        className={`relative rounded-full p-0.5 transition-all cursor-pointer ${
+                          selectedAvatar === preset
+                            ? 'ring-2 ring-zinc-900 scale-105 shadow-xs'
+                            : 'opacity-65 hover:opacity-100 hover:scale-105'
+                        }`}
+                      >
+                        <img
+                          src={preset}
+                          alt={`Avatar ${idx + 1}`}
+                          className="w-9 h-9 rounded-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Remember Me Checkbox (Sign In) */}
+              {mode === 'login' && (
+                <div className="flex items-center space-x-2 pt-1">
+                  <Checkbox
+                    id="remember-me"
                     checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900 accent-zinc-900 cursor-pointer"
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
                   />
-                  <span>Remember me</span>
-                </label>
+                  <label
+                    htmlFor="remember-me"
+                    className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
+                  >
+                    Remember for 30 days
+                  </label>
+                </div>
+              )}
+
+              {/* Terms Checkbox (Sign Up) */}
+              {mode === 'register' && (
+                <div className="flex items-center space-x-2 pt-1">
+                  <Checkbox
+                    id="terms"
+                    checked={agreedToTerms}
+                    onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                  />
+                  <label
+                    htmlFor="terms"
+                    className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
+                  >
+                    I agree to the{' '}
+                    <span className="text-zinc-900 font-medium hover:underline">
+                      Terms
+                    </span>{' '}
+                    and{' '}
+                    <span className="text-zinc-900 font-medium hover:underline">
+                      Conditions
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-11 rounded-xl bg-zinc-900 text-white font-medium text-sm hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 mt-2 shadow-xs cursor-pointer disabled:opacity-60"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>
+                      {mode === 'login' ? 'Signing in...' : 'Creating account...'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      {mode === 'login' ? 'Sign in' : 'Create free account'}
+                    </span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+
+          {/* Footer with Switch Link */}
+          <CardFooter className="flex justify-center border-t border-zinc-100 py-4 bg-zinc-50/50">
+            {mode === 'login' ? (
+              <p className="text-center text-xs text-zinc-600">
+                No account?{' '}
                 <button
                   type="button"
-                  onClick={handleForgotPassword}
-                  className="text-xs text-zinc-600 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
+                  onClick={() => {
+                    setMode('register');
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                    setInfoNotice(null);
+                  }}
+                  className="text-zinc-900 font-semibold hover:underline cursor-pointer ml-1"
                 >
-                  Forgot password?
+                  Create an account
                 </button>
-              </div>
+              </p>
+            ) : (
+              <p className="text-center text-xs text-zinc-600">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                    setInfoNotice(null);
+                  }}
+                  className="text-zinc-900 font-semibold hover:underline cursor-pointer ml-1"
+                >
+                  Sign in
+                </button>
+              </p>
             )}
+          </CardFooter>
+        </Card>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-zinc-900 hover:bg-zinc-800 active:scale-[0.99] text-white py-3 px-4 rounded-xl font-medium text-sm transition-all shadow-xs disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 mt-2"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
-                </>
-              ) : (
-                <>
-                  <span>{mode === 'login' ? 'Sign In' : 'Create Account'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Guest Mode Option */}
-          <div className="pt-5 mt-5 border-t border-zinc-100 text-center">
-            <button
-              type="button"
-              onClick={handleContinueAsGuest}
-              className="text-xs text-zinc-500 hover:text-zinc-800 font-medium transition-colors cursor-pointer inline-flex items-center gap-1.5 py-1"
-            >
-              <span>Continue as Guest</span>
-              <span className="text-zinc-400 font-normal">(Use locally on this device)</span>
-            </button>
-          </div>
-
-          {/* Bottom Security Note */}
-          <p className="mt-5 text-center text-[11px] text-zinc-400">
-            Your transactions and financial data are private and secure.
-          </p>
-        </div>
+        {/* Discreet bottom security text */}
+        <p className="mt-4 text-center text-[11px] text-zinc-400">
+          Your personal transactions and financial data are private and secure.
+        </p>
       </div>
     </div>
   );
 }
-
