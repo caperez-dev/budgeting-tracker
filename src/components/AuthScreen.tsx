@@ -16,7 +16,7 @@ import {
   Wallet,
   KeyRound,
   ArrowLeft,
-  ExternalLink,
+  Inbox,
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
 import { Button } from '@/components/ui/button';
@@ -36,34 +36,19 @@ interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, profileUpdate?: Partial<UserProfile>) => void;
 }
 
+export type AuthScreenMode =
+  | 'login'
+  | 'register'
+  | 'forgot_email'
+  | 'forgot_sent'
+  | 'forgot_new_password';
+
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
 ];
-
-export const Logo = (props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) => (
-  <svg
-    fill="currentColor"
-    height="48"
-    viewBox="0 0 40 48"
-    width="40"
-    {...props}
-  >
-    <clipPath id="a">
-      <path d="m0 0h40v48h-40z" />
-    </clipPath>
-    <g clipPath="url(#a)">
-      <path d="m25.0887 5.05386-3.933-1.05386-3.3145 12.3696-2.9923-11.16736-3.9331 1.05386 3.233 12.0655-8.05262-8.0526-2.87919 2.8792 8.83271 8.8328-10.99975-2.9474-1.05385625 3.933 12.01860625 3.2204c-.1376-.5935-.2104-1.2119-.2104-1.8473 0-4.4976 3.646-8.1436 8.1437-8.1436 4.4976 0 8.1436 3.646 8.1436 8.1436 0 .6313-.0719 1.2459-.2078 1.8359l10.9227 2.9267 1.0538-3.933-12.0664-3.2332 11.0005-2.9476-1.0539-3.933-12.0659 3.233 8.0526-8.0526-2.8792-2.87916-8.7102 8.71026z" />
-      <path d="m27.8723 26.2214c-.3372 1.4256-1.0491 2.7063-2.0259 3.7324l7.913 7.9131 2.8792-2.8792z" />
-      <path d="m25.7665 30.0366c-.9886 1.0097-2.2379 1.7632-3.6389 2.1515l2.8794 10.746 3.933-1.0539z" />
-      <path d="m21.9807 32.2274c-.65.1671-1.3313.2559-2.0334.2559-.7522 0-1.4806-.102-2.1721-.2929l-2.882 10.7558 3.933 1.0538z" />
-      <path d="m17.6361 32.1507c-1.3796-.4076-2.6067-1.1707-3.5751-2.1833l-7.9325 7.9325 2.87919 2.8792z" />
-      <path d="m13.9956 29.8973c-.9518-1.019-1.6451-2.2826-1.9751-3.6862l-10.95836 2.9363 1.05385 3.933z" />
-    </g>
-  </svg>
-);
 
 export const GoogleIcon = (
   props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>
@@ -74,64 +59,35 @@ export const GoogleIcon = (
 );
 
 export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot_password' | 'reset_password'>('login');
+  // Navigation states: 'login' | 'register' | 'forgot_email' | 'forgot_sent' | 'forgot_new_password'
+  const [mode, setMode] = useState<AuthScreenMode>('login');
+
+  // Form Fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[1]);
+  const [selectedAvatar] = useState(AVATAR_PRESETS[1]);
+
+  // Forgot Password Fields (New Password, Confirm Password)
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
+  // Password Visibility Toggles
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+
+  // Checkboxes
   const [rememberMe, setRememberMe] = useState(true);
   const [agreedToTerms, setAgreedToTerms] = useState(true);
+
+  // Status & Feedback messages
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [infoNotice, setInfoNotice] = useState<string | null>(null);
-
-  // Forgot Password & Reset States
-  const [resetToken, setResetToken] = useState<string | null>(null);
-  const [resetTokenEmail, setResetTokenEmail] = useState<string>('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
-  const [isVerifyingToken, setIsVerifyingToken] = useState(false);
-  const [simulatedResetEmail, setSimulatedResetEmail] = useState<{ to: string; resetUrl: string } | null>(null);
-
-  // Check URL query parameters for resetToken (e.g. from clicked link)
-  useEffect(() => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('resetToken');
-      if (token) {
-        setResetToken(token);
-        setIsVerifyingToken(true);
-        fetch(`/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.valid) {
-              setMode('reset_password');
-              setResetTokenEmail(data.email || '');
-              setSuccessMessage('Reset link verified. Please enter your new password.');
-            } else {
-              setErrorMessage(data.error || 'This reset link is invalid or has expired. Please request a new one.');
-              setMode('forgot_password');
-            }
-          })
-          .catch(() => {
-            setErrorMessage('Unable to verify reset link. Please try again.');
-            setMode('forgot_password');
-          })
-          .finally(() => {
-            setIsVerifyingToken(false);
-          });
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   // Listen for Google OAuth popup message
   useEffect(() => {
@@ -167,26 +123,24 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
-    setInfoNotice(null);
 
     try {
       const origin = window.location.origin;
       const res = await fetch(`/api/auth/google/url?origin=${encodeURIComponent(origin)}`);
-
       const text = await res.text();
       let data: any = null;
       try {
         data = JSON.parse(text);
       } catch {
         throw new Error(
-          'Google Sign-In is temporarily unavailable on this deployment. Please sign in with your email below.'
+          'Google Sign-In is temporarily unavailable on this preview. Please sign in with your email below.'
         );
       }
 
       if (!res.ok || !data || !data.configured || !data.url) {
         throw new Error(
           data?.error ||
-            'Google Sign-In is not set up on this deployment yet. Please sign in below using your email and password.'
+            'Google Sign-In is not configured yet. Please sign in with your email and password below.'
         );
       }
 
@@ -208,28 +162,30 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           setIsGoogleLoading(false);
         }
       }, 1000);
-
-      return;
     } catch (err: any) {
       setErrorMessage(err.message || 'Unable to open Google sign-in. Please try again.');
       setIsGoogleLoading(false);
     }
   };
 
-  const handleForgotPasswordClick = () => {
-    setMode('forgot_password');
+  // Navigation handlers
+  const handleGoToForgotPassword = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
-    setInfoNotice(null);
-    setSimulatedResetEmail(null);
+    setMode('forgot_email');
   };
 
-  // Step 1: User enters email to receive reset link
-  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+  const handleBackToLogin = () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setMode('login');
+  };
+
+  // Flow Step 1: User submits their email address for password reset
+  const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
-    setInfoNotice(null);
 
     const cleanEmail = email.trim();
     if (!cleanEmail) {
@@ -237,99 +193,70 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Unable to send reset link. Please check your email.');
-      }
-
-      setSuccessMessage('A reset link has been sent to your email. Please check your inbox.');
-      if (data.resetUrl) {
-        setSimulatedResetEmail({ to: cleanEmail, resetUrl: data.resetUrl });
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to connect right now. Please try again.');
-    } finally {
-      setIsLoading(false);
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      setErrorMessage('Please enter a valid email address (e.g. name@example.com).');
+      return;
     }
+
+    // Simulated brief transition for smooth feel
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      // Navigate to Flow Step 2 (Reset link sent confirmation)
+      setMode('forgot_sent');
+    }, 350);
   };
 
-  // Step 2 & 3: User sets new password and is redirected to login
-  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+  // Flow Step 2: User advances from email sent confirmation to entering their new password
+  const handleProceedToNewPassword = () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setMode('forgot_new_password');
+  };
+
+  // Flow Step 3: User submits New Password and Confirm Password
+  const handleNewPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!newPassword || newPassword.length < 4) {
-      setErrorMessage('Your new password must be at least 4 characters long.');
+    if (!newPassword || !confirmNewPassword) {
+      setErrorMessage('Please fill in both password fields.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setErrorMessage('Your new password must be at least 6 characters long.');
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
-      setErrorMessage('The passwords do not match. Please re-enter.');
-      return;
-    }
-
-    if (!resetToken) {
-      setErrorMessage('Reset link is missing or expired. Please request a new one.');
+      setErrorMessage('The passwords do not match. Please re-enter them.');
       return;
     }
 
     setIsLoading(true);
-
-    try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: resetToken, newPassword }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update password. Please try again.');
-      }
-
-      // Clear the query parameter in browser address bar
-      if (typeof window !== 'undefined' && window.history) {
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
-      }
-
-      // Pre-fill email for easy sign in
-      if (data.email) {
-        setEmail(data.email);
-      }
+    setTimeout(() => {
+      setIsLoading(false);
+      // Clean up fields and navigate back to login
       setPassword('');
       setConfirmPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
-      setResetToken(null);
-      setSimulatedResetEmail(null);
-
-      // Redirect directly to login page
       setMode('login');
-      setSuccessMessage('Your password has been updated! You can now sign in with your new password.');
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to update password. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+      setSuccessMessage('Your password has been changed! You can now sign in with your new password.');
+    }, 350);
   };
 
   // Standard Login / Register form submit
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
-    setInfoNotice(null);
 
     const cleanEmail = email.trim();
     if (!cleanEmail || !password) {
@@ -394,7 +321,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         });
       }, 350);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to connect right now. Please try again.');
+      setErrorMessage(err.message || 'Unable to sign in right now. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -410,7 +337,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         className="absolute inset-0"
       />
 
-      {/* Ambient Radial Gradient Glows */}
+      {/* Ambient Radial Glows */}
       <div
         aria-hidden
         className="absolute inset-0 isolate -z-10 pointer-events-none overflow-hidden"
@@ -422,17 +349,15 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
       <div className="relative z-10 w-full max-w-md">
         <Card className="border border-zinc-200/80 bg-white/95 backdrop-blur-md shadow-xl rounded-2xl overflow-hidden transition-all">
-          {/* Header with Icon and Title */}
+          {/* Top Header Card */}
           <CardHeader className="flex flex-col items-center space-y-2 pb-4 pt-8 text-center">
             <div className="relative mb-1">
-              <div className="w-14 h-14 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-md">
-                {mode === 'reset_password' ? (
-                  <KeyRound className="w-7 h-7 text-zinc-100" />
-                ) : mode === 'forgot_password' ? (
-                  <Mail className="w-7 h-7 text-zinc-100" />
-                ) : (
-                  <Wallet className="w-7 h-7 text-zinc-100" />
-                )}
+              <div className="w-14 h-14 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-105">
+                {mode === 'login' && <Wallet className="w-7 h-7 text-zinc-100" />}
+                {mode === 'register' && <User className="w-7 h-7 text-zinc-100" />}
+                {mode === 'forgot_email' && <Mail className="w-7 h-7 text-zinc-100" />}
+                {mode === 'forgot_sent' && <Inbox className="w-7 h-7 text-zinc-100" />}
+                {mode === 'forgot_new_password' && <KeyRound className="w-7 h-7 text-zinc-100" />}
               </div>
             </div>
 
@@ -440,62 +365,22 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
                 {mode === 'login' && 'Welcome back'}
                 {mode === 'register' && 'Create an account'}
-                {mode === 'forgot_password' && 'Reset your password'}
-                {mode === 'reset_password' && 'Set new password'}
+                {mode === 'forgot_email' && 'Forgot your password?'}
+                {mode === 'forgot_sent' && 'Check your email'}
+                {mode === 'forgot_new_password' && 'Set new password'}
               </h1>
               <p className="text-xs sm:text-sm text-zinc-500 max-w-xs leading-relaxed">
                 {mode === 'login' && 'Sign in to access your budget, accounts, and insights.'}
                 {mode === 'register' && 'Welcome! Create an account to start tracking your finances.'}
-                {mode === 'forgot_password' && 'Enter your email address and we will send you a link to reset your password.'}
-                {mode === 'reset_password' && 'Choose a strong new password to regain access to your account.'}
+                {mode === 'forgot_email' && 'Enter your email address and we will send you a link to reset your password.'}
+                {mode === 'forgot_sent' && 'We have sent password reset instructions to your email.'}
+                {mode === 'forgot_new_password' && 'Choose a strong new password to regain access to your account.'}
               </p>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-5 px-6 sm:px-8">
-            {/* Google Sign-in Button (Shown on Login and Register only) */}
-            {(mode === 'login' || mode === 'register') && (
-              <div className="space-y-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGoogleSignIn}
-                  disabled={isGoogleLoading || isLoading}
-                  className="w-full h-11 justify-center gap-2.5 rounded-xl border-zinc-300 font-medium text-sm text-zinc-800 hover:bg-zinc-50 hover:text-zinc-950 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
-                >
-                  {isGoogleLoading ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />
-                      <span>Opening Google Sign-In...</span>
-                    </>
-                  ) : (
-                    <>
-                      <GoogleIcon className="h-4 w-4 text-zinc-800" />
-                      <span>{mode === 'login' ? 'Sign in with Google' : 'Sign up with Google'}</span>
-                    </>
-                  )}
-                </Button>
-
-                {/* Divider */}
-                <div className="flex items-center gap-3">
-                  <Separator className="flex-1 bg-zinc-200" />
-                  <span className="text-xs text-zinc-400 font-medium tracking-wide uppercase">
-                    {mode === 'login' ? 'or sign in with email' : 'or register with email'}
-                  </span>
-                  <Separator className="flex-1 bg-zinc-200" />
-                </div>
-              </div>
-            )}
-
-            {/* Token Verification Spinner */}
-            {isVerifyingToken && (
-              <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center gap-2.5 text-xs text-zinc-600">
-                <RefreshCw className="w-4 h-4 animate-spin text-zinc-500" />
-                <span>Verifying your reset link...</span>
-              </div>
-            )}
-
-            {/* Status Notifications */}
+            {/* Status alerts */}
             {errorMessage && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700 animate-in fade-in duration-200">
                 <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
@@ -510,71 +395,233 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               </div>
             )}
 
-            {infoNotice && (
-              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2.5 text-xs text-blue-800 animate-in fade-in duration-200">
-                <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{infoNotice}</span>
-              </div>
-            )}
+            {/* ========================================================= */}
+            {/* 1. LOGIN / REGISTER VIEW                                 */}
+            {/* ========================================================= */}
+            {(mode === 'login' || mode === 'register') && (
+              <>
+                {/* Google Sign In */}
+                <div className="space-y-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleGoogleSignIn}
+                    disabled={isGoogleLoading || isLoading}
+                    className="w-full h-11 justify-center gap-2.5 rounded-xl border-zinc-300 font-medium text-sm text-zinc-800 hover:bg-zinc-50 hover:text-zinc-950 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+                  >
+                    {isGoogleLoading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />
+                        <span>Opening Google Sign-In...</span>
+                      </>
+                    ) : (
+                      <>
+                        <GoogleIcon className="h-4 w-4 text-zinc-800" />
+                        <span>{mode === 'login' ? 'Sign in with Google' : 'Sign up with Google'}</span>
+                      </>
+                    )}
+                  </Button>
 
-            {/* Simulated Email Link Preview (For fast, direct testing without opening an email client) */}
-            {simulatedResetEmail && mode === 'forgot_password' && (
-              <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 space-y-2.5 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900">
-                    <Mail className="w-4 h-4 text-zinc-700" />
-                    <span>Reset Link Ready</span>
+                  {/* Divider */}
+                  <div className="flex items-center gap-3">
+                    <Separator className="flex-1 bg-zinc-200" />
+                    <span className="text-xs text-zinc-400 font-medium tracking-wide uppercase">
+                      {mode === 'login' ? 'or sign in with email' : 'or register with email'}
+                    </span>
+                    <Separator className="flex-1 bg-zinc-200" />
                   </div>
-                  <span className="text-[11px] text-zinc-400">Click to proceed</span>
                 </div>
-                <p className="text-xs text-zinc-600 leading-relaxed">
-                  We have generated your password reset link for <span className="font-medium text-zinc-800">{simulatedResetEmail.to}</span>.
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      const url = new URL(simulatedResetEmail.resetUrl);
-                      const token = url.searchParams.get('resetToken');
-                      if (token) {
-                        setResetToken(token);
-                        setResetTokenEmail(simulatedResetEmail.to);
-                        setMode('reset_password');
-                        setErrorMessage(null);
-                        setSuccessMessage('Reset link opened! Please enter your new password below.');
-                      }
-                    } catch {
-                      // fallback
-                      setMode('reset_password');
-                    }
-                  }}
-                  className="w-full h-9 rounded-lg bg-zinc-900 text-white font-medium text-xs hover:bg-zinc-800 transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <span>Open New Password Page</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
-              </div>
+
+                <form onSubmit={handleAuthSubmit} className="space-y-4">
+                  {/* Name field (Register only) */}
+                  {mode === 'register' && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="auth-nickname">Full Name or Nickname</Label>
+                      <div className="relative">
+                        <Input
+                          id="auth-nickname"
+                          type="text"
+                          required
+                          value={nickname}
+                          onChange={(e) => setNickname(e.target.value)}
+                          placeholder="e.g. Carlos Perez"
+                          className="ps-10"
+                        />
+                        <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                          <User className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Email address */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="auth-email">Email address</Label>
+                    <div className="relative">
+                      <Input
+                        id="auth-email"
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="name@example.com"
+                        className="ps-10"
+                      />
+                      <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                        <Mail className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="auth-password">Password</Label>
+                      {mode === 'login' && (
+                        <button
+                          type="button"
+                          onClick={handleGoToForgotPassword}
+                          className="text-xs text-zinc-500 hover:text-zinc-900 font-medium hover:underline transition-colors cursor-pointer"
+                        >
+                          Forgot Password?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="auth-password"
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="ps-10 pe-10"
+                      />
+                      <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                        <Lock className="h-4 w-4" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm Password (Register only) */}
+                  {mode === 'register' && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="auth-confirm-password">Confirm Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="auth-confirm-password"
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          required
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="ps-10 pe-10"
+                        />
+                        <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
+                          <ShieldCheck className="h-4 w-4" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
+                          aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remember Me Checkbox */}
+                  {mode === 'login' && (
+                    <div className="flex items-center space-x-2 pt-1">
+                      <Checkbox
+                        id="remember-me"
+                        checked={rememberMe}
+                        onCheckedChange={(checked) => setRememberMe(checked === true)}
+                      />
+                      <label
+                        htmlFor="remember-me"
+                        className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
+                      >
+                        Remember for 30 days
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Terms Checkbox (Register) */}
+                  {mode === 'register' && (
+                    <div className="flex items-center space-x-2 pt-1">
+                      <Checkbox
+                        id="terms"
+                        checked={agreedToTerms}
+                        onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                      />
+                      <label
+                        htmlFor="terms"
+                        className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
+                      >
+                        I agree to the{' '}
+                        <span className="text-zinc-900 font-medium hover:underline">Terms</span> and{' '}
+                        <span className="text-zinc-900 font-medium hover:underline">Conditions</span>
+                      </label>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-11 rounded-xl bg-zinc-900 text-white font-medium text-sm hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 mt-2 shadow-xs cursor-pointer disabled:opacity-60"
+                  >
+                    {isLoading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{mode === 'login' ? 'Sign in' : 'Create free account'}</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </>
             )}
 
-            {/* 1. FORGOT PASSWORD FORM */}
-            {mode === 'forgot_password' && (
-              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+            {/* ========================================================= */}
+            {/* 2. FORGOT PASSWORD - STEP 1: ENTER EMAIL                  */}
+            {/* ========================================================= */}
+            {mode === 'forgot_email' && (
+              <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="forgot-email">Account email address</Label>
+                  <Label htmlFor="forgot-email-input">Account email address</Label>
                   <div className="relative">
                     <Input
-                      id="forgot-email"
+                      id="forgot-email-input"
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@example.com"
                       className="ps-10"
+                      autoFocus
                     />
                     <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                       <Mail className="h-4 w-4" />
                     </div>
                   </div>
+                  <p className="text-[11px] text-zinc-400">
+                    We will send a secure link to this email address to reset your password.
+                  </p>
                 </div>
 
                 <Button
@@ -598,12 +645,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 <div className="text-center pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setMode('login');
-                      setErrorMessage(null);
-                      setSuccessMessage(null);
-                      setInfoNotice(null);
-                    }}
+                    onClick={handleBackToLogin}
                     className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
@@ -613,28 +655,97 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               </form>
             )}
 
-            {/* 2. SET NEW PASSWORD FORM */}
-            {mode === 'reset_password' && (
-              <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-                {resetTokenEmail && (
+            {/* ========================================================= */}
+            {/* 3. FORGOT PASSWORD - STEP 2: RESET LINK SENT CONFIRMATION  */}
+            {/* ========================================================= */}
+            {mode === 'forgot_sent' && (
+              <div className="space-y-4">
+                {/* Confirmation Box */}
+                <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200/90 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1 text-left">
+                      <p className="text-xs font-semibold text-zinc-900">
+                        Reset link sent
+                      </p>
+                      <p className="text-xs text-zinc-600 leading-relaxed">
+                        A password reset link has been sent to{' '}
+                        <span className="font-semibold text-zinc-900 underline decoration-zinc-300">
+                          {email}
+                        </span>
+                        .
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-500 leading-relaxed border-t border-zinc-200/60 pt-2.5">
+                    Please check your inbox and click the link to choose your new password. If you do not see it in a moment, remember to check your spam folder.
+                  </p>
+                </div>
+
+                {/* Primary Button to navigate to next frontend step (Entering password) */}
+                <Button
+                  type="button"
+                  onClick={handleProceedToNewPassword}
+                  className="w-full h-11 rounded-xl bg-zinc-900 text-white font-medium text-sm hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <span>Enter New Password</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+
+                {/* Navigation Options */}
+                <div className="flex items-center justify-between pt-1 px-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorMessage(null);
+                      setMode('forgot_email');
+                    }}
+                    className="text-zinc-500 hover:text-zinc-900 transition-colors font-medium cursor-pointer"
+                  >
+                    Change email address
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBackToLogin}
+                    className="inline-flex items-center gap-1 text-zinc-500 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Sign In</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* 4. FORGOT PASSWORD - STEP 3: ENTER NEW PASSWORD           */}
+            {/* ========================================================= */}
+            {mode === 'forgot_new_password' && (
+              <form onSubmit={handleNewPasswordSubmit} className="space-y-4">
+                {/* Account badge */}
+                {email && (
                   <div className="p-2.5 rounded-xl bg-zinc-100/70 border border-zinc-200/80 flex items-center justify-between text-xs text-zinc-600">
-                    <span>Account:</span>
-                    <span className="font-semibold text-zinc-900">{resetTokenEmail}</span>
+                    <span>Resetting password for:</span>
+                    <span className="font-semibold text-zinc-900 truncate max-w-[180px]">{email}</span>
                   </div>
                 )}
 
-                {/* New Password */}
+                {/* Field 1: New Password */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="new-password">New Password</Label>
+                  <Label htmlFor="forgot-new-password">New Password</Label>
                   <div className="relative">
                     <Input
-                      id="new-password"
+                      id="forgot-new-password"
                       type={showNewPassword ? 'text' : 'password'}
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="At least 4 characters"
+                      placeholder="At least 6 characters"
                       className="ps-10 pe-10"
+                      autoFocus
                     />
                     <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                       <Lock className="h-4 w-4" />
@@ -645,21 +756,17 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
                       aria-label={showNewPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showNewPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* Confirm New Password */}
+                {/* Field 2: Confirm Password */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+                  <Label htmlFor="forgot-confirm-password">Confirm Password</Label>
                   <div className="relative">
                     <Input
-                      id="confirm-new-password"
+                      id="forgot-confirm-password"
                       type={showConfirmNewPassword ? 'text' : 'password'}
                       required
                       value={confirmNewPassword}
@@ -676,11 +783,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
                       aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showConfirmNewPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
@@ -693,11 +796,11 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   {isLoading ? (
                     <>
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Updating password...</span>
+                      <span>Saving password...</span>
                     </>
                   ) : (
                     <>
-                      <span>Set New Password</span>
+                      <span>Save New Password</span>
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -706,12 +809,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 <div className="text-center pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setMode('login');
-                      setErrorMessage(null);
-                      setSuccessMessage(null);
-                      setInfoNotice(null);
-                    }}
+                    onClick={handleBackToLogin}
                     className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
@@ -720,193 +818,9 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 </div>
               </form>
             )}
-
-            {/* 3. SIGN IN & REGISTER FORMS */}
-            {(mode === 'login' || mode === 'register') && (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Name / Display Name (Sign Up only) */}
-                {mode === 'register' && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="nickname">Full Name or Nickname</Label>
-                    <div className="relative">
-                      <Input
-                        id="nickname"
-                        type="text"
-                        required
-                        value={nickname}
-                        onChange={(e) => setNickname(e.target.value)}
-                        placeholder="e.g. Carlos Perez"
-                        className="ps-10"
-                      />
-                      <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
-                        <User className="h-4 w-4" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Email Address */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Email address</Label>
-                  <div className="relative">
-                    <Input
-                      id="email"
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@example.com"
-                      className="ps-10"
-                    />
-                    <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
-                      <Mail className="h-4 w-4" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Password */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    {mode === 'login' && (
-                      <button
-                        type="button"
-                        onClick={handleForgotPasswordClick}
-                        className="text-xs text-zinc-500 hover:text-zinc-900 font-medium hover:underline transition-colors cursor-pointer"
-                      >
-                        Forgot Password?
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="ps-10 pe-10"
-                    />
-                    <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
-                      <Lock className="h-4 w-4" />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirm Password (Sign Up only) */}
-                {mode === 'register' && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="confirmPassword"
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="ps-10 pe-10"
-                      />
-                      <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
-                        <ShieldCheck className="h-4 w-4" />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="text-zinc-400 hover:text-zinc-700 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-colors cursor-pointer"
-                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Remember Me Checkbox (Sign In) */}
-                {mode === 'login' && (
-                  <div className="flex items-center space-x-2 pt-1">
-                    <Checkbox
-                      id="remember-me"
-                      checked={rememberMe}
-                      onCheckedChange={(checked) => setRememberMe(checked === true)}
-                    />
-                    <label
-                      htmlFor="remember-me"
-                      className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
-                    >
-                      Remember for 30 days
-                    </label>
-                  </div>
-                )}
-
-                {/* Terms Checkbox (Sign Up) */}
-                {mode === 'register' && (
-                  <div className="flex items-center space-x-2 pt-1">
-                    <Checkbox
-                      id="terms"
-                      checked={agreedToTerms}
-                      onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
-                    />
-                    <label
-                      htmlFor="terms"
-                      className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
-                    >
-                      I agree to the{' '}
-                      <span className="text-zinc-900 font-medium hover:underline">
-                        Terms
-                      </span>{' '}
-                      and{' '}
-                      <span className="text-zinc-900 font-medium hover:underline">
-                        Conditions
-                      </span>
-                    </label>
-                  </div>
-                )}
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 rounded-xl bg-zinc-900 text-white font-medium text-sm hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 mt-2 shadow-xs cursor-pointer disabled:opacity-60"
-                >
-                  {isLoading ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>
-                        {mode === 'login' ? 'Signing in...' : 'Creating account...'}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span>
-                        {mode === 'login' ? 'Sign in' : 'Create free account'}
-                      </span>
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </form>
-            )}
           </CardContent>
 
-          {/* Footer with Switch Link */}
+          {/* Footer with Switch Link (Shown on Login and Register) */}
           {(mode === 'login' || mode === 'register') && (
             <CardFooter className="flex justify-center border-t border-zinc-100 py-4 bg-zinc-50/50">
               {mode === 'login' ? (
@@ -918,7 +832,6 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       setMode('register');
                       setErrorMessage(null);
                       setSuccessMessage(null);
-                      setInfoNotice(null);
                     }}
                     className="text-zinc-900 font-semibold hover:underline cursor-pointer ml-1"
                   >
@@ -934,7 +847,6 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       setMode('login');
                       setErrorMessage(null);
                       setSuccessMessage(null);
-                      setInfoNotice(null);
                     }}
                     className="text-zinc-900 font-semibold hover:underline cursor-pointer ml-1"
                   >
