@@ -17,6 +17,7 @@ import { formatCurrency, groupTransactions } from '../utils/formatters';
 import { CategoryIcon, AccountIcon } from './CategoryIcon';
 import { CurrencySelect } from './CurrencySelect';
 import { CategorySelect } from './CategorySelect';
+import { AccountSelect } from './AccountSelect';
 
 interface TrackerViewProps {
   transactions: Transaction[];
@@ -510,22 +511,17 @@ export function TrackerView({
                 <div>
                   <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Account</label>
                   <div className="relative h-9">
-                    <select
+                    <AccountSelect
                       id="edit-tx-account-select"
-                      aria-label="Transaction account"
+                      ariaLabel="Transaction account"
+                      accounts={accounts}
                       value={editingTx.accountId || ''}
-                      onChange={(e) =>
-                        setEditingTx({ ...editingTx, accountId: e.target.value })
+                      onChange={(accId) =>
+                        setEditingTx({ ...editingTx, accountId: accId })
                       }
-                      className="w-full h-full bg-white border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
-                    >
-                      <option value="">(No Account)</option>
-                      {accounts.map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name}
-                        </option>
-                      ))}
-                    </select>
+                      currencySymbol={currencySymbol}
+                      className="h-full"
+                    />
                   </div>
                 </div>
               )}

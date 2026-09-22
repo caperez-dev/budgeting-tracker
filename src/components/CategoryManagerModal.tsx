@@ -148,12 +148,18 @@ export function CategoryManagerModal({
             </div>
 
             <div>
-              <label className="block text-zinc-500 font-medium mb-1">Name</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-zinc-500 font-medium">Name</label>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  {name.length}/30
+                </span>
+              </div>
               <input
                 type="text"
                 required
+                maxLength={30}
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value.slice(0, 30))}
                 placeholder="Category name"
                 className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500"
               />
@@ -161,9 +167,8 @@ export function CategoryManagerModal({
 
             {/* Accent Color */}
             <div>
-              <label className="block text-zinc-500 font-medium mb-1 flex items-center justify-between">
-                <span>Accent Color (for amount figures)</span>
-                <span className="font-mono text-[10px] text-zinc-400">{color}</span>
+              <label className="block text-zinc-500 font-medium mb-1">
+                Accent Color
               </label>
               <div className="flex flex-wrap gap-1.5 items-center">
                 {PRESET_COLORS.map((c) => (
@@ -236,22 +241,27 @@ export function CategoryManagerModal({
             <div className="font-semibold text-zinc-900 text-xs">Edit Category</div>
 
             <div>
-              <label className="block text-zinc-500 font-medium mb-1">Name</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-zinc-500 font-medium">Name</label>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  {editingCat.name.length}/30
+                </span>
+              </div>
               <input
                 type="text"
                 required
+                maxLength={30}
                 value={editingCat.name}
                 onChange={(e) =>
-                  setEditingCat({ ...editingCat, name: e.target.value })
+                  setEditingCat({ ...editingCat, name: e.target.value.slice(0, 30) })
                 }
                 className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500"
               />
             </div>
 
             <div>
-              <label className="block text-zinc-500 font-medium mb-1 flex items-center justify-between">
-                <span>Accent Color</span>
-                <span className="font-mono text-[10px] text-zinc-400">{editingCat.color}</span>
+              <label className="block text-zinc-500 font-medium mb-1">
+                Accent Color
               </label>
               <div className="flex flex-wrap gap-1.5 items-center">
                 {PRESET_COLORS.map((c) => (
@@ -314,42 +324,43 @@ export function CategoryManagerModal({
           </form>
         )}
 
-        {/* Existing Categories List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 border border-zinc-100 rounded-[4px]">
-          {filteredCategories.map((cat) => (
-            <div
-              key={cat.id}
-              className="py-2.5 px-3 flex items-center justify-between text-xs hover:bg-zinc-50/70 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <span
-                  className="w-3 h-3 rounded-full inline-block shrink-0 shadow-2xs"
-                  style={{ backgroundColor: cat.color }}
-                />
-                <CategoryIcon name={cat.icon} className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                <span className="font-semibold text-zinc-800">{cat.name}</span>
-                <span className="text-[10px] font-mono text-zinc-400">{cat.color}</span>
-              </div>
+        {/* Existing Categories List (Hidden when adding or editing category) */}
+        {!isAdding && !editingCat && (
+          <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 border border-zinc-100 rounded-[4px]">
+            {filteredCategories.map((cat) => (
+              <div
+                key={cat.id}
+                className="py-2.5 px-3 flex items-center justify-between text-xs hover:bg-zinc-50/70 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className="w-3 h-3 rounded-full inline-block shrink-0 shadow-2xs"
+                    style={{ backgroundColor: cat.color }}
+                  />
+                  <CategoryIcon name={cat.icon} className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                  <span className="font-semibold text-zinc-800">{cat.name}</span>
+                </div>
 
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setEditingCat(cat)}
-                  className="p-1 text-zinc-400 hover:text-zinc-700 rounded"
-                  title="Edit category"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onDeleteCategory(cat.id)}
-                  className="p-1 text-zinc-400 hover:text-rose-600 rounded"
-                  title="Delete category"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setEditingCat(cat)}
+                    className="p-1 text-zinc-400 hover:text-zinc-700 rounded"
+                    title="Edit category"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onDeleteCategory(cat.id)}
+                    className="p-1 text-zinc-400 hover:text-rose-600 rounded"
+                    title="Delete category"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="pt-2 border-t border-zinc-100 flex justify-end shrink-0">

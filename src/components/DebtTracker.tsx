@@ -351,7 +351,7 @@ export function DebtTracker({
                   value={person}
                   onChange={(e) => setPerson(e.target.value)}
                   placeholder="Person or company name"
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-zinc-800 focus:outline-none focus:border-zinc-500"
+                  className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 
@@ -367,7 +367,7 @@ export function DebtTracker({
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono tabular-nums text-zinc-800 focus:outline-none focus:border-zinc-500"
+                    className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-800 focus:outline-none focus:border-zinc-500"
                   />
                 </div>
                 <div>
@@ -377,6 +377,7 @@ export function DebtTracker({
                     value={currency}
                     onChange={setCurrency}
                     ariaLabel="Debt currency"
+                    className="h-9"
                   />
                 </div>
               </div>
@@ -390,7 +391,7 @@ export function DebtTracker({
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono text-zinc-800"
+                  className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 
@@ -404,7 +405,7 @@ export function DebtTracker({
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Reference or note (optional)"
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-zinc-800 focus:outline-none focus:border-zinc-500"
+                  className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
                 />
               </div>
             </div>

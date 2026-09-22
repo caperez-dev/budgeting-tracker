@@ -3,7 +3,9 @@ import { Plus, Trash2, Edit2, Check, X, Wallet, Smartphone, Banknote, Landmark, 
 import { Account, AccountType, Transaction } from '../types';
 import { AccountIcon } from './CategoryIcon';
 import { formatCurrency } from '../utils/formatters';
-// TESTING
+import { AccountTypeSelect } from './AccountTypeSelect';
+import { AccountIconPicker } from './AccountIconPicker';
+
 interface AccountManagerModalProps {
   accounts: Account[];
   transactions: Transaction[];
@@ -14,18 +16,6 @@ interface AccountManagerModalProps {
   onClose: () => void;
 }
 
-const ACCOUNT_ICONS = [
-  'Smartphone',
-  'Wallet',
-  'Banknote',
-  'Landmark',
-  'CreditCard',
-  'PiggyBank',
-  'Coins',
-  'CircleDollarSign',
-  'Shield',
-];
-
 const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
   { id: 'ewallet', label: 'E-Wallet' },
   { id: 'cash', label: 'Cash' },
@@ -35,10 +25,13 @@ const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
 ];
 
 const QUICK_SUGGESTIONS = [
-  { name: 'Bank Account', type: 'bank' as AccountType, icon: 'Landmark' },
-  { name: 'Credit Card', type: 'credit_card' as AccountType, icon: 'CreditCard' },
-  { name: 'Maya', type: 'ewallet' as AccountType, icon: 'Smartphone' },
-  { name: 'Savings', type: 'bank' as AccountType, icon: 'PiggyBank' },
+  { name: 'GCash', type: 'ewallet' as AccountType, icon: 'bank-gcash' },
+  { name: 'Maya', type: 'ewallet' as AccountType, icon: 'bank-maya' },
+  { name: 'GoTyme', type: 'bank' as AccountType, icon: 'bank-gotyme' },
+  { name: 'UnionBank', type: 'bank' as AccountType, icon: 'bank-unionbank' },
+  { name: 'PayPal', type: 'ewallet' as AccountType, icon: 'bank-paypal' },
+  { name: 'Maribank', type: 'bank' as AccountType, icon: 'bank-maribank' },
+  { name: 'EastWest', type: 'bank' as AccountType, icon: 'bank-eastwest' },
 ];
 
 export const isCashAccount = (acc: { id?: string; type?: string; name?: string }): boolean => {
@@ -48,6 +41,22 @@ export const isCashAccount = (acc: { id?: string; type?: string; name?: string }
     acc.type === 'cash' ||
     (typeof acc.name === 'string' && acc.name.trim().toLowerCase() === 'cash')
   );
+};
+
+// Sanitizes starting balance input: allows optional minus, max 10 integer digits, and up to 2 decimal places
+const sanitizeBalanceInput = (val: string): string => {
+  if (val === '' || val === '-') return val;
+  let clean = val.replace(/[^0-9.-]/g, '');
+  const isNegative = clean.startsWith('-');
+  clean = clean.replace(/-/g, '');
+  const parts = clean.split('.');
+  const integerPart = parts[0] ? parts[0].slice(0, 10) : '';
+  const decimalPart = parts[1] !== undefined ? parts[1].slice(0, 2) : undefined;
+  let result = (isNegative ? '-' : '') + integerPart;
+  if (decimalPart !== undefined) {
+    result += '.' + decimalPart;
+  }
+  return result;
 };
 
 export function AccountManagerModal({
@@ -60,12 +69,14 @@ export function AccountManagerModal({
   onClose,
 }: AccountManagerModalProps) {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editBalance, setEditBalance] = useState<string>('0');
+  const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   // New Account State
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('ewallet');
-  const [icon, setIcon] = useState('Smartphone');
+  const [icon, setIcon] = useState('bank-gcash');
   const [initialBalance, setInitialBalance] = useState<string>('0');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -101,6 +112,11 @@ export function AccountManagerModal({
     return counts;
   }, [transactions]);
 
+  // Modifiable accounts: Cash is the permanent core account and hidden from editable list per user request
+  const modifiableAccounts = useMemo(() => {
+    return accounts.filter((acc) => !isCashAccount(acc));
+  }, [accounts]);
+
   const totalBalanceAllAccounts = useMemo(() => {
     let sum = 0;
     accountBalances.forEach((val) => {
@@ -111,15 +127,24 @@ export function AccountManagerModal({
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       setErrorMessage('Please provide an account name.');
+      return;
+    }
+    if (trimmedName.length > 30) {
+      setErrorMessage('Account name cannot be longer than 30 characters.');
       return;
     }
 
     const initBal = parseFloat(initialBalance) || 0;
+    if (Math.abs(initBal) > 9999999999.99) {
+      setErrorMessage('Starting balance is too high (maximum 10 digits).');
+      return;
+    }
 
     onAddAccount({
-      name: name.trim(),
+      name: trimmedName.slice(0, 30),
       type,
       color: '#52525B',
       icon,
@@ -129,7 +154,7 @@ export function AccountManagerModal({
 
     setName('');
     setType('ewallet');
-    setIcon('Smartphone');
+    setIcon('bank-gcash');
     setInitialBalance('0');
     setErrorMessage(null);
     setIsAdding(false);
@@ -137,13 +162,34 @@ export function AccountManagerModal({
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingAccount || !editingAccount.name.trim()) return;
-    onUpdateAccount(editingAccount);
+    if (!editingAccount) return;
+    const trimmedName = editingAccount.name.trim();
+    if (!trimmedName) {
+      setEditErrorMessage('Please provide an account name.');
+      return;
+    }
+    if (trimmedName.length > 30) {
+      setEditErrorMessage('Account name cannot be longer than 30 characters.');
+      return;
+    }
+
+    const initBal = parseFloat(editBalance) || 0;
+    if (Math.abs(initBal) > 9999999999.99) {
+      setEditErrorMessage('Starting balance is too high (maximum 10 digits).');
+      return;
+    }
+
+    onUpdateAccount({
+      ...editingAccount,
+      name: trimmedName.slice(0, 30),
+      initialBalance: initBal,
+    });
     setEditingAccount(null);
+    setEditErrorMessage(null);
   };
 
   const applyQuickSuggestion = (sug: typeof QUICK_SUGGESTIONS[0]) => {
-    setName(sug.name);
+    setName(sug.name.slice(0, 30));
     setType(sug.type);
     setIcon(sug.icon);
     setErrorMessage(null);
@@ -165,7 +211,7 @@ export function AccountManagerModal({
               <Wallet className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-zinc-900">Accounts & Assets</h2>
+              <h2 className="text-sm font-semibold text-zinc-900">Accounts</h2>
               <p className="text-xs text-zinc-500">
                 Track your money across Cash, E-Wallets, Cards, and Banks.
               </p>
@@ -241,19 +287,25 @@ export function AccountManagerModal({
 
               {/* Account Name */}
               <div>
-                <label
-                  htmlFor="input-new-account-name"
-                  className="block text-[11px] font-medium text-zinc-700 mb-1"
-                >
-                  Account Name
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label
+                    htmlFor="input-new-account-name"
+                    className="text-[11px] font-medium text-zinc-700"
+                  >
+                    Account Name
+                  </label>
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    {name.length}/30
+                  </span>
+                </div>
                 <input
                   id="input-new-account-name"
                   type="text"
                   required
+                  maxLength={30}
                   value={name}
                   onChange={(e) => {
-                    setName(e.target.value);
+                    setName(e.target.value.slice(0, 30));
                     if (errorMessage) setErrorMessage(null);
                   }}
                   placeholder="e.g. Cash, Credit Card, Bank Account..."
@@ -270,33 +322,35 @@ export function AccountManagerModal({
                   >
                     Account Type
                   </label>
-                  <select
+                  <AccountTypeSelect
                     id="select-new-account-type"
                     value={type}
-                    onChange={(e) => setType(e.target.value as AccountType)}
-                    className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
-                  >
-                    {ACCOUNT_TYPES.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setType}
+                    ariaLabel="New account type"
+                  />
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="input-new-account-balance"
-                    className="block text-[11px] font-medium text-zinc-700 mb-1"
-                  >
-                    Starting Balance ({currencySymbol})
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label
+                      htmlFor="input-new-account-balance"
+                      className="text-[11px] font-medium text-zinc-700"
+                    >
+                      Starting Balance ({currencySymbol})
+                    </label>
+                    <span className="text-[10px] text-zinc-400 font-mono">
+                      Max 10 digits
+                    </span>
+                  </div>
                   <input
                     id="input-new-account-balance"
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={initialBalance}
-                    onChange={(e) => setInitialBalance(e.target.value)}
+                    onChange={(e) => {
+                      setInitialBalance(sanitizeBalanceInput(e.target.value));
+                      if (errorMessage) setErrorMessage(null);
+                    }}
                     placeholder="0.00"
                     className="w-full bg-white border border-zinc-200 px-3 py-1.5 rounded-[4px] text-xs font-mono text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                   />
@@ -304,28 +358,7 @@ export function AccountManagerModal({
               </div>
 
               {/* Icon Selection */}
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-700 mb-1.5">
-                  Choose Icon
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {ACCOUNT_ICONS.map((ic) => (
-                    <button
-                      key={ic}
-                      type="button"
-                      onClick={() => setIcon(ic)}
-                      className={`p-2 rounded-[4px] border transition-colors cursor-pointer ${
-                        icon === ic
-                          ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
-                          : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100'
-                      }`}
-                      title={ic}
-                    >
-                      <AccountIcon name={ic} className="w-4 h-4" />
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <AccountIconPicker value={icon} onChange={setIcon} />
 
               {errorMessage && (
                 <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px] flex items-center gap-1.5">
@@ -374,16 +407,26 @@ export function AccountManagerModal({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-zinc-700 mb-1">
-                  Account Name
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-medium text-zinc-700">
+                    Account Name
+                  </label>
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    {editingAccount.name.length}/30
+                  </span>
+                </div>
                 <input
                   type="text"
                   required
+                  maxLength={30}
                   value={editingAccount.name}
-                  onChange={(e) =>
-                    setEditingAccount({ ...editingAccount, name: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setEditingAccount({
+                      ...editingAccount,
+                      name: e.target.value.slice(0, 30),
+                    });
+                    if (editErrorMessage) setEditErrorMessage(null);
+                  }}
                   className="w-full bg-white border border-zinc-200 px-3 py-1.5 rounded-[4px] text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
                 />
               </div>
@@ -394,75 +437,63 @@ export function AccountManagerModal({
                     Account Type
                   </label>
                   {isCashAccount(editingAccount) ? (
-                    <div className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-700 font-medium flex items-center justify-between">
+                    <div className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-700 font-medium flex items-center justify-between min-h-[34px]">
                       <span>Cash</span>
                       <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-[3px]">
                         Main Account
                       </span>
                     </div>
                   ) : (
-                    <select
+                    <AccountTypeSelect
+                      id="select-edit-account-type"
                       value={editingAccount.type}
-                      onChange={(e) =>
+                      onChange={(t) =>
                         setEditingAccount({
                           ...editingAccount,
-                          type: e.target.value as AccountType,
+                          type: t,
                         })
                       }
-                      className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
-                    >
-                      {ACCOUNT_TYPES.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
+                      ariaLabel="Edit account type"
+                    />
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-zinc-700 mb-1">
-                    Starting Balance ({currencySymbol})
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-medium text-zinc-700">
+                      Starting Balance ({currencySymbol})
+                    </label>
+                    <span className="text-[10px] text-zinc-400 font-mono">
+                      Max 10 digits
+                    </span>
+                  </div>
                   <input
-                    type="number"
-                    step="0.01"
-                    value={editingAccount.initialBalance ?? 0}
-                    onChange={(e) =>
-                      setEditingAccount({
-                        ...editingAccount,
-                        initialBalance: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                    type="text"
+                    inputMode="decimal"
+                    value={editBalance}
+                    onChange={(e) => {
+                      setEditBalance(sanitizeBalanceInput(e.target.value));
+                      if (editErrorMessage) setEditErrorMessage(null);
+                    }}
                     className="w-full bg-white border border-zinc-200 px-3 py-1.5 rounded-[4px] text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-500"
                   />
                 </div>
               </div>
 
               {/* Icon selection */}
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-700 mb-1.5">
-                  Choose Icon
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {ACCOUNT_ICONS.map((ic) => (
-                    <button
-                      key={ic}
-                      type="button"
-                      onClick={() =>
-                        setEditingAccount({ ...editingAccount, icon: ic })
-                      }
-                      className={`p-2 rounded-[4px] border transition-colors cursor-pointer ${
-                        editingAccount.icon === ic
-                          ? 'bg-zinc-900 text-white border-zinc-900'
-                          : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100'
-                      }`}
-                    >
-                      <AccountIcon name={ic} className="w-4 h-4" />
-                    </button>
-                  ))}
+              <AccountIconPicker
+                value={editingAccount.icon}
+                onChange={(newIcon) =>
+                  setEditingAccount({ ...editingAccount, icon: newIcon })
+                }
+              />
+
+              {editErrorMessage && (
+                <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px] flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{editErrorMessage}</span>
                 </div>
-              </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200">
                 <button
@@ -482,90 +513,92 @@ export function AccountManagerModal({
             </form>
           )}
 
-          {/* List of Accounts */}
-          <div className="space-y-2">
-            <span className="block text-xs font-medium text-zinc-700">
-              Active Accounts ({accounts.length})
-            </span>
+          {/* List of Accounts (Hidden when adding or editing an account) */}
+          {!isAdding && !editingAccount && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="block text-xs font-medium text-zinc-700">
+                  Active Accounts ({modifiableAccounts.length})
+                </span>
+              </div>
 
-            {accounts.map((acc) => {
-              const currentBalance = accountBalances.get(acc.id) ?? (acc.initialBalance || 0);
-              const txCount = accountTxCounts.get(acc.id) || 0;
-              const typeObj = ACCOUNT_TYPES.find((t) => t.id === acc.type);
+              {modifiableAccounts.length === 0 ? (
+                <div className="p-4 rounded-[5px] border border-dashed border-zinc-200 text-center bg-zinc-50/50">
+                  <p className="text-xs text-zinc-600 font-medium">
+                    No other accounts added yet.
+                  </p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    You can add other accounts like e-wallets, cards, or bank accounts above.
+                  </p>
+                </div>
+              ) : (
+                modifiableAccounts.map((acc) => {
+                  const currentBalance = accountBalances.get(acc.id) ?? (acc.initialBalance || 0);
+                  const txCount = accountTxCounts.get(acc.id) || 0;
+                  const typeObj = ACCOUNT_TYPES.find((t) => t.id === acc.type);
 
-              return (
-                <div
-                  key={acc.id}
-                  id={`account-card-${acc.id}`}
-                  className="p-3 bg-white border border-zinc-200 hover:border-zinc-300 rounded-[5px] transition-colors flex items-center justify-between gap-3"
-                >
-                  {/* Left: Icon & Info */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-[5px] flex items-center justify-center bg-zinc-100 text-zinc-700 shrink-0 border border-zinc-200/60">
-                      <AccountIcon name={acc.icon} className="w-4 h-4 text-zinc-700" />
-                    </div>
+                  return (
+                    <div
+                      key={acc.id}
+                      id={`account-card-${acc.id}`}
+                      className="p-3 bg-white border border-zinc-200 hover:border-zinc-300 rounded-[5px] transition-colors flex items-center justify-between gap-3"
+                    >
+                      {/* Left: Icon & Info */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-[5px] flex items-center justify-center bg-zinc-100 text-zinc-700 shrink-0 border border-zinc-200/60">
+                          <AccountIcon name={acc.icon} className="w-4 h-4 text-zinc-700" />
+                        </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-semibold text-zinc-900 truncate">
-                          {acc.name}
-                        </h4>
-                        <span className="text-[10px] uppercase font-medium tracking-wider px-1.5 py-0.5 rounded-[3px] bg-zinc-100 text-zinc-600 border border-zinc-200/60">
-                          {typeObj?.label || 'Asset'}
-                        </span>
-                        {isCashAccount(acc) && (
-                          <span
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200/70"
-                            title="Cash is the primary method and cannot be removed"
-                          >
-                            Main
-                          </span>
-                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-semibold text-zinc-900 truncate">
+                              {acc.name}
+                            </h4>
+                            <span className="text-[10px] uppercase font-medium tracking-wider px-1.5 py-0.5 rounded-[3px] bg-zinc-100 text-zinc-600 border border-zinc-200/60">
+                              {typeObj?.label || 'Asset'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">
+                            {txCount} {txCount === 1 ? 'Transaction' : 'Transactions'}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-zinc-400 mt-0.5">
-                        {txCount} {txCount === 1 ? 'transaction' : 'transactions'} logged
-                      </p>
-                    </div>
-                  </div>
 
-                  {/* Right: Balance & Actions */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <span className="block text-[10px] uppercase text-zinc-400 font-medium">
-                        Balance
-                      </span>
-                      <span
-                        className={`font-mono text-xs font-semibold ${
-                          currentBalance >= 0 ? 'text-zinc-900' : 'text-rose-600'
-                        }`}
-                      >
-                        {formatCurrency(currentBalance, currencySymbol)}
-                      </span>
-                    </div>
+                      {/* Right: Balance & Actions */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right">
+                          <span className="block text-[10px] uppercase text-zinc-400 font-medium">
+                            Balance
+                          </span>
+                          <span
+                            className={`font-mono text-xs font-semibold ${
+                              currentBalance >= 0 ? 'text-zinc-900' : 'text-rose-600'
+                            }`}
+                          >
+                            {formatCurrency(currentBalance, currencySymbol)}
+                          </span>
+                        </div>
 
-                    <div className="flex items-center gap-1 border-l border-zinc-100 pl-2">
-                      <button
-                        type="button"
-                        id={`btn-edit-account-${acc.id}`}
-                        onClick={() => {
-                          setEditingAccount(acc);
-                          setIsAdding(false);
-                        }}
-                        className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-[3px] transition-colors cursor-pointer"
-                        title="Edit account"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                        <div className="flex items-center gap-1 border-l border-zinc-100 pl-2">
+                          <button
+                            type="button"
+                            id={`btn-edit-account-${acc.id}`}
+                            onClick={() => {
+                              setEditingAccount(acc);
+                              setEditBalance(
+                                acc.initialBalance !== undefined
+                                  ? String(acc.initialBalance)
+                                  : '0'
+                              );
+                              setEditErrorMessage(null);
+                              setIsAdding(false);
+                            }}
+                            className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-[3px] transition-colors cursor-pointer"
+                            title="Edit account"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
 
-                      {isCashAccount(acc) ? (
-                        <span
-                          className="text-[10px] text-zinc-400 font-medium px-2 py-1 select-none"
-                          title="Cash is permanent and cannot be removed"
-                        >
-                          Permanent
-                        </span>
-                      ) : (
-                        accounts.length > 1 && (
                           <button
                             type="button"
                             id={`btn-delete-account-${acc.id}`}
@@ -575,14 +608,14 @@ export function AccountManagerModal({
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        )
-                      )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}

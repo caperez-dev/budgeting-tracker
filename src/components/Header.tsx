@@ -10,6 +10,7 @@ import {
   Coins,
   ChevronLeft,
   ChevronRight,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { UserProfile, DBStatus, AuthUser } from '../types';
@@ -43,6 +44,7 @@ interface HeaderProps {
   onLogout?: () => void;
   onOpenDonate: () => void;
   onOpenAccounts: () => void;
+  onOpenTransfer: () => void;
   onOpenCurrencies: () => void;
   onOpenCategories: () => void;
 }
@@ -73,6 +75,7 @@ export function Header({
   onLogout,
   onOpenDonate,
   onOpenAccounts,
+  onOpenTransfer,
   onOpenCurrencies,
   onOpenCategories,
 }: HeaderProps) {
@@ -130,10 +133,10 @@ export function Header({
 
         {/* Global Financial Metrics */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 ml-auto sm:ml-0">
-          {/* Current Savings */}
+          {/* Current Savings (Hidden on mobile view) */}
           <div
             id="current-savings-display"
-            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-[4px]"
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-[4px]"
             title={`Savings for ${selectedMonthYearLabel}`}
           >
             <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
@@ -268,6 +271,16 @@ export function Header({
             >
               <Wallet className="w-3 h-3 text-zinc-500" />
               <span className="hidden sm:inline">Accounts</span>
+            </button>
+
+            <button
+              id="btn-transfer"
+              onClick={onOpenTransfer}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
+              title="Transfer balance between accounts"
+            >
+              <ArrowLeftRight className="w-3 h-3 text-zinc-500" />
+              <span className="hidden sm:inline">Transfer</span>
             </button>
 
             <button

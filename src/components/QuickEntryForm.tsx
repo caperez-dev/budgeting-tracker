@@ -6,15 +6,16 @@ import {
   PlusCircle,
   Check,
 } from 'lucide-react';
-import { Category, Currency, TransactionType, Account } from '../types';
+import { Category, Currency, TransactionType, Account, Transaction } from '../types';
 import { CategoryIcon, AccountIcon } from './CategoryIcon';
-import { getCurrent12HourTime, getTodayDateString } from '../utils/formatters';
+import { getCurrent12HourTime, getTodayDateString, formatCurrency } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
 
 interface QuickEntryFormProps {
   currencies: Currency[];
   categories: Category[];
   accounts?: Account[];
+  transactions?: Transaction[];
   selectedCurrency: string;
   onSave: (tx: {
     type: TransactionType;
@@ -37,6 +38,7 @@ export function QuickEntryForm({
   currencies,
   categories,
   accounts = [],
+  transactions = [],
   selectedCurrency,
   onSave,
   onOpenAddCategory,
@@ -80,6 +82,32 @@ export function QuickEntryForm({
 
   // Filter categories by type
   const availableCategories = categories.filter((c) => c.type === type);
+
+  const currencyObj = currencies.find((c) => c.code === currency) || currencies[0];
+  const currencySymbol = currencyObj?.symbol || '₱';
+
+  // Calculate balances for each account
+  const accountBalances = React.useMemo(() => {
+    const balances = new Map<string, number>();
+    accounts.forEach((acc) => {
+      balances.set(acc.id, acc.initialBalance || 0);
+    });
+
+    if (transactions && transactions.length > 0) {
+      transactions.forEach((tx) => {
+        if (tx.accountId && balances.has(tx.accountId)) {
+          const current = balances.get(tx.accountId)!;
+          if (tx.type === 'income') {
+            balances.set(tx.accountId, current + tx.amount);
+          } else {
+            balances.set(tx.accountId, current - tx.amount);
+          }
+        }
+      });
+    }
+
+    return balances;
+  }, [accounts, transactions]);
 
   // Set default category if none selected or if type changed
   React.useEffect(() => {
@@ -345,21 +373,37 @@ export function QuickEntryForm({
             <div className="flex flex-wrap gap-1.5">
               {accounts.map((acc) => {
                 const isSelected = accountId === acc.id;
+                const balance = accountBalances.get(acc.id) ?? (acc.initialBalance || 0);
+                const formattedBalance = formatCurrency(balance, currencySymbol);
+
                 return (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    id={`acc-chip-${acc.id}`}
-                    onClick={() => setAccountId(acc.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border cursor-pointer ${
-                      isSelected
-                        ? 'bg-zinc-900 text-white border-zinc-900 font-medium shadow-2xs'
-                        : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
-                    }`}
-                  >
-                    <AccountIcon name={acc.icon} className="w-3.5 h-3.5 shrink-0" />
-                    <span>{acc.name}</span>
-                  </button>
+                  <div key={acc.id} className="relative group">
+                    <button
+                      type="button"
+                      id={`acc-chip-${acc.id}`}
+                      onClick={() => setAccountId(acc.id)}
+                      title={`${acc.name}: ${formattedBalance}`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border cursor-pointer ${
+                        isSelected
+                          ? 'bg-zinc-900 text-white border-zinc-900 font-medium shadow-2xs'
+                          : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
+                      }`}
+                    >
+                      <AccountIcon name={acc.icon} className="w-3.5 h-3.5 shrink-0" />
+                      <span>{acc.name}</span>
+                    </button>
+
+                    {/* Balance Tooltip on Hover */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-30 drop-shadow-md">
+                      <div className="bg-zinc-900 text-white text-[11px] font-mono px-2 py-1 rounded-[4px] whitespace-nowrap flex items-center gap-1.5 border border-zinc-800 shadow-md">
+                        <span className="text-zinc-400 font-sans text-[10px]">Balance:</span>
+                        <span className={`font-semibold ${balance < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          {formattedBalance}
+                        </span>
+                      </div>
+                      <div className="w-1.5 h-1.5 bg-zinc-900 rotate-45 -mt-0.5 border-r border-b border-zinc-800" />
+                    </div>
+                  </div>
                 );
               })}
             </div>

@@ -32,11 +32,13 @@ import { AIAdvisorModal } from './components/AIAdvisorModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { CurrencyManagerModal } from './components/CurrencyManagerModal';
 import { AccountManagerModal } from './components/AccountManagerModal';
+import { TransferModal } from './components/TransferModal';
 import { DonateModal } from './components/DonateModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ExportPdfModal } from './components/ExportPdfModal';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { generateBudgetPdf } from './utils/pdfExport';
+import { getCurrent12HourTime, getTodayDateString } from './utils/formatters';
 import {
   convertCurrency,
   roundToCurrency,
@@ -370,6 +372,7 @@ export default function App() {
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [categoriesInitialType, setCategoriesInitialType] = useState<TransactionType>('expense');
   const [showAccountsModal, setShowAccountsModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
   const [showDonateModal, setShowDonateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -1116,6 +1119,75 @@ export default function App() {
     setAccounts((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const handleTransfer = ({
+    fromAccountId,
+    toAccountId,
+    amount,
+    note,
+  }: {
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    note: string;
+  }) => {
+    const fromAcc = accounts.find((a) => a.id === fromAccountId);
+    const toAcc = accounts.find((a) => a.id === toAccountId);
+
+    const transferExpenseCat =
+      categories.find((c) => c.name.toLowerCase() === 'transfer' && c.type === 'expense') ||
+      categories.find((c) => c.type === 'expense');
+
+    const transferIncomeCat =
+      categories.find((c) => c.name.toLowerCase() === 'transfer' && c.type === 'income') ||
+      categories.find((c) => c.type === 'income');
+
+    const now = Date.now();
+    const today = getTodayDateString();
+    const currentTime = getCurrent12HourTime();
+
+    const fromTx: Transaction = {
+      id: `tx-transfer-out-${now}-${Math.random().toString(36).substr(2, 4)}`,
+      userId: currentUser?.id,
+      type: 'expense',
+      amount,
+      currency: settings.defaultCurrency,
+      categoryId: transferExpenseCat?.id || 'exp-other',
+      accountId: fromAccountId,
+      note: note ? `Transfer to ${toAcc?.name || 'Account'}: ${note}` : `Transfer to ${toAcc?.name || 'Account'}`,
+      date: today,
+      time: currentTime,
+      timestamp: now,
+      createdAt: now,
+    };
+
+    const toTx: Transaction = {
+      id: `tx-transfer-in-${now + 1}-${Math.random().toString(36).substr(2, 4)}`,
+      userId: currentUser?.id,
+      type: 'income',
+      amount,
+      currency: settings.defaultCurrency,
+      categoryId: transferIncomeCat?.id || 'inc-other',
+      accountId: toAccountId,
+      note: note ? `Transfer from ${fromAcc?.name || 'Account'}: ${note}` : `Transfer from ${fromAcc?.name || 'Account'}`,
+      date: today,
+      time: currentTime,
+      timestamp: now + 1,
+      createdAt: now + 1,
+    };
+
+    setTransactions((prev) => [toTx, fromTx, ...prev]);
+
+    if (currentUser?.id) {
+      [fromTx, toTx].forEach((tx) => {
+        fetch(`/api/db/transactions?userId=${encodeURIComponent(currentUser.id)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+          body: JSON.stringify(tx),
+        }).catch(() => {});
+      });
+    }
+  };
+
   const handleAddCurrency = (newCurr: Currency) => {
     setCurrencies((prev) => {
       if (prev.some((c) => c.code === newCurr.code)) return prev;
@@ -1492,6 +1564,7 @@ export default function App() {
         onLogout={() => setShowLogoutConfirm(true)}
         onOpenDonate={() => setShowDonateModal(true)}
         onOpenAccounts={() => setShowAccountsModal(true)}
+        onOpenTransfer={() => setShowTransferModal(true)}
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
         onOpenCategories={() => {
           setCategoriesInitialType('expense');
@@ -1507,6 +1580,7 @@ export default function App() {
             currencies={currencies}
             categories={categories}
             accounts={accounts}
+            transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
             onOpenAddCategory={(type) => {
@@ -1611,6 +1685,7 @@ export default function App() {
             currencies={currencies}
             categories={categories}
             accounts={accounts}
+            transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
             onOpenAddCategory={(type) => {
@@ -1643,6 +1718,18 @@ export default function App() {
           onClose={() => setShowAccountsModal(false)}
         />
       )}
+
+      {/* Transfer Modal */}
+      <TransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        accounts={accounts}
+        transactions={transactions}
+        currencySymbol={currencySymbol}
+        defaultCurrency={settings.defaultCurrency}
+        onTransfer={handleTransfer}
+        onOpenAddAccount={() => setShowAccountsModal(true)}
+      />
 
       {/* Categories Manager Modal */}
       {showCategoriesModal && (

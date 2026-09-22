@@ -365,7 +365,7 @@ export function GoalsView({
                     value={targetPrice}
                     onChange={(e) => setTargetPrice(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono tabular-nums text-zinc-900 focus:outline-none focus:border-zinc-500"
+                    className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-900 focus:outline-none focus:border-zinc-500"
                   />
                 </div>
                 <div>
@@ -375,6 +375,7 @@ export function GoalsView({
                     value={currency}
                     onChange={setCurrency}
                     ariaLabel="Goal currency"
+                    className="h-9"
                   />
                 </div>
               </div>
