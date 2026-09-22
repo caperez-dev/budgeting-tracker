@@ -26,6 +26,75 @@ const PORT = 3000;
 app.use(express.json());
 
 // Auth Endpoints
+
+// Helper: Send 6-digit verification PIN email via SMTP if configured, or fall back to local dev preview
+async function sendVerificationPinEmail(toEmail: string, pin: string, nickname?: string) {
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  const htmlContent = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 36px 24px; color: #18181b; background-color: #fafafa;">
+      <div style="text-align: center; margin-bottom: 28px;">
+        <div style="display: inline-block; background: linear-gradient(135deg, #18181b 0%, #27272a 100%); color: #ffffff; padding: 12px 24px; border-radius: 14px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+          Budget Tracker
+        </div>
+      </div>
+      <div style="background-color: #ffffff; border: 1px solid #e4e4e7; border-radius: 20px; padding: 36px 32px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);">
+        <h2 style="margin-top: 0; font-size: 22px; font-weight: 700; color: #09090b; letter-spacing: -0.02em; text-align: center;">Verify Your Email Address</h2>
+        <p style="color: #52525b; font-size: 15px; line-height: 1.6; text-align: center; margin-top: 8px;">
+          Welcome to Budget Tracker, <strong>${nickname || "there"}</strong>!<br/>
+          Enter the 6-digit verification code below to verify your account and access your dashboard:
+        </p>
+        
+        <div style="text-align: center; margin: 32px 0;">
+          <div style="display: inline-block; background-color: #f4f4f5; border: 2px dashed #d4d4d8; padding: 18px 36px; border-radius: 16px;">
+            <span style="font-family: 'SF Mono', Monaco, 'Consolas', monospace; font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #18181b; margin-left: 10px;">
+              ${pin}
+            </span>
+          </div>
+          <p style="color: #71717a; font-size: 13px; margin-top: 14px; margin-bottom: 0;">
+            This PIN is valid for <strong>15 minutes</strong>.
+          </p>
+        </div>
+
+        <div style="border-top: 1px solid #f4f4f5; padding-top: 20px; margin-top: 28px;">
+          <p style="color: #a1a1aa; font-size: 12px; line-height: 1.5; margin-bottom: 0; text-align: center;">
+            If you did not attempt to create a Budget Tracker account, you can safely ignore this email.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (host && user && pass) {
+    try {
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+      });
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || `"Budget Tracker" <${user}>`,
+        to: toEmail,
+        subject: `${pin} is your Budget Tracker verification code`,
+        html: htmlContent,
+      });
+      console.log(`[Email Verification] Sent verification PIN email to ${toEmail} via SMTP.`);
+      return { delivered: true, method: "smtp" as const };
+    } catch (err) {
+      console.warn("[Email Verification] SMTP delivery notice (falling back to dev preview):", err);
+    }
+  }
+
+  console.log(`[Email Verification] [DEV MODE] PIN for ${toEmail}: ${pin}`);
+  return { delivered: true, method: "dev_mode" as const };
+}
+
+// 1. Create Account (Dispatches Verification PIN to Email)
 app.post("/api/auth/register", async (req, res) => {
   const { email, password, nickname, avatarUrl } = req.body;
   if (!email || !password) {
@@ -40,43 +109,56 @@ app.post("/api/auth/register", async (req, res) => {
   if (connected) {
     try {
       const existing = await (UserModel as any).findOne({ email: cleanEmail });
-      if (existing) {
-        res.status(400).json({ success: false, error: "An account with this email already exists." });
+      
+      // If user exists and is already verified, block duplicate registration
+      if (existing && existing.isVerified) {
+        res.status(400).json({
+          success: false,
+          error: "An account with this email already exists. Please sign in instead.",
+        });
         return;
       }
 
-      const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const newUser = await (UserModel as any).create({
-        id: userId,
-        email: cleanEmail,
-        password, // stored securely for user auth
-        nickname: cleanNickname,
-        avatarUrl: avatarUrl || "",
-      });
+      // Generate secure 6-digit numeric PIN
+      const pin = crypto.randomInt(100000, 1000000).toString();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      // Also ensure profile matches
-      await (UserProfileModel as any).findOneAndUpdate(
-        { singletonId: "default_profile" },
-        {
-          $set: {
-            nickname: cleanNickname,
-            email: cleanEmail,
-            avatarUrl: avatarUrl || "",
-          },
-        },
-        { upsert: true, new: true }
-      );
+      if (existing) {
+        // User created account earlier but didn't finish verification: refresh credentials & new PIN
+        existing.password = password;
+        existing.nickname = cleanNickname;
+        existing.avatarUrl = avatarUrl || existing.avatarUrl || "";
+        existing.isVerified = false;
+        existing.verificationPin = pin;
+        existing.verificationPinExpiresAt = expiresAt;
+        await existing.save();
+      } else {
+        // Create new unverified user
+        const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        await (UserModel as any).create({
+          id: userId,
+          email: cleanEmail,
+          password,
+          nickname: cleanNickname,
+          avatarUrl: avatarUrl || "",
+          isVerified: false,
+          verificationPin: pin,
+          verificationPinExpiresAt: expiresAt,
+        });
+      }
 
+      // Send the PIN to their email
+      const emailResult = await sendVerificationPinEmail(cleanEmail, pin, cleanNickname);
+
+      // Return requiresVerification: true. Do NOT grant dashboard session yet!
       res.json({
         success: true,
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          nickname: newUser.nickname,
-          avatarUrl: newUser.avatarUrl,
-          defaultCurrency: "PHP",
-        },
-        settings: { defaultCurrency: "PHP" },
+        requiresVerification: true,
+        email: cleanEmail,
+        nickname: cleanNickname,
+        method: emailResult.method,
+        // Include devPin if SMTP is not configured so local development/testing is smooth
+        ...(emailResult.method === "dev_mode" ? { devPin: pin } : {}),
       });
       return;
     } catch (err: any) {
@@ -88,10 +170,172 @@ app.post("/api/auth/register", async (req, res) => {
   // If online storage is not connected
   res.status(503).json({
     success: false,
-    error: "Online cloud sync is currently offline. You can continue directly on this device without interruption.",
+    error: "Account service is currently offline. Please check your connection in Settings.",
   });
 });
 
+// 2. Verify PIN after Account Creation
+app.post("/api/auth/verify-pin", async (req, res) => {
+  const { email, pin } = req.body;
+  if (!email || !pin) {
+    res.status(400).json({ success: false, error: "Email and verification PIN are required." });
+    return;
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPin = pin.trim();
+
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({
+      success: false,
+      error: "Account service is currently unreachable. Please check your connection.",
+    });
+    return;
+  }
+
+  try {
+    const user = await (UserModel as any).findOne({ email: cleanEmail });
+    if (!user) {
+      res.status(404).json({ success: false, error: "No account found with this email." });
+      return;
+    }
+
+    if (!user.isVerified) {
+      if (!user.verificationPin) {
+        res.status(400).json({
+          success: false,
+          error: "No active verification code found. Please click 'Resend PIN' to receive a new code.",
+        });
+        return;
+      }
+
+      if (new Date() > new Date(user.verificationPinExpiresAt)) {
+        res.status(410).json({
+          success: false,
+          error: "This verification code has expired. Please click 'Resend PIN' to get a new code.",
+        });
+        return;
+      }
+
+      if (user.verificationPin !== cleanPin) {
+        res.status(400).json({
+          success: false,
+          error: "Incorrect verification PIN. Please check the 6-digit code and try again.",
+        });
+        return;
+      }
+
+      // PIN is correct! Activate account
+      user.isVerified = true;
+      user.verificationPin = null;
+      user.verificationPinExpiresAt = null;
+      await user.save();
+    }
+
+    // Synchronize default profile singleton
+    await (UserProfileModel as any).findOneAndUpdate(
+      { singletonId: "default_profile" },
+      {
+        $set: {
+          nickname: user.nickname,
+          email: user.email,
+          avatarUrl: user.avatarUrl || "",
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    // Fetch this user's settings or fallback to default
+    const userSettings = await (UserSettingsModel as any)
+      .findOne({ $or: [{ userId: user.id }, { singletonId: `settings_${user.id}` }] })
+      .lean()
+      .exec();
+
+    const userDefaultCurrency =
+      userSettings?.defaultCurrency ||
+      userSettings?.primaryCurrency ||
+      user.defaultCurrency ||
+      "PHP";
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        defaultCurrency: userDefaultCurrency,
+        isVerified: true,
+      },
+      settings: userSettings
+        ? {
+            ...userSettings,
+            defaultCurrency: userDefaultCurrency,
+          }
+        : { defaultCurrency: userDefaultCurrency },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || "Verification failed." });
+  }
+});
+
+// 3. Resend Verification PIN
+app.post("/api/auth/resend-pin", async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.trim()) {
+    res.status(400).json({ success: false, error: "Email address is required." });
+    return;
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({
+      success: false,
+      error: "Account service is currently unreachable. Please check your connection.",
+    });
+    return;
+  }
+
+  try {
+    const user = await (UserModel as any).findOne({ email: cleanEmail });
+    if (!user) {
+      res.status(404).json({ success: false, error: "No account found with this email." });
+      return;
+    }
+
+    if (user.isVerified) {
+      res.status(400).json({
+        success: false,
+        alreadyVerified: true,
+        error: "This account is already verified. You can sign in directly.",
+      });
+      return;
+    }
+
+    const pin = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    user.verificationPin = pin;
+    user.verificationPinExpiresAt = expiresAt;
+    await user.save();
+
+    const emailResult = await sendVerificationPinEmail(cleanEmail, pin, user.nickname);
+
+    res.json({
+      success: true,
+      message: `A new verification PIN has been sent to ${cleanEmail}.`,
+      email: cleanEmail,
+      method: emailResult.method,
+      ...(emailResult.method === "dev_mode" ? { devPin: pin } : {}),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || "Failed to resend PIN." });
+  }
+});
+
+// 4. Sign In (Blocks unverified accounts from dashboard)
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -115,6 +359,35 @@ app.post("/api/auth/login", async (req, res) => {
 
       if (user.password !== password) {
         res.status(401).json({ success: false, error: "Incorrect password. Please try again." });
+        return;
+      }
+
+      // STRICT PROTECTION: If account is not verified, do NOT allow dashboard access!
+      if (user.isVerified === false) {
+        // Ensure a valid PIN exists or refresh it
+        let pin = user.verificationPin;
+        const isExpired = !user.verificationPinExpiresAt || new Date() > new Date(user.verificationPinExpiresAt);
+        let devPin: string | undefined;
+
+        if (!pin || isExpired) {
+          pin = crypto.randomInt(100000, 1000000).toString();
+          user.verificationPin = pin;
+          user.verificationPinExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+          await user.save();
+          const emailResult = await sendVerificationPinEmail(cleanEmail, pin, user.nickname);
+          if (emailResult.method === "dev_mode") {
+            devPin = pin;
+          }
+        }
+
+        res.status(403).json({
+          success: false,
+          unverified: true,
+          email: user.email,
+          nickname: user.nickname,
+          error: "Your account is not verified yet. Please enter the verification PIN sent to your email to access the dashboard.",
+          devPin,
+        });
         return;
       }
 
@@ -151,6 +424,7 @@ app.post("/api/auth/login", async (req, res) => {
           nickname: user.nickname,
           avatarUrl: user.avatarUrl,
           defaultCurrency: userDefaultCurrency,
+          isVerified: true,
         },
         settings: userSettings
           ? {
@@ -630,10 +904,19 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
         password: `google_oauth_${Math.random().toString(36).slice(2)}`,
         nickname: googleProfile.given_name || googleProfile.name || cleanEmail.split("@")[0],
         avatarUrl: googleProfile.picture || "",
+        isVerified: true,
       });
     } else {
+      let needsSave = false;
       if (!user.avatarUrl && googleProfile.picture) {
         user.avatarUrl = googleProfile.picture;
+        needsSave = true;
+      }
+      if (!user.isVerified) {
+        user.isVerified = true;
+        needsSave = true;
+      }
+      if (needsSave) {
         await user.save();
       }
     }
@@ -671,6 +954,7 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
         nickname: user.nickname,
         avatarUrl: user.avatarUrl,
         defaultCurrency: userDefaultCurrency,
+        isVerified: true,
       },
     });
 

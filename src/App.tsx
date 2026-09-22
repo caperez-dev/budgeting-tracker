@@ -128,7 +128,12 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const user = JSON.parse(saved);
+      if (user && user.isVerified === false) {
+        return null;
+      }
+      return user;
     } catch {
       return null;
     }
@@ -147,6 +152,7 @@ export default function App() {
           nickname: parsed.user.nickname,
           avatarUrl: parsed.user.avatarUrl || '',
           defaultCurrency: parsed.user.defaultCurrency || 'PHP',
+          isVerified: true,
         };
 
         setCurrentUser(user);
@@ -1511,8 +1517,8 @@ export default function App() {
     }
   };
 
-  // If user is not signed in, render the uniform AuthScreen
-  if (!currentUser) {
+  // If user is not signed in or not verified, render the uniform AuthScreen
+  if (!currentUser || currentUser.isVerified === false) {
     return (
       <AuthScreen
         onLoginSuccess={(user, profileUpdate) => {

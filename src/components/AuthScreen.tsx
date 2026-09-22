@@ -39,6 +39,7 @@ interface AuthScreenProps {
 export type AuthScreenMode =
   | 'login'
   | 'register'
+  | 'verify_pin'
   | 'forgot_email'
   | 'forgot_sent'
   | 'forgot_new_password';
@@ -88,6 +89,24 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Verification PIN States
+  const [verificationPin, setVerificationPin] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [pendingNickname, setPendingNickname] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [devPinNotice, setDevPinNotice] = useState<string | null>(null);
+
+  // Cooldown countdown for PIN Resend
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
 
   // Listen for Google OAuth popup message
   useEffect(() => {
@@ -252,6 +271,96 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     }, 350);
   };
 
+  // Flow: Submit 6-digit PIN to verify account
+  const handlePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanPin = verificationPin.trim();
+    if (!cleanPin || cleanPin.length !== 6) {
+      setErrorMessage('Please enter the full 6-digit verification PIN.');
+      return;
+    }
+
+    const targetEmail = (pendingEmail || email).trim().toLowerCase();
+    if (!targetEmail) {
+      setErrorMessage('Verification email address is missing. Please sign in again.');
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const res = await fetch('/api/auth/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail, pin: cleanPin }),
+      });
+
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Verification service error. Please try again.');
+      }
+
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Invalid verification PIN. Please try again.');
+      }
+
+      setSuccessMessage('Account verified successfully! Redirecting to dashboard...');
+      setTimeout(() => {
+        onLoginSuccess(data.user, {
+          nickname: data.user.nickname,
+          avatarUrl: data.user.avatarUrl || selectedAvatar,
+          email: data.user.email,
+        });
+      }, 400);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // Flow: Resend PIN
+  const handleResendPin = async () => {
+    if (resendCooldown > 0 || isResending) return;
+    const targetEmail = (pendingEmail || email).trim().toLowerCase();
+    if (!targetEmail) {
+      setErrorMessage('Email address missing. Please return to Sign In.');
+      return;
+    }
+
+    setIsResending(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch('/api/auth/resend-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to resend verification PIN.');
+      }
+
+      if (data.devPin) {
+        setDevPinNotice(data.devPin);
+      }
+      setResendCooldown(60);
+      setSuccessMessage(`A new 6-digit PIN has been sent to ${targetEmail}.`);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Unable to resend verification code right now.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   // Standard Login / Register form submit
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -308,10 +417,37 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       }
 
       if (!res.ok || !data?.success) {
+        // If login failed specifically because account is unverified, redirect to PIN verification!
+        if (data?.unverified && data?.email) {
+          setPendingEmail(data.email);
+          setPendingNickname(data.nickname || '');
+          setVerificationPin('');
+          if (data.devPin) {
+            setDevPinNotice(data.devPin);
+          }
+          setResendCooldown(60);
+          setMode('verify_pin');
+          setErrorMessage(data.error || 'Please enter the verification PIN sent to your email.');
+          return;
+        }
         throw new Error(data?.error || 'Something went wrong. Please check your details and try again.');
       }
 
-      setSuccessMessage(mode === 'login' ? 'Signed in successfully!' : 'Account created successfully!');
+      // Check if registration requires verification PIN
+      if (mode === 'register' && data?.requiresVerification) {
+        setPendingEmail(data.email || cleanEmail);
+        setPendingNickname(data.nickname || nickname.trim() || cleanEmail.split('@')[0]);
+        setVerificationPin('');
+        if (data.devPin) {
+          setDevPinNotice(data.devPin);
+        }
+        setResendCooldown(60);
+        setMode('verify_pin');
+        setSuccessMessage(`Account created! A 6-digit verification PIN has been sent to ${data.email || cleanEmail}.`);
+        return;
+      }
+
+      setSuccessMessage('Signed in successfully!');
 
       setTimeout(() => {
         onLoginSuccess(data.user, {
@@ -355,6 +491,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               <div className="w-14 h-14 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-105">
                 {mode === 'login' && <Wallet className="w-7 h-7 text-zinc-100" />}
                 {mode === 'register' && <User className="w-7 h-7 text-zinc-100" />}
+                {mode === 'verify_pin' && <ShieldCheck className="w-7 h-7 text-zinc-100" />}
                 {mode === 'forgot_email' && <Mail className="w-7 h-7 text-zinc-100" />}
                 {mode === 'forgot_sent' && <Inbox className="w-7 h-7 text-zinc-100" />}
                 {mode === 'forgot_new_password' && <KeyRound className="w-7 h-7 text-zinc-100" />}
@@ -365,6 +502,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
                 {mode === 'login' && 'Welcome back'}
                 {mode === 'register' && 'Create an account'}
+                {mode === 'verify_pin' && 'Enter Verification PIN'}
                 {mode === 'forgot_email' && 'Forgot your password?'}
                 {mode === 'forgot_sent' && 'Check your email'}
                 {mode === 'forgot_new_password' && 'Set new password'}
@@ -372,6 +510,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               <p className="text-xs sm:text-sm text-zinc-500 max-w-xs leading-relaxed">
                 {mode === 'login' && 'Sign in to access your budget, accounts, and insights.'}
                 {mode === 'register' && 'Welcome! Create an account to start tracking your finances.'}
+                {mode === 'verify_pin' && 'Enter the 6-digit PIN sent to your email to verify and access your dashboard.'}
                 {mode === 'forgot_email' && 'Enter your email address and we will send you a link to reset your password.'}
                 {mode === 'forgot_sent' && 'We have sent password reset instructions to your email.'}
                 {mode === 'forgot_new_password' && 'Choose a strong new password to regain access to your account.'}
@@ -595,6 +734,126 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   </Button>
                 </form>
               </>
+            )}
+
+            {/* ========================================================= */}
+            {/* 1.5. VERIFY EMAIL PIN VIEW                                */}
+            {/* ========================================================= */}
+            {mode === 'verify_pin' && (
+              <form onSubmit={handlePinSubmit} className="space-y-4">
+                {/* Email indicator badge */}
+                <div className="p-3 rounded-xl bg-zinc-100/90 border border-zinc-200/80 flex items-center justify-between text-xs text-zinc-700">
+                  <div className="flex items-center gap-2 truncate">
+                    <Mail className="w-4 h-4 text-zinc-500 shrink-0" />
+                    <span className="font-semibold text-zinc-900 truncate">
+                      {pendingEmail || email}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-medium text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md shrink-0">
+                    Awaiting PIN
+                  </span>
+                </div>
+
+                {/* Local Dev / Preview PIN Helper */}
+                {devPinNotice && (
+                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2.5 text-xs text-blue-900">
+                    <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-semibold text-blue-900">
+                        Local Dev PIN: <span className="font-mono text-sm tracking-widest text-blue-950 bg-blue-100 px-1.5 py-0.5 rounded ml-1 font-bold">{devPinNotice}</span>
+                      </p>
+                      <p className="text-[11px] text-blue-700 leading-normal">
+                        To send real emails to this inbox, add your SMTP credentials to <code className="bg-blue-100/80 px-1 py-0.5 rounded">.env</code>.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 6-Digit PIN input */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="verification-pin"
+                    className="text-center block text-xs font-semibold text-zinc-600 uppercase tracking-wider"
+                  >
+                    Enter 6-Digit Code
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="verification-pin"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={verificationPin}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setVerificationPin(val);
+                        if (errorMessage) setErrorMessage(null);
+                      }}
+                      placeholder="••••••"
+                      className="text-center font-mono text-2xl tracking-[0.4em] h-14 font-bold rounded-xl border-zinc-300 focus-visible:ring-zinc-900 bg-zinc-50/50"
+                      autoFocus
+                    />
+                  </div>
+                  <p className="text-[11px] text-zinc-400 text-center">
+                    PIN expires in 15 minutes. Check spam folder if not found.
+                  </p>
+                </div>
+
+                {/* Submit button */}
+                <Button
+                  type="submit"
+                  disabled={isVerifying || verificationPin.trim().length !== 6}
+                  className="w-full h-11 rounded-xl bg-zinc-900 text-white font-medium text-sm hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 mt-2 shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {isVerifying ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Verifying code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Verify & Go to Dashboard</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+
+                {/* Resend & Back controls */}
+                <div className="flex items-center justify-between pt-1 px-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleResendPin}
+                    disabled={resendCooldown > 0 || isResending}
+                    className="text-zinc-600 hover:text-zinc-950 font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {isResending ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>Sending new PIN...</span>
+                      </>
+                    ) : resendCooldown > 0 ? (
+                      <span>Resend PIN in {resendCooldown}s</span>
+                    ) : (
+                      <span>Resend PIN</span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorMessage(null);
+                      setSuccessMessage(null);
+                      setDevPinNotice(null);
+                      setMode('login');
+                    }}
+                    className="inline-flex items-center gap-1 text-zinc-500 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Sign In</span>
+                  </button>
+                </div>
+              </form>
             )}
 
             {/* ========================================================= */}

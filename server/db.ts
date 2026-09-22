@@ -157,6 +157,9 @@ const UserSchema = new mongoose.Schema(
     nickname: { type: String, default: 'Carlos' },
     avatarUrl: { type: String, default: '' },
     defaultCurrency: { type: String, default: 'PHP' },
+    isVerified: { type: Boolean, default: false },
+    verificationPin: { type: String, default: null },
+    verificationPinExpiresAt: { type: Date, default: null },
   },
   { timestamps: true, strict: false }
 );

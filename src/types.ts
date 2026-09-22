@@ -102,6 +102,7 @@ export interface AuthUser {
   nickname: string;
   avatarUrl?: string;
   defaultCurrency?: string;
+  isVerified?: boolean;
 }
 
 export interface DBStatus {
