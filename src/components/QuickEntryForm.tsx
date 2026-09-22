@@ -50,7 +50,12 @@ export function QuickEntryForm({
   const [currency, setCurrency] = useState<string>(selectedCurrency);
   const [categoryId, setCategoryId] = useState<string>('');
   const [accountId, setAccountId] = useState<string>(() => {
-    return accounts.find((a) => a.isDefault)?.id || accounts[0]?.id || '';
+    return (
+      accounts.find((a) => a.id === 'cash' || a.name.toLowerCase() === 'cash')?.id ||
+      accounts.find((a) => a.isDefault)?.id ||
+      accounts[0]?.id ||
+      ''
+    );
   });
   const [note, setNote] = useState<string>('');
   const [amountError, setAmountError] = useState<string>('');
@@ -64,7 +69,11 @@ export function QuickEntryForm({
   React.useEffect(() => {
     if (!accountId || !accounts.some((a) => a.id === accountId)) {
       if (accounts.length > 0) {
-        setAccountId(accounts.find((a) => a.isDefault)?.id || accounts[0].id);
+        setAccountId(
+          accounts.find((a) => a.id === 'cash' || a.name.toLowerCase() === 'cash')?.id ||
+          accounts.find((a) => a.isDefault)?.id ||
+          accounts[0].id
+        );
       }
     }
   }, [accounts, accountId]);

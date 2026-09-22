@@ -264,7 +264,7 @@ export function Header({
               id="btn-manage-accounts"
               onClick={onOpenAccounts}
               className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
-              title="Manage accounts and assets (GCash, E-Wallet, Cash, etc.)"
+              title="Manage accounts and assets (Cash, E-Wallet, etc.)"
             >
               <Wallet className="w-3 h-3 text-zinc-500" />
               <span className="hidden sm:inline">Accounts</span>

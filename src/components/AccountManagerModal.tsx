@@ -35,12 +35,20 @@ const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
 ];
 
 const QUICK_SUGGESTIONS = [
-  { name: 'Cash', type: 'cash' as AccountType, icon: 'Banknote' },
-  { name: 'Credit Card', type: 'credit_card' as AccountType, icon: 'CreditCard' },
   { name: 'Bank Account', type: 'bank' as AccountType, icon: 'Landmark' },
+  { name: 'Credit Card', type: 'credit_card' as AccountType, icon: 'CreditCard' },
   { name: 'Maya', type: 'ewallet' as AccountType, icon: 'Smartphone' },
   { name: 'Savings', type: 'bank' as AccountType, icon: 'PiggyBank' },
 ];
+
+export const isCashAccount = (acc: { id?: string; type?: string; name?: string }): boolean => {
+  if (!acc) return false;
+  return (
+    acc.id === 'cash' ||
+    acc.type === 'cash' ||
+    (typeof acc.name === 'string' && acc.name.trim().toLowerCase() === 'cash')
+  );
+};
 
 export function AccountManagerModal({
   accounts,
@@ -159,7 +167,7 @@ export function AccountManagerModal({
             <div>
               <h2 className="text-sm font-semibold text-zinc-900">Accounts & Assets</h2>
               <p className="text-xs text-zinc-500">
-                Track your money across GCash, E-Wallets, Cash, Cards, and Banks.
+                Track your money across Cash, E-Wallets, Cards, and Banks.
               </p>
             </div>
           </div>
@@ -385,22 +393,31 @@ export function AccountManagerModal({
                   <label className="block text-[11px] font-medium text-zinc-700 mb-1">
                     Account Type
                   </label>
-                  <select
-                    value={editingAccount.type}
-                    onChange={(e) =>
-                      setEditingAccount({
-                        ...editingAccount,
-                        type: e.target.value as AccountType,
-                      })
-                    }
-                    className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
-                  >
-                    {ACCOUNT_TYPES.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                  {isCashAccount(editingAccount) ? (
+                    <div className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-700 font-medium flex items-center justify-between">
+                      <span>Cash</span>
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-[3px]">
+                        Main Account
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={editingAccount.type}
+                      onChange={(e) =>
+                        setEditingAccount({
+                          ...editingAccount,
+                          type: e.target.value as AccountType,
+                        })
+                      }
+                      className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
+                    >
+                      {ACCOUNT_TYPES.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -496,6 +513,14 @@ export function AccountManagerModal({
                         <span className="text-[10px] uppercase font-medium tracking-wider px-1.5 py-0.5 rounded-[3px] bg-zinc-100 text-zinc-600 border border-zinc-200/60">
                           {typeObj?.label || 'Asset'}
                         </span>
+                        {isCashAccount(acc) && (
+                          <span
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200/70"
+                            title="Cash is the primary method and cannot be removed"
+                          >
+                            Main
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-zinc-400 mt-0.5">
                         {txCount} {txCount === 1 ? 'transaction' : 'transactions'} logged
@@ -532,16 +557,25 @@ export function AccountManagerModal({
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
 
-                      {accounts.length > 1 && (
-                        <button
-                          type="button"
-                          id={`btn-delete-account-${acc.id}`}
-                          onClick={() => onDeleteAccount(acc.id)}
-                          className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-[3px] transition-colors cursor-pointer"
-                          title="Delete account"
+                      {isCashAccount(acc) ? (
+                        <span
+                          className="text-[10px] text-zinc-400 font-medium px-2 py-1 select-none"
+                          title="Cash is permanent and cannot be removed"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          Permanent
+                        </span>
+                      ) : (
+                        accounts.length > 1 && (
+                          <button
+                            type="button"
+                            id={`btn-delete-account-${acc.id}`}
+                            onClick={() => onDeleteAccount(acc.id)}
+                            className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-[3px] transition-colors cursor-pointer"
+                            title="Delete account"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )
                       )}
                     </div>
                   </div>

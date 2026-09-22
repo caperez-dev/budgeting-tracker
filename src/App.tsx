@@ -50,11 +50,11 @@ import {
 
 export const DEFAULT_ACCOUNTS: Account[] = [
   {
-    id: 'gcash',
-    name: 'GCash',
-    type: 'ewallet',
-    color: '#007DFE',
-    icon: 'Smartphone',
+    id: 'cash',
+    name: 'Cash',
+    type: 'cash',
+    color: '#16A34A',
+    icon: 'Banknote',
     isDefault: true,
     initialBalance: 0,
   },
@@ -62,12 +62,41 @@ export const DEFAULT_ACCOUNTS: Account[] = [
     id: 'ewallet',
     name: 'E-Wallet',
     type: 'ewallet',
-    color: '#059669',
+    color: '#0284C7',
     icon: 'Wallet',
     isDefault: false,
     initialBalance: 0,
   },
 ];
+
+export const isCashAccount = (acc: { id?: string; type?: string; name?: string }): boolean => {
+  if (!acc) return false;
+  return (
+    acc.id === 'cash' ||
+    acc.type === 'cash' ||
+    (typeof acc.name === 'string' && acc.name.trim().toLowerCase() === 'cash')
+  );
+};
+
+export const ensureCashAccount = (accList: Account[]): Account[] => {
+  if (!Array.isArray(accList) || accList.length === 0) {
+    return DEFAULT_ACCOUNTS;
+  }
+  const hasCash = accList.some(isCashAccount);
+  if (hasCash) {
+    return accList;
+  }
+  const cashAccount: Account = {
+    id: 'cash',
+    name: 'Cash',
+    type: 'cash',
+    color: '#16A34A',
+    icon: 'Banknote',
+    isDefault: accList.every((a) => !a.isDefault),
+    initialBalance: 0,
+  };
+  return [cashAccount, ...accList];
+};
 
 const STORAGE_KEYS = {
   TRANSACTIONS_V1: 'budget_tracker_transactions_v1', // old shared key to purge
@@ -225,7 +254,7 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return ensureCashAccount(parsed);
         }
       }
       return DEFAULT_ACCOUNTS;
@@ -474,8 +503,14 @@ export default function App() {
     try {
       const accKey = getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, user.id);
       const savedAccs = localStorage.getItem(accKey);
-      if (savedAccs) setAccounts(JSON.parse(savedAccs));
-    } catch {}
+      if (savedAccs) {
+        setAccounts(ensureCashAccount(JSON.parse(savedAccs)));
+      } else {
+        setAccounts(DEFAULT_ACCOUNTS);
+      }
+    } catch {
+      setAccounts(DEFAULT_ACCOUNTS);
+    }
 
     // 7. Categories
     try {
@@ -565,6 +600,16 @@ export default function App() {
               localStorage.setItem(
                 getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, uid),
                 JSON.stringify(json.data.currencies)
+              );
+            } catch {}
+          }
+          if (Array.isArray(json.data.accounts) && json.data.accounts.length > 0) {
+            const safeAccs = ensureCashAccount(json.data.accounts);
+            setAccounts(safeAccs);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, uid),
+                JSON.stringify(safeAccs)
               );
             } catch {}
           }
@@ -1063,6 +1108,10 @@ export default function App() {
   };
 
   const handleDeleteAccount = (id: string) => {
+    const target = accounts.find((a) => a.id === id);
+    if (!target || isCashAccount(target)) {
+      return; // Cash is permanent and cannot be removed
+    }
     if (accounts.length <= 1) return;
     setAccounts((prev) => prev.filter((a) => a.id !== id));
   };
