@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Trash2,
   Edit3,
@@ -11,6 +11,8 @@ import {
   Clock,
   Calendar,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Layers,
   X,
 } from 'lucide-react';
@@ -60,7 +62,136 @@ export function TrackerView({
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
-  const trackerDateInputRef = useRef<HTMLInputElement>(null);
+
+  // In-App Calendar Popover State
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const calendarButtonRef = useRef<HTMLButtonElement>(null);
+
+  const [calViewYear, setCalViewYear] = useState<number>(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const y = parseInt(selectedDate.split('-')[0], 10);
+      if (!isNaN(y)) return y;
+    }
+    return new Date().getFullYear();
+  });
+
+  const [calViewMonth, setCalViewMonth] = useState<number>(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const m = parseInt(selectedDate.split('-')[1], 10);
+      if (!isNaN(m)) return m - 1;
+    }
+    return new Date().getMonth();
+  });
+
+  useEffect(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const [y, m] = selectedDate.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m)) {
+        setCalViewYear(y);
+        setCalViewMonth(m - 1);
+      }
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (!isCalendarOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        calendarRef.current &&
+        !calendarRef.current.contains(e.target as Node) &&
+        calendarButtonRef.current &&
+        !calendarButtonRef.current.contains(e.target as Node)
+      ) {
+        setIsCalendarOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCalendarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isCalendarOpen]);
+
+  const calMonthTitle = useMemo(() => {
+    const d = new Date(calViewYear, calViewMonth, 1);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      year: 'numeric',
+    }).format(d);
+  }, [calViewYear, calViewMonth]);
+
+  const handleCalPrevMonth = () => {
+    setCalViewMonth((prev) => {
+      if (prev === 0) {
+        setCalViewYear((y) => y - 1);
+        return 11;
+      }
+      return prev - 1;
+    });
+  };
+
+  const handleCalNextMonth = () => {
+    setCalViewMonth((prev) => {
+      if (prev === 11) {
+        setCalViewYear((y) => y + 1);
+        return 0;
+      }
+      return prev + 1;
+    });
+  };
+
+  const calGrid = useMemo(() => {
+    const firstDayIndex = new Date(calViewYear, calViewMonth, 1).getDay();
+    const daysInCurrentMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(calViewYear, calViewMonth, 0).getDate();
+
+    const leadingDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const prevD = daysInPrevMonth - i;
+      const prevM = calViewMonth === 0 ? 12 : calViewMonth;
+      const prevY = calViewMonth === 0 ? calViewYear - 1 : calViewYear;
+      const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(prevD).padStart(2, '0')}`;
+      leadingDays.push({ day: prevD, isCurrentMonth: false, dateStr: dStr });
+    }
+
+    const currentDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      const dStr = `${calViewYear}-${String(calViewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      currentDays.push({ day: d, isCurrentMonth: true, dateStr: dStr });
+    }
+
+    const totalSlots = leadingDays.length + currentDays.length > 35 ? 42 : 35;
+    const trailingCount = totalSlots - (leadingDays.length + currentDays.length);
+    const trailingDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let t = 1; t <= trailingCount; t++) {
+      const nextM = calViewMonth === 11 ? 1 : calViewMonth + 2;
+      const nextY = calViewMonth === 11 ? calViewYear + 1 : calViewYear;
+      const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(t).padStart(2, '0')}`;
+      trailingDays.push({ day: t, isCurrentMonth: false, dateStr: dStr });
+    }
+
+    return [...leadingDays, ...currentDays, ...trailingDays];
+  }, [calViewYear, calViewMonth]);
+
+  const datesWithTransactions = useMemo(() => {
+    const dates = new Set<string>();
+    transactions.forEach((tx) => {
+      if (tx.date) dates.add(tx.date);
+    });
+    return dates;
+  }, [transactions]);
+
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }, []);
 
   // Reset pagination when filter criteria change
   React.useEffect(() => {
@@ -83,9 +214,9 @@ export function TrackerView({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const cat = categoryMap.get(tx.categoryId);
-      const catName = cat ? cat.name.toLowerCase() : '';
+      const catName = (cat ? cat.name : tx.categoryName || '').toLowerCase();
       const acc = tx.accountId ? accountMap.get(tx.accountId) : undefined;
-      const accName = acc ? acc.name.toLowerCase() : '';
+      const accName = (acc ? acc.name : tx.accountName || '').toLowerCase();
       const matchesNote = tx.note.toLowerCase().includes(q);
       const matchesAmount = String(tx.amount).includes(q);
       const matchesDate = tx.date.includes(q);
@@ -116,6 +247,14 @@ export function TrackerView({
     onUpdateTransaction(editingTx);
     setEditingTx(null);
   };
+
+  const totalInFiltered = useMemo(() => {
+    return filtered.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  }, [filtered]);
+
+  const totalOutFiltered = useMemo(() => {
+    return filtered.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  }, [filtered]);
 
   return (
     <div id="tracker-main-view" className="space-y-4">
@@ -229,12 +368,187 @@ export function TrackerView({
 
       {/* Transactions Container */}
       <div className="bg-white border border-zinc-200 rounded-[5px] shadow-xs divide-y divide-zinc-100">
+        {/* Persistent Section Header Bar: Month/Date & Interactive Calendar Selector */}
+        <div className="p-4 sm:p-5 pb-3 flex flex-wrap items-center justify-between gap-3 bg-white rounded-t-[5px]">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-zinc-600" />
+            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">
+              {selectedDate && selectedMonthYearLabel ? selectedMonthYearLabel : (selectedMonthYearLabel || 'Transaction History')}
+            </h3>
+
+            {/* In-App Interactive Calendar Selector */}
+            <div className="relative inline-flex items-center ml-1">
+              <button
+                ref={calendarButtonRef}
+                id="btn-tracker-calendar-picker"
+                type="button"
+                onClick={() => setIsCalendarOpen((prev) => !prev)}
+                aria-expanded={isCalendarOpen}
+                className={`p-1.5 rounded-[4px] border transition-colors cursor-pointer flex items-center gap-1 ${
+                  selectedDate
+                    ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
+                    : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border-zinc-200 bg-white'
+                }`}
+                title={selectedDate ? 'Change selected date' : 'Select date from calendar'}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+              </button>
+
+              {/* In-App Popover Calendar Selector */}
+              {isCalendarOpen && (
+                <div
+                  ref={calendarRef}
+                  className="absolute left-0 top-full mt-2 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3.5 w-72 animate-in fade-in zoom-in-95 duration-100"
+                >
+                  {/* Month Navigation inside calendar */}
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                    <button
+                      type="button"
+                      onClick={handleCalPrevMonth}
+                      className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                      title="Previous month"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <span className="text-xs font-bold text-zinc-900 tracking-wide">
+                      {calMonthTitle}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={handleCalNextMonth}
+                      className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                      title="Next month"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Days of Week Header */}
+                  <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                      <span key={d} className="text-[10px] font-semibold text-zinc-400 py-0.5">
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Day Cells Grid */}
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {calGrid.map((item, idx) => {
+                      const isSelected = selectedDate === item.dateStr;
+                      const isToday = item.dateStr === todayStr;
+                      const hasTx = datesWithTransactions.has(item.dateStr);
+
+                      if (!item.isCurrentMonth) {
+                        return (
+                          <div
+                            key={`pad-${idx}`}
+                            className="h-8 flex items-center justify-center text-[11px] text-zinc-300 pointer-events-none select-none"
+                          >
+                            {item.day}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={item.dateStr}
+                          type="button"
+                          onClick={() => {
+                            onSelectDate?.(item.dateStr);
+                            setIsCalendarOpen(false);
+                          }}
+                          className={`h-8 flex flex-col items-center justify-center rounded-[4px] text-xs transition-colors cursor-pointer relative ${
+                            isSelected
+                              ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                              : isToday
+                              ? 'text-zinc-900 font-bold border border-zinc-400 hover:bg-zinc-100'
+                              : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                          }`}
+                        >
+                          <span>{item.day}</span>
+                          {hasTx && (
+                            <span
+                              className={`w-1 h-1 rounded-full absolute bottom-1 ${
+                                isSelected ? 'bg-white' : 'bg-emerald-500'
+                              }`}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Calendar Footer */}
+                  <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectDate?.(todayStr);
+                        setIsCalendarOpen(false);
+                      }}
+                      className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                    >
+                      Today
+                    </button>
+
+                    {selectedDate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectDate?.(null);
+                          setIsCalendarOpen(false);
+                        }}
+                        className="text-zinc-600 hover:text-zinc-900 px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                      >
+                        All Month
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsCalendarOpen(false)}
+                      className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => onSelectDate?.(null)}
+                  className="ml-2 text-[11px] font-sans text-zinc-600 hover:text-zinc-900 px-2 py-1 bg-zinc-100 hover:bg-zinc-200 rounded-[3px] transition-colors cursor-pointer flex items-center gap-1"
+                  title="Clear date filter and show full month"
+                >
+                  <X className="w-3 h-3" />
+                  <span>Show full month</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Period In/Out Totals */}
+          <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
+            <span className="text-emerald-700 font-medium">
+              +{formatCurrency(totalInFiltered, currencySymbol)}
+            </span>
+            <span className="text-rose-700 font-medium">
+              -{formatCurrency(totalOutFiltered, currencySymbol)}
+            </span>
+          </div>
+        </div>
+
         {monthGroups.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 space-y-3">
             <Layers className="w-8 h-8 mx-auto text-zinc-300" />
             <div>
               <p className="text-sm font-medium text-zinc-700">
-                No transactions found {selectedMonthYearLabel ? `for ${selectedMonthYearLabel}` : ''}
+                No transactions found {selectedDate ? `for ${selectedMonthYearLabel}` : `in this view`}
               </p>
               <p className="text-xs text-zinc-400 mt-1">
                 {searchQuery || filterType !== 'all' || filterCategory !== 'all'
@@ -255,71 +569,7 @@ export function TrackerView({
           </div>
         ) : (
           monthGroups.map((month) => (
-            <div key={month.yearMonth} className="p-4 sm:p-5">
-              {/* Level 1: Month/Date Header (e.g. "Sep 2026" or "September 1, 2026") */}
-              <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-200">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-zinc-600" />
-                  <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">
-                    {selectedDate && selectedMonthYearLabel ? selectedMonthYearLabel : month.monthLabel}
-                  </h3>
-
-                  {/* Calendar button beside Month/Date in Transaction History */}
-                  <div className="relative inline-flex items-center ml-1">
-                    <button
-                      id="btn-tracker-calendar-picker"
-                      type="button"
-                      onClick={() => {
-                        if (trackerDateInputRef.current?.showPicker) {
-                          trackerDateInputRef.current.showPicker();
-                        } else {
-                          trackerDateInputRef.current?.focus();
-                        }
-                      }}
-                      className={`p-1 rounded-[4px] border transition-colors cursor-pointer ${
-                        selectedDate
-                          ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
-                          : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 border-zinc-200 bg-white'
-                      }`}
-                      title={selectedDate ? 'Change selected date' : 'Select specific date'}
-                    >
-                      <CalendarDays className="w-3.5 h-3.5" />
-                    </button>
-                    <input
-                      ref={trackerDateInputRef}
-                      type="date"
-                      value={selectedDate || ''}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          onSelectDate?.(e.target.value);
-                        }
-                      }}
-                      className="sr-only"
-                      tabIndex={-1}
-                    />
-                    {selectedDate && (
-                      <button
-                        type="button"
-                        onClick={() => onSelectDate?.(null)}
-                        className="ml-1 text-[11px] font-sans text-zinc-500 hover:text-zinc-800 px-1.5 py-0.5 bg-zinc-100 hover:bg-zinc-200 rounded-[3px] transition-colors cursor-pointer flex items-center gap-1"
-                        title="Clear date filter and show full month"
-                      >
-                        <X className="w-3 h-3" />
-                        <span>Show full month</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
-                  <span className="text-emerald-700 font-medium">
-                    +{formatCurrency(month.monthTotalIn, currencySymbol)}
-                  </span>
-                  <span className="text-rose-700 font-medium">
-                    -{formatCurrency(month.monthTotalOut, currencySymbol)}
-                  </span>
-                </div>
-              </div>
-
+            <div key={month.yearMonth} className="p-4 sm:p-5 pt-3">
               {/* Weeks within Month (Week headers hidden if filtering by a specific date) */}
               <div className={`space-y-4 ${selectedDate ? 'ml-0' : 'ml-1 sm:ml-3'}`}>
                 {month.weeks.map((week) => (
@@ -354,9 +604,13 @@ export function TrackerView({
                           <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-[4px] overflow-hidden bg-white">
                             {day.transactions.map((tx) => {
                               const cat = categoryMap.get(tx.categoryId);
-                              const catColor = cat ? cat.color : '#52525B';
-                              const catIcon = cat ? cat.icon : 'Tag';
-                              const catName = cat ? cat.name : 'Other';
+                              const catColor = cat ? cat.color : tx.categoryColor || '#52525B';
+                              const catIcon = cat ? cat.icon : tx.categoryIcon || 'Tag';
+                              const catName = cat ? cat.name : tx.categoryName || 'Other';
+
+                              const acc = tx.accountId ? accountMap.get(tx.accountId) : undefined;
+                              const accName = acc ? acc.name : tx.accountName;
+                              const accIcon = acc ? acc.icon : tx.accountIcon || 'Wallet';
 
                               return (
                                 <div
@@ -393,10 +647,10 @@ export function TrackerView({
                                     </span>
 
                                     {/* Account Badge if available */}
-                                    {tx.accountId && accountMap.get(tx.accountId) && (
+                                    {accName && (
                                       <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-600 bg-zinc-100/90 px-1.5 py-0.5 rounded-[3px] border border-zinc-200/60 whitespace-nowrap">
-                                        <AccountIcon name={accountMap.get(tx.accountId)!.icon} className="w-3 h-3 shrink-0 text-zinc-500" />
-                                        <span>{accountMap.get(tx.accountId)!.name}</span>
+                                        <AccountIcon name={accIcon} className="w-3 h-3 shrink-0 text-zinc-500" />
+                                        <span>{accName}</span>
                                       </span>
                                     )}
 

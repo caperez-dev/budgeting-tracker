@@ -789,6 +789,43 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   }, [settings, currentUser?.id]);
 
+  // Backfill snapshot category & account details on legacy transactions so historical records are permanently preserved
+  useEffect(() => {
+    if (categories.length === 0 && accounts.length === 0) return;
+    const catMap = new Map<string, Category>(categories.map((c) => [c.id, c]));
+    const accMap = new Map<string, Account>(accounts.map((a) => [a.id, a]));
+
+    let modified = false;
+    const enriched = transactions.map((tx) => {
+      let changed = false;
+      const updates: Partial<Transaction> = {};
+
+      if (!tx.categoryName && tx.categoryId && catMap.has(tx.categoryId)) {
+        const cat = catMap.get(tx.categoryId)!;
+        updates.categoryName = cat.name;
+        updates.categoryIcon = cat.icon;
+        updates.categoryColor = cat.color;
+        changed = true;
+      }
+      if (!tx.accountName && tx.accountId && accMap.has(tx.accountId)) {
+        const acc = accMap.get(tx.accountId)!;
+        updates.accountName = acc.name;
+        updates.accountIcon = acc.icon;
+        changed = true;
+      }
+
+      if (changed) {
+        modified = true;
+        return { ...tx, ...updates };
+      }
+      return tx;
+    });
+
+    if (modified) {
+      setTransactions(enriched);
+    }
+  }, [categories, accounts, transactions.length]);
+
   useEffect(() => {
     if (currentUser?.id) {
       try {
@@ -837,6 +874,11 @@ export default function App() {
     if (date) {
       setSelectedYearMonth(date.slice(0, 7));
     }
+  };
+
+  const handleSelectYearMonth = (yearMonth: string) => {
+    setSelectedDate(null);
+    setSelectedYearMonth(yearMonth);
   };
 
   const handlePrevMonth = () => {
@@ -971,6 +1013,11 @@ export default function App() {
         ? roundToCurrency(convertCurrency(newTxData.amount, fromCurr, settings.defaultCurrency, ratesMap))
         : newTxData.amount;
 
+    const matchedCategory = categories.find((c) => c.id === newTxData.categoryId);
+    const matchedAccount = (newTxData as any).accountId
+      ? accounts.find((a) => a.id === (newTxData as any).accountId)
+      : undefined;
+
     const newTx: Transaction = {
       ...newTxData,
       amount: finalAmount,
@@ -979,6 +1026,11 @@ export default function App() {
       userId: currentUser?.id,
       timestamp: new Date(`${newTxData.date}T${new Date().toTimeString().slice(0, 8)}`).getTime(),
       createdAt: Date.now(),
+      categoryName: matchedCategory?.name || (newTxData as any).categoryName || 'Other',
+      categoryIcon: matchedCategory?.icon || (newTxData as any).categoryIcon || 'Tag',
+      categoryColor: matchedCategory?.color || (newTxData as any).categoryColor || '#52525B',
+      accountName: matchedAccount?.name || (newTxData as any).accountName,
+      accountIcon: matchedAccount?.icon || (newTxData as any).accountIcon,
     };
     setTransactions((prev) => [newTx, ...prev]);
 
@@ -1031,7 +1083,17 @@ export default function App() {
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
-    setTransactions((prev) => prev.map((t) => (t.id === updatedTx.id ? updatedTx : t)));
+    const cat = categories.find((c) => c.id === updatedTx.categoryId);
+    const acc = updatedTx.accountId ? accounts.find((a) => a.id === updatedTx.accountId) : undefined;
+    const enrichedTx: Transaction = {
+      ...updatedTx,
+      categoryName: cat?.name || updatedTx.categoryName || 'Other',
+      categoryIcon: cat?.icon || updatedTx.categoryIcon || 'Tag',
+      categoryColor: cat?.color || updatedTx.categoryColor || '#52525B',
+      accountName: acc?.name || updatedTx.accountName,
+      accountIcon: acc?.icon || updatedTx.accountIcon,
+    };
+    setTransactions((prev) => prev.map((t) => (t.id === enrichedTx.id ? enrichedTx : t)));
   };
 
   // --- Handlers: Debts ---
@@ -1121,7 +1183,35 @@ export default function App() {
   };
 
   const handleDeleteCategory = (id: string) => {
+    const target = categories.find((c) => c.id === id);
+
+    // Retain category name, icon, and color in all past transactions
+    if (target) {
+      setTransactions((prev) =>
+        prev.map((tx) => {
+          if (tx.categoryId === id) {
+            return {
+              ...tx,
+              categoryName: tx.categoryName || target.name,
+              categoryIcon: tx.categoryIcon || target.icon,
+              categoryColor: tx.categoryColor || target.color,
+            };
+          }
+          return tx;
+        })
+      );
+    }
+
     setCategories((prev) => prev.filter((c) => c.id !== id));
+
+    // Persist deletion immediately to backend
+    const delUrl = `/api/db/categories/${encodeURIComponent(id)}${
+      currentUser?.id ? `?userId=${encodeURIComponent(currentUser.id)}` : ''
+    }`;
+    fetch(delUrl, {
+      method: 'DELETE',
+      headers: currentUser?.id ? { 'x-user-id': currentUser.id } : undefined,
+    }).catch(() => {});
   };
 
   // --- Handlers: Accounts ---
@@ -1143,7 +1233,31 @@ export default function App() {
       return; // Cash is permanent and cannot be removed
     }
     if (accounts.length <= 1) return;
+
+    // Retain account name and icon in all past transactions
+    setTransactions((prev) =>
+      prev.map((tx) => {
+        if (tx.accountId === id) {
+          return {
+            ...tx,
+            accountName: tx.accountName || target.name,
+            accountIcon: tx.accountIcon || target.icon,
+          };
+        }
+        return tx;
+      })
+    );
+
     setAccounts((prev) => prev.filter((a) => a.id !== id));
+
+    // Persist deletion immediately to backend
+    const delUrl = `/api/db/accounts/${encodeURIComponent(id)}${
+      currentUser?.id ? `?userId=${encodeURIComponent(currentUser.id)}` : ''
+    }`;
+    fetch(delUrl, {
+      method: 'DELETE',
+      headers: currentUser?.id ? { 'x-user-id': currentUser.id } : undefined,
+    }).catch(() => {});
   };
 
   const handleTransfer = ({
@@ -1179,7 +1293,12 @@ export default function App() {
       amount,
       currency: settings.defaultCurrency,
       categoryId: transferExpenseCat?.id || 'exp-other',
+      categoryName: transferExpenseCat?.name || 'Transfer',
+      categoryIcon: transferExpenseCat?.icon || 'ArrowLeftRight',
+      categoryColor: transferExpenseCat?.color || '#52525B',
       accountId: fromAccountId,
+      accountName: fromAcc?.name,
+      accountIcon: fromAcc?.icon || 'Wallet',
       note: note ? `Transfer to ${toAcc?.name || 'Account'}: ${note}` : `Transfer to ${toAcc?.name || 'Account'}`,
       date: today,
       time: currentTime,
@@ -1194,7 +1313,12 @@ export default function App() {
       amount,
       currency: settings.defaultCurrency,
       categoryId: transferIncomeCat?.id || 'inc-other',
+      categoryName: transferIncomeCat?.name || 'Transfer',
+      categoryIcon: transferIncomeCat?.icon || 'ArrowLeftRight',
+      categoryColor: transferIncomeCat?.color || '#52525B',
       accountId: toAccountId,
+      accountName: toAcc?.name,
+      accountIcon: toAcc?.icon || 'Wallet',
       note: note ? `Transfer from ${fromAcc?.name || 'Account'}: ${note}` : `Transfer from ${fromAcc?.name || 'Account'}`,
       date: today,
       time: currentTime,
@@ -1593,6 +1717,8 @@ export default function App() {
         debtsOwedToYouTotal={totalOwedToYouUnsettled}
         currencySymbol={currencySymbol}
         selectedMonthYearLabel={selectedMonthYearLabel}
+        selectedYearMonth={selectedYearMonth}
+        onSelectYearMonth={handleSelectYearMonth}
         selectedDate={selectedDate}
         onSelectDate={handleSelectDate}
         onPrevMonth={handlePrevMonth}

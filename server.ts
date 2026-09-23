@@ -10,6 +10,7 @@ import {
   getDBStatus,
   TransactionModel,
   CategoryModel,
+  AccountModel,
   CurrencyModel,
   DebtModel,
   GoalModel,
@@ -1071,11 +1072,18 @@ app.get("/api/db/sync", async (req, res) => {
     const goalQuery: any = userId
       ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
       : { userId: "__none__" };
+    const catQuery: any = userId
+      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
+      : {};
+    const accQuery: any = userId
+      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
+      : {};
 
-    const [transactions, categories, currencies, debts, goals, profileDoc] =
+    const [transactions, categories, accounts, currencies, debts, goals, profileDoc] =
       await Promise.all([
         (TransactionModel as any).find(txQuery).sort({ date: -1 }).lean().exec(),
-        (CategoryModel as any).find({}).lean().exec(),
+        (CategoryModel as any).find(catQuery).lean().exec(),
+        (AccountModel as any).find(accQuery).lean().exec(),
         (CurrencyModel as any).find({}).lean().exec(),
         (DebtModel as any).find(debtQuery).sort({ date: -1 }).lean().exec(),
         (GoalModel as any).find(goalQuery).lean().exec(),
@@ -1127,6 +1135,7 @@ app.get("/api/db/sync", async (req, res) => {
       data: {
         transactions: transactions || [],
         categories: categories || [],
+        accounts: accounts || [],
         currencies: currencies || [],
         debts: debts || [],
         goals: goals || [],
@@ -1152,7 +1161,7 @@ app.post("/api/db/sync", async (req, res) => {
     (req.headers["x-user-id"] as string) ||
     (req.query.userId as string) ||
     "";
-  const { transactions, categories, currencies, debts, goals, settings, profile } = req.body;
+  const { transactions, categories, accounts, currencies, debts, goals, settings, profile } = req.body;
 
   try {
     const promises: Promise<any>[] = [];
@@ -1192,18 +1201,50 @@ app.post("/api/db/sync", async (req, res) => {
       );
     }
 
-    if (Array.isArray(categories) && categories.length > 0) {
-      promises.push(
-        (CategoryModel as any).bulkWrite(
-          categories.map((c: any) => ({
-            updateOne: {
-              filter: { id: c.id },
-              update: { $set: c },
-              upsert: true,
-            },
-          }))
-        )
-      );
+    if (Array.isArray(categories)) {
+      const activeCatIds = categories.map((c: any) => c.id);
+      const catDelFilter: any = { id: { $nin: activeCatIds } };
+      if (userId) {
+        catDelFilter.$or = [{ userId }, { userId: "" }, { userId: { $exists: false } }];
+      }
+      await (CategoryModel as any).deleteMany(catDelFilter);
+
+      if (categories.length > 0) {
+        promises.push(
+          (CategoryModel as any).bulkWrite(
+            categories.map((c: any) => ({
+              updateOne: {
+                filter: { id: c.id },
+                update: { $set: { ...c, userId: c.userId || userId || "" } },
+                upsert: true,
+              },
+            }))
+          )
+        );
+      }
+    }
+
+    if (Array.isArray(accounts)) {
+      const activeAccIds = accounts.map((a: any) => a.id);
+      const accDelFilter: any = { id: { $nin: activeAccIds } };
+      if (userId) {
+        accDelFilter.$or = [{ userId }, { userId: "" }, { userId: { $exists: false } }];
+      }
+      await (AccountModel as any).deleteMany(accDelFilter);
+
+      if (accounts.length > 0) {
+        promises.push(
+          (AccountModel as any).bulkWrite(
+            accounts.map((a: any) => ({
+              updateOne: {
+                filter: { id: a.id },
+                update: { $set: { ...a, userId: a.userId || userId || "" } },
+                upsert: true,
+              },
+            }))
+          )
+        );
+      }
     }
 
     if (Array.isArray(currencies) && currencies.length > 0) {
@@ -1372,6 +1413,15 @@ app.delete("/api/db/categories/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+// Single Account Deletion
+app.delete("/api/db/accounts/:id", async (req, res) => {
+  const connected = await connectDB();
+  if (connected) {
+    await AccountModel.deleteOne({ id: req.params.id }).catch(() => {});
+  }
+  res.json({ success: true });
+});
+
 // AI: Parse natural-language transaction
 app.post("/api/ai/parse-transaction", async (req, res) => {
   const { text, categories } = req.body;
@@ -1490,33 +1540,40 @@ Provide the output in JSON format with an array of insights, where each has:
 - message: string (direct, practical feedback)
 - actionableStep: string (one specific step the user can take)`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: { type: Type.STRING },
-              insights: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    type: { type: Type.STRING },
-                    message: { type: Type.STRING },
-                    actionableStep: { type: Type.STRING },
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Gemini request timeout")), 5000)
+      );
+
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                summary: { type: Type.STRING },
+                insights: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      type: { type: Type.STRING },
+                      message: { type: Type.STRING },
+                      actionableStep: { type: Type.STRING },
+                    },
+                    required: ["title", "type", "message", "actionableStep"],
                   },
-                  required: ["title", "type", "message", "actionableStep"],
                 },
               },
+              required: ["insights"],
             },
-            required: ["insights"],
           },
-        },
-      });
+        }),
+        timeoutPromise,
+      ]);
 
       const parsed = JSON.parse(response.text?.trim() || "{}");
       res.json({ success: true, data: parsed });
@@ -1604,19 +1661,26 @@ Guidelines:
 3. Keep answers under 3-4 paragraphs or formatted with short markdown bullets.
 4. Encourage steady saving habits, responsible debt clearing, and realistic goal dates.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: [
-          ...(Array.isArray(history) ? history.map((h: any) => ({
-            role: h.role === "user" ? "user" : "model",
-            parts: [{ text: h.text }],
-          })) : []),
-          { role: "user", parts: [{ text: message }] },
-        ],
-        config: {
-          systemInstruction,
-        },
-      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Gemini chat timeout")), 5000)
+      );
+
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: [
+            ...(Array.isArray(history) ? history.map((h: any) => ({
+              role: h.role === "user" ? "user" : "model",
+              parts: [{ text: h.text }],
+            })) : []),
+            { role: "user", parts: [{ text: message }] },
+          ],
+          config: {
+            systemInstruction,
+          },
+        }),
+        timeoutPromise,
+      ]);
 
       res.json({
         success: true,

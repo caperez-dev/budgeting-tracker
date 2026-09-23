@@ -61,6 +61,7 @@ export function AccountManagerModal({
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [editBalance, setEditBalance] = useState<string>('0');
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   // New Account State
@@ -570,7 +571,7 @@ export function AccountManagerModal({
                           <button
                             type="button"
                             id={`btn-delete-account-${acc.id}`}
-                            onClick={() => onDeleteAccount(acc.id)}
+                            onClick={() => setAccountToDelete(acc)}
                             className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-[3px] transition-colors cursor-pointer"
                             title="Delete account"
                           >
@@ -597,6 +598,50 @@ export function AccountManagerModal({
           </button>
         </div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {accountToDelete && (
+        <div className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+              <h4 className="text-sm font-semibold text-zinc-900">Delete Account</h4>
+              <button
+                type="button"
+                onClick={() => setAccountToDelete(null)}
+                className="text-zinc-400 hover:text-zinc-600 text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-600 leading-relaxed">
+              Are you sure you want to delete <strong className="text-zinc-900">{accountToDelete.name}</strong>?
+              Past entries in your history will keep this account information.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+              <button
+                type="button"
+                onClick={() => setAccountToDelete(null)}
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] border border-zinc-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-account"
+                onClick={() => {
+                  onDeleteAccount(accountToDelete.id);
+                  setAccountToDelete(null);
+                }}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-[3px] transition-colors cursor-pointer"
+              >
+                Delete Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

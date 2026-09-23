@@ -108,9 +108,10 @@ export function SummaryPanel({
   const sortedCategories = Array.from(categoryTotals.entries())
     .map(([catId, amount]) => {
       const cat = categoryMap.get(catId);
-      const name = cat ? cat.name : 'Other';
-      const color = cat ? cat.color : '#52525B';
-      const icon = cat ? cat.icon : 'Tag';
+      const matchingTx = activePeriodTxs.find((t) => t.categoryId === catId);
+      const name = cat ? cat.name : matchingTx?.categoryName || 'Other';
+      const color = cat ? cat.color : matchingTx?.categoryColor || '#52525B';
+      const icon = cat ? cat.icon : matchingTx?.categoryIcon || 'Tag';
       const percentage = activePeriodTotal > 0 ? (amount / activePeriodTotal) * 100 : 0;
       return { id: catId, name, color, icon, amount, percentage };
     })
@@ -126,107 +127,101 @@ export function SummaryPanel({
 
   return (
     <div id="summary-panel" className="space-y-6">
-      {/* 1. SEPARATE EXPENSES SUMMARY */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-[4px] bg-rose-50 border border-rose-200 flex items-center justify-center">
+      {/* 1. SUMMARY CARDS WITH EXPENSES / INCOME TOGGLE */}
+      <div className="bg-white border border-zinc-200 rounded-[5px] p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100">
+          <div className="flex items-center gap-2.5">
+            <div
+              className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition-colors ${
+                breakdownType === 'income'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                  : 'bg-rose-50 border-rose-200 text-rose-600'
+              }`}
+            >
+              {breakdownType === 'income' ? (
+                <TrendingUp className="w-4 h-4" />
+              ) : (
+                <TrendingDown className="w-4 h-4" />
+              )}
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">
+                {breakdownType === 'income' ? 'Income Summary' : 'Expenses Summary'}
+              </h2>
+              <p className="text-[11px] text-zinc-500">
+                {breakdownType === 'income'
+                  ? 'Total money received across today, this week, month, year, and all-time.'
+                  : 'Total money spent across today, this week, month, year, and all-time.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle Button */}
+          <div
+            id="summary-type-toggle"
+            className="flex items-center bg-zinc-100 p-0.5 rounded-[5px] border border-zinc-200 self-start sm:self-auto"
+          >
+            <button
+              type="button"
+              id="btn-summary-toggle-expense"
+              onClick={() => setBreakdownType('expense')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[4px] transition-all cursor-pointer ${
+                breakdownType === 'expense'
+                  ? 'bg-white text-rose-700 font-semibold shadow-xs border border-zinc-200/60'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
               <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">
-                Expenses Summary
-              </h2>
-              <p className="text-[11px] text-zinc-500">
-                Total money spent across today, this week, month, year, and all-time.
-              </p>
-            </div>
-          </div>
-          {breakdownType === 'expense' && (
-            <span className="text-[11px] font-medium text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-              Showing in breakdown below
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {expenseCards.map((card) => {
-            const isSelected = breakdownType === 'expense' && selectedPeriod === card.id;
-            return (
-              <button
-                key={`expense-${card.id}`}
-                type="button"
-                onClick={() => {
-                  setBreakdownType('expense');
-                  setSelectedPeriod(card.id);
-                }}
-                className={`text-left p-3.5 rounded-[5px] border transition-all cursor-pointer ${
-                  isSelected
-                    ? 'bg-rose-50/40 border-rose-500 shadow-xs ring-1 ring-rose-500'
-                    : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
-                }`}
-              >
-                <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
-                  <span>{card.label}</span>
-                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>}
-                </div>
-                <div className="text-base sm:text-lg font-bold font-mono text-zinc-900 tabular-nums">
-                  {formatCurrency(card.total, currencySymbol)}
-                </div>
-                <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
-                  {card.sublabel}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 2. SEPARATE INCOME SUMMARY */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-[4px] bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+              <span>Expenses</span>
+            </button>
+            <button
+              type="button"
+              id="btn-summary-toggle-income"
+              onClick={() => setBreakdownType('income')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[4px] transition-all cursor-pointer ${
+                breakdownType === 'income'
+                  ? 'bg-white text-emerald-700 font-semibold shadow-xs border border-zinc-200/60'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
               <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">
-                Income Summary
-              </h2>
-              <p className="text-[11px] text-zinc-500">
-                Total money earned across today, this week, month, year, and all-time.
-              </p>
-            </div>
+              <span>Income</span>
+            </button>
           </div>
-          {breakdownType === 'income' && (
-            <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              Showing in breakdown below
-            </span>
-          )}
         </div>
 
+        {/* 5 Summary Cards for Active Selection */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {incomeCards.map((card) => {
-            const isSelected = breakdownType === 'income' && selectedPeriod === card.id;
+          {(breakdownType === 'expense' ? expenseCards : incomeCards).map((card) => {
+            const isSelected = selectedPeriod === card.id;
             return (
               <button
-                key={`income-${card.id}`}
+                key={`${breakdownType}-${card.id}`}
                 type="button"
-                onClick={() => {
-                  setBreakdownType('income');
-                  setSelectedPeriod(card.id);
-                }}
+                onClick={() => setSelectedPeriod(card.id)}
                 className={`text-left p-3.5 rounded-[5px] border transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
+                    ? breakdownType === 'income'
+                      ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
+                      : 'bg-rose-50/40 border-rose-500 shadow-xs ring-1 ring-rose-500'
                     : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
                 }`}
               >
                 <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
                   <span>{card.label}</span>
-                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>}
+                  {isSelected && (
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        breakdownType === 'income' ? 'bg-emerald-600' : 'bg-rose-600'
+                      }`}
+                    />
+                  )}
                 </div>
-                <div className="text-base sm:text-lg font-bold font-mono text-emerald-700 tabular-nums">
+                <div
+                  className={`text-base sm:text-lg font-bold font-mono tabular-nums ${
+                    breakdownType === 'income' ? 'text-emerald-700' : 'text-zinc-900'
+                  }`}
+                >
                   {formatCurrency(card.total, currencySymbol)}
                 </div>
                 <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
@@ -238,9 +233,9 @@ export function SummaryPanel({
         </div>
       </div>
 
-      {/* 3. CATEGORY BREAKDOWN WITH TYPE & PERIOD CONTROLS */}
+      {/* 3. CATEGORY BREAKDOWN */}
       <div className="bg-white border border-zinc-200 rounded-[5px] p-4 sm:p-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-zinc-100">
+        <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-100">
           <div className="flex items-center gap-2">
             <PieChart className="w-4 h-4 text-zinc-600" />
             <h3 className="text-sm font-semibold text-zinc-900">
@@ -248,55 +243,8 @@ export function SummaryPanel({
               <span className={breakdownType === 'income' ? 'text-emerald-700' : 'text-rose-700'}>
                 {breakdownType === 'income' ? 'Income' : 'Expenses'}
               </span>{' '}
-              <span className="text-zinc-500">({periodLabels[selectedPeriod]})</span>
+              <span className="text-zinc-500 font-normal">({periodLabels[selectedPeriod]})</span>
             </h3>
-          </div>
-
-          {/* Type Toggle & Period Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Type selector */}
-            <div className="flex items-center bg-zinc-100 p-0.5 rounded-[4px] border border-zinc-200">
-              <button
-                type="button"
-                onClick={() => setBreakdownType('expense')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-[3px] transition-colors cursor-pointer ${
-                  breakdownType === 'expense'
-                    ? 'bg-white text-rose-700 font-semibold shadow-2xs'
-                    : 'text-zinc-600 hover:text-zinc-900'
-                }`}
-              >
-                Expenses
-              </button>
-              <button
-                type="button"
-                onClick={() => setBreakdownType('income')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-[3px] transition-colors cursor-pointer ${
-                  breakdownType === 'income'
-                    ? 'bg-white text-emerald-700 font-semibold shadow-2xs'
-                    : 'text-zinc-600 hover:text-zinc-900'
-                }`}
-              >
-                Income
-              </button>
-            </div>
-
-            {/* Period selector pills */}
-            <div className="flex items-center bg-zinc-100 p-0.5 rounded-[4px] border border-zinc-200">
-              {(['today', 'week', 'month', 'year', 'all'] as Period[]).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setSelectedPeriod(p)}
-                  className={`px-2 py-1 text-[11px] font-medium rounded-[3px] transition-colors cursor-pointer capitalize ${
-                    selectedPeriod === p
-                      ? 'bg-white text-zinc-900 font-semibold shadow-2xs'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  {p === 'all' ? 'All-Time' : p}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 

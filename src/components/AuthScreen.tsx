@@ -374,8 +374,26 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     }
 
     if (mode === 'register') {
-      if (password.length < 4) {
-        setErrorMessage('Password should be at least 4 characters long.');
+      const cleanNickname = nickname.trim();
+      if (!cleanNickname) {
+        setErrorMessage('Please choose a username.');
+        return;
+      }
+      if (cleanNickname.length > 20) {
+        setErrorMessage('Username cannot be longer than 20 characters.');
+        return;
+      }
+      if (cleanEmail.length > 64) {
+        setErrorMessage('Email address cannot be longer than 64 characters.');
+        return;
+      }
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(cleanEmail)) {
+        setErrorMessage('Please enter a valid email address (e.g. name@example.com).');
+        return;
+      }
+      if (password.length < 6) {
+        setErrorMessage('Password must be at least 6 characters.');
         return;
       }
       if (password !== confirmPassword) {
@@ -572,18 +590,19 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 </div>
 
                 <form onSubmit={handleAuthSubmit} className="space-y-4">
-                  {/* Name field (Register only) */}
+                  {/* Username field (Register only) */}
                   {mode === 'register' && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="auth-nickname">Full Name or Nickname</Label>
+                      <Label htmlFor="auth-nickname">Username</Label>
                       <div className="relative">
                         <Input
                           id="auth-nickname"
                           type="text"
                           required
+                          maxLength={20}
                           value={nickname}
-                          onChange={(e) => setNickname(e.target.value)}
-                          placeholder="e.g. Carlos Perez"
+                          onChange={(e) => setNickname(e.target.value.slice(0, 20))}
+                          placeholder="e.g. carlosperez"
                           className="ps-10"
                         />
                         <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
@@ -601,8 +620,9 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                         id="auth-email"
                         type="email"
                         required
+                        maxLength={64}
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => setEmail(e.target.value.slice(0, 64))}
                         placeholder="name@example.com"
                         className="ps-10"
                       />

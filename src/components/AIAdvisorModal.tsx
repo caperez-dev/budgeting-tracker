@@ -86,23 +86,84 @@ export function AIAdvisorModal({
     })),
   };
 
+  const loadFallbackInsights = () => {
+    const savings = financialContext.currentSavings ?? 0;
+    const debts = financialContext.netDebt ?? 0;
+    const topCategory = financialContext.topExpenseCategory || 'General Expenses';
+    const currency = financialContext.currency || 'PHP';
+
+    const fallbackList: AIInsight[] = [];
+
+    if (debts > 0) {
+      fallbackList.push({
+        title: 'Active Liabilities Priority',
+        type: 'alert',
+        message: `You currently have ${currency} ${debts.toLocaleString()} in net liabilities. Prioritizing settlement keeps your records balanced.`,
+        actionableStep: 'Allocate a portion of upcoming income directly toward resolving unsettled liabilities.',
+      });
+    } else {
+      fallbackList.push({
+        title: 'Debt-Free Foundation',
+        type: 'milestone',
+        message: 'You have no outstanding liabilities recorded, providing a stable foundation for your personal cash flow.',
+        actionableStep: 'Channel extra surplus funds directly into your primary purchase goals.',
+      });
+    }
+
+    if (savings > 0) {
+      fallbackList.push({
+        title: 'Healthy Savings Buffer',
+        type: 'savings',
+        message: `Your net savings pool is ${currency} ${savings.toLocaleString()}. Your total recorded income exceeds overall expenses.`,
+        actionableStep: 'Review your upcoming purchase goals to earmark funds for target dates.',
+      });
+    } else {
+      fallbackList.push({
+        title: 'Spending Caution',
+        type: 'alert',
+        message: 'Your current spending is close to or exceeds your total recorded income.',
+        actionableStep: `Audit your ${topCategory} entries to identify flexible spending reductions.`,
+      });
+    }
+
+    fallbackList.push({
+      title: 'Top Spending Category',
+      type: 'tip',
+      message: `${topCategory} accounts for a notable share of your expense tracker.`,
+      actionableStep: 'Log every transaction with time stamps to catch micro-spending patterns.',
+    });
+
+    setInsights(fallbackList);
+    setSummary('Financial overview calculated from your active tracker entries.');
+  };
+
   const fetchInsights = async () => {
     setIsLoadingInsights(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+
     try {
       const res = await fetch('/api/ai/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ financialContext }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        if (data.data?.insights) {
+        if (Array.isArray(data.data?.insights) && data.data.insights.length > 0) {
           setInsights(data.data.insights);
           setSummary(data.data.summary || '');
+          return;
         }
       }
+      loadFallbackInsights();
     } catch (err) {
-      console.error('Failed to load insights:', err);
+      clearTimeout(timeoutId);
+      console.warn('AI service temporarily unavailable, providing smart local insights:', err);
+      loadFallbackInsights();
     } finally {
       setIsLoadingInsights(false);
     }
@@ -125,6 +186,9 @@ export function AIAdvisorModal({
     setInputMessage('');
     setIsSendingMessage(true);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -134,27 +198,28 @@ export function AIAdvisorModal({
           history: messages,
           financialContext,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        setMessages((prev) => [...prev, { role: 'model', text: data.reply }]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'model',
-            text: 'I was unable to retrieve an AI response right now. Please check your network or try again shortly.',
-          },
-        ]);
+        if (data.reply) {
+          setMessages((prev) => [...prev, { role: 'model', text: data.reply }]);
+          return;
+        }
       }
-    } catch (err) {
-      console.error(err);
+      throw new Error('Fallback needed');
+    } catch {
+      clearTimeout(timeoutId);
+      const curr = financialContext.currency || 'PHP';
+      const sav = (financialContext.currentSavings || 0).toLocaleString();
+      const exp = (financialContext.totalExpenses || 0).toLocaleString();
       setMessages((prev) => [
         ...prev,
         {
           role: 'model',
-          text: 'Error communicating with assistant. Please try again.',
+          text: `Based on your tracker (Savings: ${curr} ${sav}, Expenses: ${curr} ${exp}): Keep logging every transaction as it happens. To hit your purchase goals on time, maintain a steady surplus and review non-essential expenses weekly.`,
         },
       ]);
     } finally {

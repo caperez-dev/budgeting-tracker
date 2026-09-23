@@ -61,12 +61,19 @@ const TransactionSchema = new mongoose.Schema(
     userId: { type: String, index: true, default: '' },
     type: { type: String, required: true, enum: ['income', 'expense'] },
     amount: { type: Number, required: true },
+    currency: { type: String, default: 'PHP' },
     categoryId: { type: String, default: '' },
+    categoryName: { type: String, default: '' },
+    categoryIcon: { type: String, default: 'Tag' },
+    categoryColor: { type: String, default: '#52525B' },
+    accountId: { type: String, default: '' },
+    accountName: { type: String, default: '' },
+    accountIcon: { type: String, default: 'Wallet' },
     note: { type: String, default: '' },
     date: { type: String, required: true },
     time: { type: String, default: '' },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 const CategorySchema = new mongoose.Schema(
@@ -79,7 +86,22 @@ const CategorySchema = new mongoose.Schema(
     color: { type: String, default: 'bg-zinc-500' },
     isCustom: { type: Boolean, default: false },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
+);
+
+const AccountSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, index: true, default: '' },
+    name: { type: String, required: true },
+    type: { type: String, default: 'other' },
+    balance: { type: Number, default: 0 },
+    currency: { type: String, default: 'PHP' },
+    icon: { type: String, default: 'Wallet' },
+    color: { type: String, default: 'bg-zinc-500' },
+    isCustom: { type: Boolean, default: false },
+  },
+  { timestamps: true, strict: false }
 );
 
 const CurrencySchema = new mongoose.Schema(
@@ -179,6 +201,8 @@ export const TransactionModel: mongoose.Model<any> =
   mongoose.models.Transaction || mongoose.model('Transaction', TransactionSchema);
 export const CategoryModel: mongoose.Model<any> =
   mongoose.models.Category || mongoose.model('Category', CategorySchema);
+export const AccountModel: mongoose.Model<any> =
+  mongoose.models.Account || mongoose.model('Account', AccountSchema);
 export const CurrencyModel: mongoose.Model<any> =
   mongoose.models.Currency || mongoose.model('Currency', CurrencySchema);
 export const DebtModel: mongoose.Model<any> =

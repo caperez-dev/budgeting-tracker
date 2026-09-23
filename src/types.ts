@@ -37,6 +37,11 @@ export interface Transaction {
   currency: string;
   categoryId: string;
   accountId?: string;
+  categoryName?: string;
+  categoryIcon?: string;
+  categoryColor?: string;
+  accountName?: string;
+  accountIcon?: string;
   note: string;
   date: string; // YYYY-MM-DD
   time: string; // 12-hour format e.g. "2:14 PM"

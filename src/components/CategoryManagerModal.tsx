@@ -39,6 +39,7 @@ export function CategoryManagerModal({
 }: CategoryManagerModalProps) {
   const [activeTab, setActiveTab] = useState<TransactionType>(initialType);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
 
   // New Category State
   const [name, setName] = useState('');
@@ -350,8 +351,8 @@ export function CategoryManagerModal({
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => onDeleteCategory(cat.id)}
-                    className="p-1 text-zinc-400 hover:text-rose-600 rounded"
+                    onClick={() => setCategoryToDelete(cat)}
+                    className="p-1 text-zinc-400 hover:text-rose-600 rounded cursor-pointer"
                     title="Delete category"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -366,12 +367,56 @@ export function CategoryManagerModal({
         <div className="pt-2 border-t border-zinc-100 flex justify-end shrink-0">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[3px] transition-colors"
+            className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
           >
             Close
           </button>
         </div>
       </div>
+
+      {/* Delete Category Confirmation Modal */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+              <h4 className="text-sm font-semibold text-zinc-900">Delete Category</h4>
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                className="text-zinc-400 hover:text-zinc-600 text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-600 leading-relaxed">
+              Are you sure you want to delete <strong className="text-zinc-900">{categoryToDelete.name}</strong>?
+              Past entries in your history will keep this category name.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] border border-zinc-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-category"
+                onClick={() => {
+                  onDeleteCategory(categoryToDelete.id);
+                  setCategoryToDelete(null);
+                }}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-[3px] transition-colors cursor-pointer"
+              >
+                Delete Category
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
