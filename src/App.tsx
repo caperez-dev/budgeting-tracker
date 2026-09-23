@@ -526,6 +526,43 @@ export default function App() {
       const savedCats = localStorage.getItem(catKey);
       if (savedCats) setCategories(JSON.parse(savedCats));
     } catch {}
+
+    // 8. User Profile (avatar, nickname, email)
+    try {
+      const perUserProfileKey = getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, user.id);
+      let savedProfileRaw = localStorage.getItem(perUserProfileKey);
+      if (!savedProfileRaw) {
+        savedProfileRaw = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
+      }
+      if (savedProfileRaw) {
+        const parsed = JSON.parse(savedProfileRaw);
+        setUserProfile((prev) => ({
+          ...prev,
+          ...parsed,
+          nickname: parsed.nickname || user.nickname || prev.nickname,
+          email: parsed.email || user.email || prev.email,
+          avatarUrl:
+            parsed.avatarUrl !== undefined && parsed.avatarUrl !== ''
+              ? parsed.avatarUrl
+              : user.avatarUrl || prev.avatarUrl,
+        }));
+      } else {
+        // Fall back to currentUser's values (e.g. avatarUrl from Google OAuth)
+        setUserProfile((prev) => ({
+          ...prev,
+          nickname: user.nickname || prev.nickname,
+          email: user.email || prev.email,
+          avatarUrl: user.avatarUrl || prev.avatarUrl,
+        }));
+      }
+    } catch {
+      setUserProfile((prev) => ({
+        ...prev,
+        nickname: user.nickname || prev.nickname,
+        email: user.email || prev.email,
+        avatarUrl: user.avatarUrl || prev.avatarUrl,
+      }));
+    }
   };
 
   const handleSyncWithDB = async (targetUserId?: string) => {
