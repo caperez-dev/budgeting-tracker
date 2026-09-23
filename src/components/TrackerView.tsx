@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Trash2,
   Edit3,
@@ -10,7 +10,9 @@ import {
   AlertCircle,
   Clock,
   Calendar,
+  CalendarDays,
   Layers,
+  X,
 } from 'lucide-react';
 import { Category, Currency, Transaction, Account } from '../types';
 import { formatCurrency, groupTransactions } from '../utils/formatters';
@@ -26,6 +28,8 @@ interface TrackerViewProps {
   accounts?: Account[];
   selectedCurrency: string;
   selectedMonthYearLabel?: string;
+  selectedDate?: string | null;
+  onSelectDate?: (date: string | null) => void;
   allTransactionsCount?: number;
   onDeleteTransaction: (id: string) => void;
   onUpdateTransaction: (tx: Transaction) => void;
@@ -41,6 +45,8 @@ export function TrackerView({
   accounts = [],
   selectedCurrency,
   selectedMonthYearLabel,
+  selectedDate,
+  onSelectDate,
   allTransactionsCount,
   onDeleteTransaction,
   onUpdateTransaction,
@@ -54,6 +60,7 @@ export function TrackerView({
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const trackerDateInputRef = useRef<HTMLInputElement>(null);
 
   // Reset pagination when filter criteria change
   React.useEffect(() => {
@@ -223,27 +230,85 @@ export function TrackerView({
       {/* Transactions Container */}
       <div className="bg-white border border-zinc-200 rounded-[5px] shadow-xs divide-y divide-zinc-100">
         {monthGroups.length === 0 ? (
-          <div className="p-12 text-center text-zinc-500">
-            <Layers className="w-8 h-8 mx-auto text-zinc-300 mb-2" />
-            <p className="text-sm font-medium text-zinc-700">
-              No transactions found {selectedMonthYearLabel ? `for ${selectedMonthYearLabel}` : ''}
-            </p>
-            <p className="text-xs text-zinc-400 mt-1">
-              {searchQuery || filterType !== 'all' || filterCategory !== 'all'
-                ? 'Try clearing your filters or search terms.'
-                : 'Add an entry using the Quick-Entry form above.'}
-            </p>
+          <div className="p-12 text-center text-zinc-500 space-y-3">
+            <Layers className="w-8 h-8 mx-auto text-zinc-300" />
+            <div>
+              <p className="text-sm font-medium text-zinc-700">
+                No transactions found {selectedMonthYearLabel ? `for ${selectedMonthYearLabel}` : ''}
+              </p>
+              <p className="text-xs text-zinc-400 mt-1">
+                {searchQuery || filterType !== 'all' || filterCategory !== 'all'
+                  ? 'Try clearing your filters or search terms.'
+                  : 'Add an entry using the form above or pick another date from the calendar.'}
+              </p>
+            </div>
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => onSelectDate?.(null)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Show full month</span>
+              </button>
+            )}
           </div>
         ) : (
           monthGroups.map((month) => (
             <div key={month.yearMonth} className="p-4 sm:p-5">
-              {/* Level 1: Month Header (e.g. "Sep 2026") */}
+              {/* Level 1: Month/Date Header (e.g. "Sep 2026" or "September 1, 2026") */}
               <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-200">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-zinc-600" />
                   <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">
-                    {month.monthLabel}
+                    {selectedDate && selectedMonthYearLabel ? selectedMonthYearLabel : month.monthLabel}
                   </h3>
+
+                  {/* Calendar button beside Month/Date in Transaction History */}
+                  <div className="relative inline-flex items-center ml-1">
+                    <button
+                      id="btn-tracker-calendar-picker"
+                      type="button"
+                      onClick={() => {
+                        if (trackerDateInputRef.current?.showPicker) {
+                          trackerDateInputRef.current.showPicker();
+                        } else {
+                          trackerDateInputRef.current?.focus();
+                        }
+                      }}
+                      className={`p-1 rounded-[4px] border transition-colors cursor-pointer ${
+                        selectedDate
+                          ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
+                          : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 border-zinc-200 bg-white'
+                      }`}
+                      title={selectedDate ? 'Change selected date' : 'Select specific date'}
+                    >
+                      <CalendarDays className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      ref={trackerDateInputRef}
+                      type="date"
+                      value={selectedDate || ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          onSelectDate?.(e.target.value);
+                        }
+                      }}
+                      className="sr-only"
+                      tabIndex={-1}
+                    />
+                    {selectedDate && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectDate?.(null)}
+                        className="ml-1 text-[11px] font-sans text-zinc-500 hover:text-zinc-800 px-1.5 py-0.5 bg-zinc-100 hover:bg-zinc-200 rounded-[3px] transition-colors cursor-pointer flex items-center gap-1"
+                        title="Clear date filter and show full month"
+                      >
+                        <X className="w-3 h-3" />
+                        <span>Show full month</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
                   <span className="text-emerald-700 font-medium">
@@ -255,22 +320,24 @@ export function TrackerView({
                 </div>
               </div>
 
-              {/* Weeks within Month */}
-              <div className="space-y-4 ml-1 sm:ml-3">
+              {/* Weeks within Month (Week headers hidden if filtering by a specific date) */}
+              <div className={`space-y-4 ${selectedDate ? 'ml-0' : 'ml-1 sm:ml-3'}`}>
                 {month.weeks.map((week) => (
                   <div key={`${month.yearMonth}-${week.weekNumber}`} className="space-y-2">
-                    {/* Level 2: Week Header (e.g. "Week 1", "Week 2") */}
-                    <div className="flex items-center justify-between py-1 px-2 bg-zinc-50/80 rounded-[4px] border border-zinc-100">
-                      <span className="text-xs font-semibold text-zinc-700 font-mono">
-                        {week.weekLabel}
-                      </span>
-                      <div className="text-[11px] font-mono text-zinc-500 tabular-nums">
-                        Out: {formatCurrency(week.weekTotalOut, currencySymbol)}
+                    {/* Level 2: Week Header (e.g. "Week 1", "Week 2") - HIDDEN when date filter is active */}
+                    {!selectedDate && (
+                      <div className="flex items-center justify-between py-1 px-2 bg-zinc-50/80 rounded-[4px] border border-zinc-100">
+                        <span className="text-xs font-semibold text-zinc-700 font-mono">
+                          {week.weekLabel}
+                        </span>
+                        <div className="text-[11px] font-mono text-zinc-500 tabular-nums">
+                          Out: {formatCurrency(week.weekTotalOut, currencySymbol)}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Days within Week */}
-                    <div className="space-y-3 ml-2 sm:ml-4">
+                    <div className={`space-y-3 ${selectedDate ? 'ml-0' : 'ml-2 sm:ml-4'}`}>
                       {week.days.map((day) => (
                         <div key={day.date} className="space-y-1">
                           {/* Level 3: Day Header (e.g. "Sep 1") */}

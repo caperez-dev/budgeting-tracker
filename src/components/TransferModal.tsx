@@ -320,36 +320,31 @@ export function TransferModal({
                 <label htmlFor="transfer-amount-input" className="text-xs font-medium text-zinc-700">
                   Amount
                 </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-400 font-mono">
-                    Max 10 digits
-                  </span>
-                  {fromBalance > 0 && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleAmountPreset(0.25)}
-                        className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors cursor-pointer"
-                      >
-                        25%
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAmountPreset(0.5)}
-                        className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors cursor-pointer"
-                      >
-                        50%
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAmountPreset(1)}
-                        className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-medium transition-colors cursor-pointer"
-                      >
-                        Max
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {fromBalance > 0 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleAmountPreset(0.25)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors cursor-pointer"
+                    >
+                      25%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAmountPreset(0.5)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors cursor-pointer"
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAmountPreset(1)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-medium transition-colors cursor-pointer"
+                    >
+                      Max
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="relative">

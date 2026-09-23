@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import {
-  CalendarDays,
-  Clock,
+  TrendingUp,
   TrendingDown,
   PieChart,
-  ArrowDownRight,
-  Sparkles,
-  ChevronRight,
 } from 'lucide-react';
 import { Category, Transaction } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
@@ -18,14 +14,16 @@ interface SummaryPanelProps {
   currencySymbol: string;
 }
 
+type Period = 'today' | 'week' | 'month' | 'year' | 'all';
+type MetricType = 'expense' | 'income';
+
 export function SummaryPanel({
   transactions,
   categories,
   currencySymbol,
 }: SummaryPanelProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState<
-    'today' | 'week' | 'month' | 'year' | 'all'
-  >('month');
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>('month');
+  const [breakdownType, setBreakdownType] = useState<MetricType>('expense');
 
   const todayStr = getTodayDateString();
   const [currentYearStr, currentMonthStr] = todayStr.split('-');
@@ -35,9 +33,7 @@ export function SummaryPanel({
   const isThisWeek = (dateStr: string) => {
     const today = new Date();
     const d = new Date(dateStr + 'T00:00:00');
-    // Day of week: 0 = Sun, 1 = Mon ...
     const day = today.getDay();
-    // Monday of current week:
     const diffToMon = today.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(today.setDate(diffToMon));
     monday.setHours(0, 0, 0, 0);
@@ -53,30 +49,43 @@ export function SummaryPanel({
   const isThisMonth = (dateStr: string) => dateStr.startsWith(currentYearMonth);
   const isThisYear = (dateStr: string) => dateStr.startsWith(currentYearStr);
 
-  // Filter expense-only (OUT) transactions
+  // Filter Transactions by type
   const expenseTxs = transactions.filter((t) => t.type === 'expense');
+  const incomeTxs = transactions.filter((t) => t.type === 'income');
 
-  // Specific totals as strictly required by §6:
-  const totalToday = expenseTxs
-    .filter((t) => isToday(t.date))
-    .reduce((sum, t) => sum + t.amount, 0);
+  // Expense Totals
+  const expenseToday = expenseTxs.filter((t) => isToday(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const expenseThisWeek = expenseTxs.filter((t) => isThisWeek(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const expenseThisMonth = expenseTxs.filter((t) => isThisMonth(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const expenseThisYear = expenseTxs.filter((t) => isThisYear(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const expenseAllTime = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
 
-  const totalThisWeek = expenseTxs
-    .filter((t) => isThisWeek(t.date))
-    .reduce((sum, t) => sum + t.amount, 0);
+  // Income Totals
+  const incomeToday = incomeTxs.filter((t) => isToday(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const incomeThisWeek = incomeTxs.filter((t) => isThisWeek(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const incomeThisMonth = incomeTxs.filter((t) => isThisMonth(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const incomeThisYear = incomeTxs.filter((t) => isThisYear(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const incomeAllTime = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
 
-  const totalThisMonth = expenseTxs
-    .filter((t) => isThisMonth(t.date))
-    .reduce((sum, t) => sum + t.amount, 0);
+  const expenseCards = [
+    { id: 'today' as Period, label: 'Today', sublabel: todayStr, total: expenseToday },
+    { id: 'week' as Period, label: 'This Week', sublabel: 'Current 7-day cycle', total: expenseThisWeek },
+    { id: 'month' as Period, label: 'This Month', sublabel: currentYearMonth, total: expenseThisMonth },
+    { id: 'year' as Period, label: 'This Year', sublabel: currentYearStr, total: expenseThisYear },
+    { id: 'all' as Period, label: 'All-Time', sublabel: 'Cumulative expenses', total: expenseAllTime },
+  ];
 
-  const totalThisYear = expenseTxs
-    .filter((t) => isThisYear(t.date))
-    .reduce((sum, t) => sum + t.amount, 0);
+  const incomeCards = [
+    { id: 'today' as Period, label: 'Today', sublabel: todayStr, total: incomeToday },
+    { id: 'week' as Period, label: 'This Week', sublabel: 'Current 7-day cycle', total: incomeThisWeek },
+    { id: 'month' as Period, label: 'This Month', sublabel: currentYearMonth, total: incomeThisMonth },
+    { id: 'year' as Period, label: 'This Year', sublabel: currentYearStr, total: incomeThisYear },
+    { id: 'all' as Period, label: 'All-Time', sublabel: 'Cumulative income', total: incomeAllTime },
+  ];
 
-  const totalAllTime = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
-
-  // Filter transactions according to active breakdown period
-  const activePeriodTxs = expenseTxs.filter((t) => {
+  // Active breakdown transactions based on selected type and period
+  const activeSourceTxs = breakdownType === 'expense' ? expenseTxs : incomeTxs;
+  const activePeriodTxs = activeSourceTxs.filter((t) => {
     if (selectedPeriod === 'today') return isToday(t.date);
     if (selectedPeriod === 'week') return isThisWeek(t.date);
     if (selectedPeriod === 'month') return isThisMonth(t.date);
@@ -86,7 +95,7 @@ export function SummaryPanel({
 
   const activePeriodTotal = activePeriodTxs.reduce((sum, t) => sum + t.amount, 0);
 
-  // Category breakdown for selected period
+  // Category breakdown for active selection
   const categoryMap = new Map<string, Category>();
   categories.forEach((c) => categoryMap.set(c.id, c));
 
@@ -107,100 +116,197 @@ export function SummaryPanel({
     })
     .sort((a, b) => b.amount - a.amount);
 
-  const cards = [
-    {
-      id: 'today',
-      label: 'Today',
-      sublabel: todayStr,
-      total: totalToday,
-      active: selectedPeriod === 'today',
-    },
-    {
-      id: 'week',
-      label: 'This Week',
-      sublabel: 'Current 7-day cycle',
-      total: totalThisWeek,
-      active: selectedPeriod === 'week',
-    },
-    {
-      id: 'month',
-      label: 'This Month',
-      sublabel: currentYearMonth,
-      total: totalThisMonth,
-      active: selectedPeriod === 'month',
-    },
-    {
-      id: 'year',
-      label: 'This Year',
-      sublabel: currentYearStr,
-      total: totalThisYear,
-      active: selectedPeriod === 'year',
-    },
-    {
-      id: 'all',
-      label: 'All-Time',
-      sublabel: 'Cumulative overall',
-      total: totalAllTime,
-      active: selectedPeriod === 'all',
-    },
-  ];
+  const periodLabels: Record<Period, string> = {
+    today: 'Today',
+    week: 'This Week',
+    month: 'This Month',
+    year: 'This Year',
+    all: 'All-Time',
+  };
 
   return (
-    <div id="summary-panel" className="space-y-5">
-      {/* Header Info */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-3">
-        <div>
-          <h2 className="text-base font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-            <TrendingDown className="w-4 h-4 text-rose-600" />
-            Expense Summary (OUT Totals)
-          </h2>
-          <p className="text-xs text-zinc-500">
-            Dedicated expense-only metrics across today, this week, month, year, and all-time.
-          </p>
+    <div id="summary-panel" className="space-y-6">
+      {/* 1. SEPARATE EXPENSES SUMMARY */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-2.5">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-[4px] bg-rose-50 border border-rose-200 flex items-center justify-center">
+              <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">
+                Expenses Summary
+              </h2>
+              <p className="text-[11px] text-zinc-500">
+                Total money spent across today, this week, month, year, and all-time.
+              </p>
+            </div>
+          </div>
+          {breakdownType === 'expense' && (
+            <span className="text-[11px] font-medium text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+              Showing in breakdown below
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {expenseCards.map((card) => {
+            const isSelected = breakdownType === 'expense' && selectedPeriod === card.id;
+            return (
+              <button
+                key={`expense-${card.id}`}
+                type="button"
+                onClick={() => {
+                  setBreakdownType('expense');
+                  setSelectedPeriod(card.id);
+                }}
+                className={`text-left p-3.5 rounded-[5px] border transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-rose-50/40 border-rose-500 shadow-xs ring-1 ring-rose-500'
+                    : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                  <span>{card.label}</span>
+                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>}
+                </div>
+                <div className="text-base sm:text-lg font-bold font-mono text-zinc-900 tabular-nums">
+                  {formatCurrency(card.total, currencySymbol)}
+                </div>
+                <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
+                  {card.sublabel}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* 5 Core Metric Cards mandated by §6 */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {cards.map((card) => (
-          <button
-            key={card.id}
-            type="button"
-            onClick={() => setSelectedPeriod(card.id as any)}
-            className={`text-left p-3.5 rounded-[5px] border transition-all ${
-              card.active
-                ? 'bg-white border-zinc-900 shadow-xs ring-1 ring-zinc-900'
-                : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
-            }`}
-          >
-            <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
-              <span>{card.label}</span>
-              {card.active && <span className="w-1.5 h-1.5 rounded-full bg-zinc-900"></span>}
+      {/* 2. SEPARATE INCOME SUMMARY */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-2.5">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-[4px] bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
             </div>
-            <div className="text-lg font-bold font-mono text-zinc-900 tabular-nums">
-              {formatCurrency(card.total, currencySymbol)}
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">
+                Income Summary
+              </h2>
+              <p className="text-[11px] text-zinc-500">
+                Total money earned across today, this week, month, year, and all-time.
+              </p>
             </div>
-            <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
-              {card.sublabel}
-            </div>
-          </button>
-        ))}
+          </div>
+          {breakdownType === 'income' && (
+            <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              Showing in breakdown below
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {incomeCards.map((card) => {
+            const isSelected = breakdownType === 'income' && selectedPeriod === card.id;
+            return (
+              <button
+                key={`income-${card.id}`}
+                type="button"
+                onClick={() => {
+                  setBreakdownType('income');
+                  setSelectedPeriod(card.id);
+                }}
+                className={`text-left p-3.5 rounded-[5px] border transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
+                    : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                  <span>{card.label}</span>
+                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>}
+                </div>
+                <div className="text-base sm:text-lg font-bold font-mono text-emerald-700 tabular-nums">
+                  {formatCurrency(card.total, currencySymbol)}
+                </div>
+                <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
+                  {card.sublabel}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Detailed Breakdown for Selected Period */}
-      <div className="bg-white border border-zinc-200 rounded-[5px] p-5 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-zinc-100">
+      {/* 3. CATEGORY BREAKDOWN WITH TYPE & PERIOD CONTROLS */}
+      <div className="bg-white border border-zinc-200 rounded-[5px] p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-zinc-100">
           <div className="flex items-center gap-2">
             <PieChart className="w-4 h-4 text-zinc-600" />
             <h3 className="text-sm font-semibold text-zinc-900">
-              Category Breakdown —{' '}
-              <span className="capitalize text-zinc-600">
-                {cards.find((c) => c.id === selectedPeriod)?.label}
-              </span>
+              Breakdown —{' '}
+              <span className={breakdownType === 'income' ? 'text-emerald-700' : 'text-rose-700'}>
+                {breakdownType === 'income' ? 'Income' : 'Expenses'}
+              </span>{' '}
+              <span className="text-zinc-500">({periodLabels[selectedPeriod]})</span>
             </h3>
           </div>
-          <span className="font-mono text-xs text-zinc-500">
-            Total Out: <strong className="text-zinc-900 font-semibold">{formatCurrency(activePeriodTotal, currencySymbol)}</strong>
+
+          {/* Type Toggle & Period Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Type selector */}
+            <div className="flex items-center bg-zinc-100 p-0.5 rounded-[4px] border border-zinc-200">
+              <button
+                type="button"
+                onClick={() => setBreakdownType('expense')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-[3px] transition-colors cursor-pointer ${
+                  breakdownType === 'expense'
+                    ? 'bg-white text-rose-700 font-semibold shadow-2xs'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Expenses
+              </button>
+              <button
+                type="button"
+                onClick={() => setBreakdownType('income')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-[3px] transition-colors cursor-pointer ${
+                  breakdownType === 'income'
+                    ? 'bg-white text-emerald-700 font-semibold shadow-2xs'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Income
+              </button>
+            </div>
+
+            {/* Period selector pills */}
+            <div className="flex items-center bg-zinc-100 p-0.5 rounded-[4px] border border-zinc-200">
+              {(['today', 'week', 'month', 'year', 'all'] as Period[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setSelectedPeriod(p)}
+                  className={`px-2 py-1 text-[11px] font-medium rounded-[3px] transition-colors cursor-pointer capitalize ${
+                    selectedPeriod === p
+                      ? 'bg-white text-zinc-900 font-semibold shadow-2xs'
+                      : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+                >
+                  {p === 'all' ? 'All-Time' : p}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Total Metric Header */}
+        <div className="flex items-center justify-between text-xs mb-3 font-mono">
+          <span className="text-zinc-500">
+            Total {breakdownType === 'income' ? 'Earned' : 'Spent'} ({periodLabels[selectedPeriod]}):
+          </span>
+          <span className={`text-sm font-bold ${breakdownType === 'income' ? 'text-emerald-700' : 'text-zinc-900'}`}>
+            {formatCurrency(activePeriodTotal, currencySymbol)}
           </span>
         </div>
 
@@ -224,7 +330,7 @@ export function SummaryPanel({
         {/* Categories List */}
         {sortedCategories.length === 0 ? (
           <div className="text-center py-8 text-zinc-400 text-xs">
-            No expenses recorded for this time range.
+            No {breakdownType} entries recorded for this time range.
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">

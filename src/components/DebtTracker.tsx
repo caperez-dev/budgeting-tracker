@@ -61,20 +61,35 @@ export function DebtTracker({
     .filter((d) => !d.settled)
     .reduce((sum, d) => sum + d.amount, 0);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanPerson = person.trim().slice(0, 30);
     const numAmount = parseFloat(amount);
-    if (!person.trim() || isNaN(numAmount) || numAmount <= 0) {
-      alert('Please provide a person/entity label and a valid amount.');
+
+    if (!cleanPerson) {
+      setErrorMsg('Please enter a person or entity name.');
       return;
     }
 
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setErrorMsg('Please enter a valid amount.');
+      return;
+    }
+
+    if (numAmount > 9999999999.99) {
+      setErrorMsg('Amount is too large (maximum 10 digits).');
+      return;
+    }
+
+    setErrorMsg(null);
     onAddDebt({
       type,
-      person: person.trim(),
+      person: cleanPerson,
       amount: numAmount,
       currency,
-      note: note.trim(),
+      note: note.trim().slice(0, 100),
       dueDate: dueDate || undefined,
     });
 
@@ -83,6 +98,16 @@ export function DebtTracker({
     setNote('');
     setDueDate('');
     setShowAddModal(false);
+  };
+
+  const handleAmountChange = (val: string) => {
+    const cleaned = val.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) return;
+    if (parts[0].length > 10) return;
+    if (parts[1] && parts[1].length > 2) return;
+    setAmount(cleaned);
+    if (errorMsg) setErrorMsg(null);
   };
 
   return (
@@ -121,9 +146,6 @@ export function DebtTracker({
             <div className="text-lg font-bold font-mono text-rose-700 tabular-nums">
               {formatCurrency(totalYouOweUnsettled, currencySymbol)}
             </div>
-            <div className="text-[11px] text-zinc-400 font-mono mt-0.5">
-              {debtsYouOwe.filter((d) => !d.settled).length} active liabilities
-            </div>
           </div>
 
           {/* Debts Owed to You */}
@@ -134,9 +156,6 @@ export function DebtTracker({
             </div>
             <div className="text-lg font-bold font-mono text-emerald-700 tabular-nums">
               {formatCurrency(totalOwedToYouUnsettled, currencySymbol)}
-            </div>
-            <div className="text-[11px] text-zinc-400 font-mono mt-0.5">
-              {debtsOwedToYou.filter((d) => !d.settled).length} active receivables
             </div>
           </div>
         </div>
@@ -313,43 +332,49 @@ export function DebtTracker({
             <div className="space-y-3 text-xs">
               {/* Type Toggle */}
               <div>
-                <label className="block text-zinc-500 font-medium mb-1">Direction</label>
+                <label className="block text-zinc-500 font-medium mb-1">Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setType('owe')}
-                    className={`py-1.5 px-2 rounded-[3px] border text-xs font-medium transition-colors ${
+                    className={`py-1.5 px-2 rounded-[3px] border text-xs font-medium transition-colors cursor-pointer ${
                       type === 'owe'
                         ? 'bg-rose-50 border-rose-300 text-rose-800 font-semibold'
-                        : 'bg-white border-zinc-200 text-zinc-600'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
                     }`}
                   >
-                    Debt You Owe (Liability)
+                    Liability
                   </button>
                   <button
                     type="button"
                     onClick={() => setType('owed')}
-                    className={`py-1.5 px-2 rounded-[3px] border text-xs font-medium transition-colors ${
+                    className={`py-1.5 px-2 rounded-[3px] border text-xs font-medium transition-colors cursor-pointer ${
                       type === 'owed'
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold'
-                        : 'bg-white border-zinc-200 text-zinc-600'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
                     }`}
                   >
-                    Debt Owed to You (Receivable)
+                    Receivables
                   </button>
                 </div>
               </div>
 
               {/* Person / Entity */}
               <div>
-                <label className="block text-zinc-500 font-medium mb-1">
-                  Person or Entity
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-zinc-500 font-medium">
+                    Person or Entity
+                  </label>
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    {person.length}/30
+                  </span>
+                </div>
                 <input
                   type="text"
                   required
+                  maxLength={30}
                   value={person}
-                  onChange={(e) => setPerson(e.target.value)}
+                  onChange={(e) => setPerson(e.target.value.slice(0, 30))}
                   placeholder="Person or company name"
                   className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
                 />
@@ -360,12 +385,11 @@ export function DebtTracker({
                 <div>
                   <label className="block text-zinc-500 font-medium mb-1">Amount</label>
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="0.01"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => handleAmountChange(e.target.value)}
                     placeholder="0.00"
                     className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-800 focus:outline-none focus:border-zinc-500"
                   />
@@ -397,17 +421,29 @@ export function DebtTracker({
 
               {/* Note */}
               <div>
-                <label className="block text-zinc-500 font-medium mb-1">
-                  Description / Note (Optional)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-zinc-500 font-medium">
+                    Description / Note (Optional)
+                  </label>
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    {note.length}/100
+                  </span>
+                </div>
                 <input
                   type="text"
+                  maxLength={100}
                   value={note}
-                  onChange={(e) => setNote(e.target.value)}
+                  onChange={(e) => setNote(e.target.value.slice(0, 100))}
                   placeholder="Reference or note (optional)"
                   className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
                 />
               </div>
+
+              {errorMsg && (
+                <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px]">
+                  {errorMsg}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100">

@@ -299,12 +299,13 @@ export function exportPdfToFile(doc: jsPDF, filename: string): void {
 }
 
 /**
- * Prompts the user with the native operating system file/folder picker to choose the save location.
+ * Acts as a Save As action: opens the native OS Save As dialog if supported,
+ * otherwise falls back cleanly to downloading the file directly.
  */
-export async function exportPdfWithFolderPicker(
+export async function exportPdfSaveAs(
   doc: jsPDF,
   filename: string
-): Promise<{ success: boolean; cancelled?: boolean; error?: string }> {
+): Promise<{ success: boolean; cancelled?: boolean }> {
   const cleanName = filename.trim().endsWith('.pdf') ? filename.trim() : `${filename.trim()}.pdf`;
   const blob = doc.output('blob');
 
@@ -327,17 +328,15 @@ export async function exportPdfWithFolderPicker(
       if (err.name === 'AbortError') {
         return { success: false, cancelled: true };
       }
-      return {
-        success: false,
-        error: err.message || 'Unable to open file location picker in this browser window.',
-      };
+      // If sandboxed or permission error, fallback to direct download
+      exportPdfToFile(doc, cleanName);
+      return { success: true };
     }
   }
 
-  return {
-    success: false,
-    error: 'Folder selection is not directly supported by this browser. You can save using standard download or preview.',
-  };
+  // Fallback to direct file download
+  exportPdfToFile(doc, cleanName);
+  return { success: true };
 }
 
 /**

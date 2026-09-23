@@ -35,9 +35,8 @@ import { AccountManagerModal } from './components/AccountManagerModal';
 import { TransferModal } from './components/TransferModal';
 import { DonateModal } from './components/DonateModal';
 import { SettingsModal } from './components/SettingsModal';
-import { ExportPdfModal } from './components/ExportPdfModal';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
-import { generateBudgetPdf } from './utils/pdfExport';
+import { buildBudgetPdfDoc, exportPdfSaveAs } from './utils/pdfExport';
 import { getCurrent12HourTime, getTodayDateString } from './utils/formatters';
 import {
   convertCurrency,
@@ -382,7 +381,7 @@ export default function App() {
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
   const [showDonateModal, setShowDonateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showExportPdfModal, setShowExportPdfModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // --- Online Storage State & Sync ---
@@ -831,8 +830,17 @@ export default function App() {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}`; // e.g. "2026-09"
   });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const handleSelectDate = (date: string | null) => {
+    setSelectedDate(date);
+    if (date) {
+      setSelectedYearMonth(date.slice(0, 7));
+    }
+  };
 
   const handlePrevMonth = () => {
+    setSelectedDate(null);
     setSelectedYearMonth((prev) => {
       const [y, m] = prev.split('-').map(Number);
       const d = new Date(y, m - 1 - 1, 1);
@@ -843,6 +851,7 @@ export default function App() {
   };
 
   const handleNextMonth = () => {
+    setSelectedDate(null);
     setSelectedYearMonth((prev) => {
       const [y, m] = prev.split('-').map(Number);
       const d = new Date(y, m - 1 + 1, 1);
@@ -853,18 +862,30 @@ export default function App() {
   };
 
   const selectedMonthYearLabel = useMemo(() => {
+    if (selectedDate) {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(dateObj);
+    }
     const [y, m] = selectedYearMonth.split('-').map(Number);
     const dateObj = new Date(y, m - 1, 1);
     return new Intl.DateTimeFormat('en-US', {
       month: 'long',
       year: 'numeric',
     }).format(dateObj);
-  }, [selectedYearMonth]);
+  }, [selectedYearMonth, selectedDate]);
 
-  // Monthly filtered transactions for the selected month
+  // Monthly filtered transactions for the selected month or specific date
   const monthlyTransactions = useMemo(() => {
+    if (selectedDate) {
+      return transactions.filter((t) => t.date === selectedDate);
+    }
     return transactions.filter((t) => t.date.startsWith(selectedYearMonth));
-  }, [transactions, selectedYearMonth]);
+  }, [transactions, selectedYearMonth, selectedDate]);
 
   // Monthly financial figures for the selected month
   const monthlyIncome = useMemo(() => {
@@ -1411,9 +1432,27 @@ export default function App() {
     }
   };
 
-  // Export PDF Report - Open location and export choice dialog
-  const handleExportPdf = () => {
-    setShowExportPdfModal(true);
+  // Export PDF Report - Acts directly as a Save As action without opening a modal
+  const handleExportPdf = async () => {
+    try {
+      setIsExporting(true);
+      const options = {
+        transactions,
+        categories,
+        debts,
+        goals,
+        currentSavings,
+        totalIncome,
+        totalExpense,
+        currencySymbol,
+      };
+      const { doc, defaultFilename } = buildBudgetPdfDoc(options);
+      await exportPdfSaveAs(doc, defaultFilename);
+    } catch (err) {
+      console.error('Failed to export PDF:', err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleLogout = () => {
@@ -1554,6 +1593,8 @@ export default function App() {
         debtsOwedToYouTotal={totalOwedToYouUnsettled}
         currencySymbol={currencySymbol}
         selectedMonthYearLabel={selectedMonthYearLabel}
+        selectedDate={selectedDate}
+        onSelectDate={handleSelectDate}
         onPrevMonth={handlePrevMonth}
         onNextMonth={handleNextMonth}
         userProfile={userProfile}
@@ -1604,6 +1645,8 @@ export default function App() {
             transactions={monthlyTransactions}
             allTransactionsCount={transactions.length}
             selectedMonthYearLabel={selectedMonthYearLabel}
+            selectedDate={selectedDate}
+            onSelectDate={handleSelectDate}
             categories={categories}
             currencies={currencies}
             accounts={accounts}
@@ -1674,11 +1717,12 @@ export default function App() {
               id="button-export-pdf"
               type="button"
               onClick={handleExportPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-700 hover:text-zinc-900 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-[4px] transition-colors shadow-2xs cursor-pointer"
-              title="Export report as PDF"
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-700 hover:text-zinc-900 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-[4px] transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+              title="Save report as PDF"
             >
               <FileDown className="w-3.5 h-3.5 text-zinc-600" />
-              <span className="font-medium">Export PDF</span>
+              <span className="font-medium">{isExporting ? 'Saving...' : 'Export'}</span>
             </button>
           </div>
         </div>
@@ -1780,23 +1824,6 @@ export default function App() {
           profile={userProfile}
           onClose={() => setShowSettingsModal(false)}
           onSave={handleUpdateAccountSettings}
-        />
-      )}
-
-      {/* Export PDF Modal with Location Choice */}
-      {showExportPdfModal && (
-        <ExportPdfModal
-          options={{
-            transactions,
-            categories,
-            debts,
-            goals,
-            currentSavings,
-            totalIncome,
-            totalExpense,
-            currencySymbol,
-          }}
-          onClose={() => setShowExportPdfModal(false)}
         />
       )}
 

@@ -24,16 +24,6 @@ const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
   { id: 'other', label: 'Other' },
 ];
 
-const QUICK_SUGGESTIONS = [
-  { name: 'GCash', type: 'ewallet' as AccountType, icon: 'bank-gcash' },
-  { name: 'Maya', type: 'ewallet' as AccountType, icon: 'bank-maya' },
-  { name: 'GoTyme', type: 'bank' as AccountType, icon: 'bank-gotyme' },
-  { name: 'UnionBank', type: 'bank' as AccountType, icon: 'bank-unionbank' },
-  { name: 'PayPal', type: 'ewallet' as AccountType, icon: 'bank-paypal' },
-  { name: 'Maribank', type: 'bank' as AccountType, icon: 'bank-maribank' },
-  { name: 'EastWest', type: 'bank' as AccountType, icon: 'bank-eastwest' },
-];
-
 export const isCashAccount = (acc: { id?: string; type?: string; name?: string }): boolean => {
   if (!acc) return false;
   return (
@@ -188,13 +178,6 @@ export function AccountManagerModal({
     setEditErrorMessage(null);
   };
 
-  const applyQuickSuggestion = (sug: typeof QUICK_SUGGESTIONS[0]) => {
-    setName(sug.name.slice(0, 30));
-    setType(sug.type);
-    setIcon(sug.icon);
-    setErrorMessage(null);
-  };
-
   return (
     <div
       id="modal-accounts-backdrop"
@@ -240,18 +223,20 @@ export function AccountManagerModal({
               {formatCurrency(totalBalanceAllAccounts, currencySymbol)}
             </span>
           </div>
-          <button
-            id="btn-show-add-account"
-            type="button"
-            onClick={() => {
-              setIsAdding(!isAdding);
-              setEditingAccount(null);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{isAdding ? 'Close Form' : 'Add Account'}</span>
-          </button>
+          {!isAdding && (
+            <button
+              id="btn-show-add-account"
+              type="button"
+              onClick={() => {
+                setIsAdding(true);
+                setEditingAccount(null);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Account</span>
+            </button>
+          )}
         </div>
 
         {/* Scrollable Content */}
@@ -266,23 +251,6 @@ export function AccountManagerModal({
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold text-zinc-900">New Account</h3>
                 <span className="text-[11px] text-zinc-400">Fill details below</span>
-              </div>
-
-              {/* Quick Preset Suggestions */}
-              <div>
-                <span className="block text-[11px] text-zinc-500 mb-1.5">Quick Suggestions:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_SUGGESTIONS.map((sug) => (
-                    <button
-                      key={sug.name}
-                      type="button"
-                      onClick={() => applyQuickSuggestion(sug)}
-                      className="px-2 py-0.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 rounded-[3px] text-[11px] transition-colors cursor-pointer"
-                    >
-                      + {sug.name}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Account Name */}

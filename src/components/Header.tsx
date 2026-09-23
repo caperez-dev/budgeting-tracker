@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Wallet,
   ReceiptText,
@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeftRight,
+  Calendar,
+  X,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { UserProfile, DBStatus, AuthUser } from '../types';
@@ -28,6 +30,8 @@ interface HeaderProps {
   debtsOwedToYouTotal: number;
   currencySymbol: string;
   selectedMonthYearLabel: string;
+  selectedDate?: string | null;
+  onSelectDate?: (date: string | null) => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   userProfile: UserProfile;
@@ -59,6 +63,8 @@ export function Header({
   debtsOwedToYouTotal,
   currencySymbol,
   selectedMonthYearLabel,
+  selectedDate,
+  onSelectDate,
   onPrevMonth,
   onNextMonth,
   userProfile,
@@ -80,6 +86,7 @@ export function Header({
   onOpenCategories,
 }: HeaderProps) {
   const hasActiveDebts = debtsYouOweTotal > 0.01 || debtsOwedToYouTotal > 0.01;
+  const headerDateInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-zinc-200">
@@ -99,7 +106,7 @@ export function Header({
           </div>
         </div>
 
-        {/* Centered Month & Year Component with Previous and Next Buttons */}
+        {/* Centered Month & Year Component with Previous, Next, and Calendar Buttons */}
         <div
           id="header-month-year-navigator"
           className="flex items-center justify-center gap-1 sm:absolute sm:left-1/2 sm:-translate-x-1/2 order-3 sm:order-none w-full sm:w-auto"
@@ -129,6 +136,51 @@ export function Header({
           >
             <ChevronRight className="w-4 h-4" />
           </button>
+
+          {/* Calendar Picker Button beside Month/Year */}
+          <div className="relative inline-flex items-center ml-0.5">
+            <button
+              id="btn-header-calendar-select"
+              type="button"
+              onClick={() => {
+                if (headerDateInputRef.current?.showPicker) {
+                  headerDateInputRef.current.showPicker();
+                } else {
+                  headerDateInputRef.current?.focus();
+                }
+              }}
+              className={`p-1.5 rounded-[4px] border transition-colors cursor-pointer ${
+                selectedDate
+                  ? 'bg-zinc-900 text-white border-zinc-900'
+                  : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 border-zinc-200 bg-white'
+              }`}
+              title={selectedDate ? 'Change selected date' : 'Select a specific date'}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+            <input
+              ref={headerDateInputRef}
+              type="date"
+              value={selectedDate || ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  onSelectDate?.(e.target.value);
+                }
+              }}
+              className="sr-only"
+              tabIndex={-1}
+            />
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => onSelectDate?.(null)}
+                className="ml-0.5 p-1 text-zinc-400 hover:text-zinc-700 rounded hover:bg-zinc-100 cursor-pointer"
+                title="Clear date filter (Show full month)"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Global Financial Metrics */}
