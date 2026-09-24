@@ -472,23 +472,25 @@ export function TrackerView({
                 <CalendarDays className="w-3.5 h-3.5" />
               </button>
 
-              {/* Red Reload Button with rotating arrow circle icon - same size as calendar button */}
-              <button
-                id="btn-tracker-reload-month"
-                type="button"
-                onClick={() => {
-                  onSelectDate?.(null);
-                  setIsCalendarOpen(false);
-                  setSearchQuery('');
-                  setFilterType('all');
-                  setFilterCategory('all');
-                }}
-                className="ml-1.5 w-7 h-7 rounded-[4px] border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
-                title="Reset filters and show full month"
-                aria-label="Reset filters and show full month"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-red-600" />
-              </button>
+              {/* Red Reload Button with rotating arrow circle icon - displayed only when a specific date is selected */}
+              {selectedDate && (
+                <button
+                  id="btn-tracker-reload-month"
+                  type="button"
+                  onClick={() => {
+                    onSelectDate?.(null);
+                    setIsCalendarOpen(false);
+                    setSearchQuery('');
+                    setFilterType('all');
+                    setFilterCategory('all');
+                  }}
+                  className="ml-1.5 w-7 h-7 rounded-[4px] border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
+                  title="Reset filters and show full month"
+                  aria-label="Reset filters and show full month"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+                </button>
+              )}
 
               {/* In-App Popover Calendar Selector */}
               {isCalendarOpen && (

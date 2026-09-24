@@ -318,17 +318,12 @@ export function AccountManagerModal({
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label
-                      htmlFor="input-new-account-balance"
-                      className="text-[11px] font-medium text-zinc-700"
-                    >
-                      Starting Balance ({currencySymbol})
-                    </label>
-                    <span className="text-[10px] text-zinc-400 font-mono">
-                      Max 10 digits
-                    </span>
-                  </div>
+                  <label
+                    htmlFor="input-new-account-balance"
+                    className="block text-[11px] font-medium text-zinc-700 mb-1"
+                  >
+                    Starting Balance ({currencySymbol})
+                  </label>
                   <input
                     id="input-new-account-balance"
                     type="text"
