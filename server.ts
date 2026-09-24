@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import crypto from "crypto";
@@ -104,12 +105,27 @@ async function sendVerificationPinEmail(toEmail: string, pin: string, nickname?:
 app.post("/api/auth/register", async (req, res) => {
   const { email, password, nickname, avatarUrl } = req.body;
   if (!email || !password) {
-    res.status(400).json({ success: false, error: "Email and password are required" });
+    res.status(400).json({ success: false, error: "Please enter both your email and password." });
     return;
   }
 
   const cleanEmail = email.trim().toLowerCase();
   const cleanNickname = (nickname || cleanEmail.split("@")[0] || "User").trim();
+
+  if (cleanNickname.length > 20) {
+    res.status(400).json({ success: false, error: "Username can be up to 20 characters." });
+    return;
+  }
+
+  if (cleanEmail.length > 64) {
+    res.status(400).json({ success: false, error: "Email address can be up to 64 characters." });
+    return;
+  }
+
+  if (password.length < 6) {
+    res.status(400).json({ success: false, error: "Password must be at least 6 characters long." });
+    return;
+  }
 
   const connected = await connectDB();
   if (connected) {
@@ -1710,8 +1726,7 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   } else {
-    // Vite middleware for local development (lazy-loaded so Vercel Output File Tracing does not pull in the 50MB Vite package)
-    const { createServer: createViteServer } = await import("vite");
+    // Vite middleware for local development
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { X, ArrowRight, ArrowLeftRight, AlertCircle, CheckCircle2, Wallet } from 'lucide-react';
 import { Account, Transaction } from '../types';
 import { AccountSelect } from './AccountSelect';
@@ -38,11 +38,20 @@ export function TransferModal({
     });
 
     transactions.forEach((tx) => {
-      if (tx.accountId && balances.has(tx.accountId)) {
+      if (tx.type === 'transfer') {
+        const fromId = tx.fromAccountId || tx.accountId;
+        const toId = tx.toAccountId;
+        if (fromId && balances.has(fromId)) {
+          balances.set(fromId, balances.get(fromId)! - tx.amount);
+        }
+        if (toId && balances.has(toId)) {
+          balances.set(toId, balances.get(toId)! + tx.amount);
+        }
+      } else if (tx.accountId && balances.has(tx.accountId)) {
         const current = balances.get(tx.accountId)!;
         if (tx.type === 'income') {
           balances.set(tx.accountId, current + tx.amount);
-        } else {
+        } else if (tx.type === 'expense') {
           balances.set(tx.accountId, current - tx.amount);
         }
       }
@@ -149,12 +158,23 @@ export function TransferModal({
     }, 900);
   };
 
+  const backdropMouseDownRef = useRef(false);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="transfer-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-fade-in"
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
     >
       <div
         id="transfer-modal-card"

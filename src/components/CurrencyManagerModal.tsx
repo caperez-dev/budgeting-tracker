@@ -36,6 +36,7 @@ export function CurrencyManagerModal({
 }: CurrencyManagerModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
+  const backdropMouseDownRef = React.useRef(false);
 
   const ratesMap: Record<string, number> = {};
   currencies.forEach((c) => {
@@ -98,7 +99,18 @@ export function CurrencyManagerModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3 sm:p-4">
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3 sm:p-4"
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
+    >
       <div className="bg-white rounded-[6px] border border-zinc-200 p-4 sm:p-5 max-w-xl w-full shadow-xl space-y-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-100 shrink-0">

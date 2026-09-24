@@ -27,7 +27,7 @@ interface QuickEntryFormProps {
     date: string;
     time: string;
   }) => void;
-  onOpenAddCategory: (type: TransactionType) => void;
+  onOpenAddCategory: (type: TransactionType, accountId?: string) => void;
   onOpenAddAccount?: () => void;
   onOpenCurrencyManager?: () => void;
   isModal?: boolean;
@@ -80,8 +80,15 @@ export function QuickEntryForm({
     }
   }, [accounts, accountId]);
 
-  // Filter categories by type
-  const availableCategories = categories.filter((c) => c.type === type);
+  // Filter categories by account and type (EVERY ACCOUNT HAS THEIR OWN SET OF CATEGORIES)
+  const currentAccId = accountId || 'cash';
+  const availableCategories = React.useMemo(() => {
+    return categories.filter((c) => {
+      if (c.type !== type) return false;
+      const catAccId = c.accountId || 'cash';
+      return catAccId === currentAccId;
+    });
+  }, [categories, currentAccId, type]);
 
   const currencyObj = currencies.find((c) => c.code === currency) || currencies[0];
   const currencySymbol = currencyObj?.symbol || '₱';
@@ -95,11 +102,20 @@ export function QuickEntryForm({
 
     if (transactions && transactions.length > 0) {
       transactions.forEach((tx) => {
-        if (tx.accountId && balances.has(tx.accountId)) {
+        if (tx.type === 'transfer') {
+          const fromId = tx.fromAccountId || tx.accountId;
+          const toId = tx.toAccountId;
+          if (fromId && balances.has(fromId)) {
+            balances.set(fromId, balances.get(fromId)! - tx.amount);
+          }
+          if (toId && balances.has(toId)) {
+            balances.set(toId, balances.get(toId)! + tx.amount);
+          }
+        } else if (tx.accountId && balances.has(tx.accountId)) {
           const current = balances.get(tx.accountId)!;
           if (tx.type === 'income') {
             balances.set(tx.accountId, current + tx.amount);
-          } else {
+          } else if (tx.type === 'expense') {
             balances.set(tx.accountId, current - tx.amount);
           }
         }
@@ -109,14 +125,16 @@ export function QuickEntryForm({
     return balances;
   }, [accounts, transactions]);
 
-  // Set default category if none selected or if type changed
+  // Set default category if none selected or if type or account changed
   React.useEffect(() => {
     if (!categoryId || !availableCategories.some((c) => c.id === categoryId)) {
       if (availableCategories.length > 0) {
         setCategoryId(availableCategories[0].id);
+      } else {
+        setCategoryId('');
       }
     }
-  }, [type, availableCategories, categoryId]);
+  }, [type, accountId, availableCategories, categoryId]);
 
   const handleAmountChange = (val: string) => {
     if (val === '') {
@@ -315,39 +333,52 @@ export function QuickEntryForm({
             <button
               type="button"
               id="btn-add-category-inline"
-              onClick={() => onOpenAddCategory(type)}
-              className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+              onClick={() => onOpenAddCategory(type, accountId)}
+              className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 cursor-pointer"
             >
               <PlusCircle className="w-3 h-3" />
               <span>Add Category</span>
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            {availableCategories.map((cat) => {
-              const isSelected = categoryId === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  id={`cat-chip-${cat.id}`}
-                  onClick={() => setCategoryId(cat.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border ${
-                    isSelected
-                      ? 'bg-zinc-900 text-white border-zinc-900 font-medium shadow-2xs'
-                      : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
-                  }`}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full inline-block shrink-0"
-                    style={{ backgroundColor: cat.color }}
-                  />
-                  <CategoryIcon name={cat.icon} className="w-3 h-3 shrink-0" />
-                  <span>{cat.name}</span>
-                </button>
-              );
-            })}
-          </div>
+          {availableCategories.length === 0 ? (
+            <div className="text-xs text-zinc-500 py-1.5 px-3 bg-zinc-50 rounded-[4px] border border-dashed border-zinc-200 flex items-center justify-between">
+              <span>No {type} categories yet for this account.</span>
+              <button
+                type="button"
+                onClick={() => onOpenAddCategory(type, accountId)}
+                className="text-xs font-medium text-zinc-900 underline hover:text-indigo-600 cursor-pointer"
+              >
+                + Add one
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {availableCategories.map((cat) => {
+                const isSelected = categoryId === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    id={`cat-chip-${cat.id}`}
+                    onClick={() => setCategoryId(cat.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border ${
+                      isSelected
+                        ? 'bg-zinc-900 text-white border-zinc-900 font-medium shadow-2xs'
+                        : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
+                    }`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full inline-block shrink-0"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    <CategoryIcon name={cat.icon} className="w-3 h-3 shrink-0" />
+                    <span>{cat.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Row 3: Account / Asset Selection */}

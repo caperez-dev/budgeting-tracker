@@ -15,10 +15,87 @@ export const DEFAULT_CURRENCIES: Currency[] = [
   { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', flag: '🇸🇬', exchangeRate: 1.35 },
 ];
 
+export const createDefaultAccountCategories = (accountId: string): Category[] => [
+  {
+    id: `cat-${accountId}-food-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Food & Drink',
+    type: 'expense',
+    color: '#E11D48',
+    icon: 'Utensils',
+    isDefault: true,
+  },
+  {
+    id: `cat-${accountId}-transport-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Transport',
+    type: 'expense',
+    color: '#0284C7',
+    icon: 'Car',
+    isDefault: true,
+  },
+  {
+    id: `cat-${accountId}-bills-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Bills',
+    type: 'expense',
+    color: '#EA580C',
+    icon: 'CreditCard',
+    isDefault: true,
+  },
+  {
+    id: `cat-${accountId}-shopping-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Shopping',
+    type: 'expense',
+    color: '#8B5CF6',
+    icon: 'ShoppingBag',
+    isDefault: true,
+  },
+];
+
 export const DEFAULT_CATEGORIES: Category[] = [
-  // Income categories
+  // Cash categories
+  {
+    id: 'exp-cash-food',
+    accountId: 'cash',
+    name: 'Food & Drink',
+    type: 'expense',
+    color: '#E11D48',
+    icon: 'Utensils',
+    isDefault: true,
+  },
+  {
+    id: 'exp-cash-transport',
+    accountId: 'cash',
+    name: 'Transport',
+    type: 'expense',
+    color: '#0284C7',
+    icon: 'Car',
+    isDefault: true,
+  },
+  {
+    id: 'exp-cash-bills',
+    accountId: 'cash',
+    name: 'Bills',
+    type: 'expense',
+    color: '#EA580C',
+    icon: 'CreditCard',
+    isDefault: true,
+  },
+  {
+    id: 'exp-cash-shopping',
+    accountId: 'cash',
+    name: 'Shopping',
+    type: 'expense',
+    color: '#8B5CF6',
+    icon: 'ShoppingBag',
+    isDefault: true,
+  },
+  // Income categories for Cash
   {
     id: 'inc-salary',
+    accountId: 'cash',
     name: 'Salary',
     type: 'income',
     color: '#059669', // emerald
@@ -27,6 +104,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   },
   {
     id: 'inc-gift',
+    accountId: 'cash',
     name: 'Gift',
     type: 'income',
     color: '#D97706', // amber
@@ -35,6 +113,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   },
   {
     id: 'inc-freelance',
+    accountId: 'cash',
     name: 'Freelance',
     type: 'income',
     color: '#2563EB', // blue
@@ -43,6 +122,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   },
   {
     id: 'inc-other',
+    accountId: 'cash',
     name: 'Other',
     type: 'income',
     color: '#4F46E5', // indigo
@@ -50,53 +130,41 @@ export const DEFAULT_CATEGORIES: Category[] = [
     isDefault: true,
   },
 
-  // Expense categories (per spec: Transportation, Food, Dates, Projects, Spay, Other)
+  // E-Wallet default categories
   {
-    id: 'exp-transport',
-    name: 'Transportation',
+    id: 'exp-ewallet-food',
+    accountId: 'ewallet',
+    name: 'Food & Drink',
     type: 'expense',
-    color: '#0284C7', // sky-600
-    icon: 'Car',
-    isDefault: true,
-  },
-  {
-    id: 'exp-food',
-    name: 'Food',
-    type: 'expense',
-    color: '#E11D48', // rose-600
+    color: '#E11D48',
     icon: 'Utensils',
     isDefault: true,
   },
   {
-    id: 'exp-dates',
-    name: 'Dates',
+    id: 'exp-ewallet-transport',
+    accountId: 'ewallet',
+    name: 'Transport',
     type: 'expense',
-    color: '#DB2777', // pink-600
-    icon: 'Heart',
+    color: '#0284C7',
+    icon: 'Car',
     isDefault: true,
   },
   {
-    id: 'exp-projects',
-    name: 'Projects',
+    id: 'exp-ewallet-bills',
+    accountId: 'ewallet',
+    name: 'Bills',
     type: 'expense',
-    color: '#7C3AED', // violet-600
-    icon: 'FolderKanban',
-    isDefault: true,
-  },
-  {
-    id: 'exp-spay',
-    name: 'SPayLater / Bills', // Handled per spec note ("Spay" = Shopee PayLater / Installments / Bills)
-    type: 'expense',
-    color: '#EA580C', // orange-600
+    color: '#EA580C',
     icon: 'CreditCard',
     isDefault: true,
   },
   {
-    id: 'exp-other',
-    name: 'Other',
+    id: 'exp-ewallet-shopping',
+    accountId: 'ewallet',
+    name: 'Shopping',
     type: 'expense',
-    color: '#52525B', // zinc-600
-    icon: 'Tag',
+    color: '#8B5CF6',
+    icon: 'ShoppingBag',
     isDefault: true,
   },
 ];

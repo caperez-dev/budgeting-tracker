@@ -6,6 +6,8 @@ import {
   Filter,
   ArrowDownRight,
   ArrowUpRight,
+  ArrowLeftRight,
+  ArrowRight,
   RotateCcw,
   AlertCircle,
   Clock,
@@ -57,11 +59,13 @@ export function TrackerView({
   undoSecondsLeft,
 }: TrackerViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'expense' | 'income' | 'transfer'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const editBackdropMouseDownRef = useRef(false);
+  const deleteBackdropMouseDownRef = useRef(false);
 
   // In-App Calendar Popover State
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -94,14 +98,29 @@ export function TrackerView({
     }
   }, [selectedDate]);
 
+  // Unique category filter options across all accounts
+  const uniqueFilterCategories = useMemo(() => {
+    const seen = new Set<string>();
+    const list: Category[] = [];
+    categories.forEach((c) => {
+      const key = `${c.type}-${c.name.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push(c);
+      }
+    });
+    return list;
+  }, [categories]);
+
   useEffect(() => {
     if (!isCalendarOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
       if (
         calendarRef.current &&
-        !calendarRef.current.contains(e.target as Node) &&
+        !calendarRef.current.contains(target) &&
         calendarButtonRef.current &&
-        !calendarButtonRef.current.contains(e.target as Node)
+        !calendarButtonRef.current.contains(target)
       ) {
         setIsCalendarOpen(false);
       }
@@ -217,10 +236,24 @@ export function TrackerView({
       const catName = (cat ? cat.name : tx.categoryName || '').toLowerCase();
       const acc = tx.accountId ? accountMap.get(tx.accountId) : undefined;
       const accName = (acc ? acc.name : tx.accountName || '').toLowerCase();
+      const fromAcc = tx.fromAccountId ? accountMap.get(tx.fromAccountId) : undefined;
+      const toAcc = tx.toAccountId ? accountMap.get(tx.toAccountId) : undefined;
+      const fromAccName = (fromAcc ? fromAcc.name : tx.fromAccountName || '').toLowerCase();
+      const toAccName = (toAcc ? toAcc.name : tx.toAccountName || '').toLowerCase();
       const matchesNote = tx.note.toLowerCase().includes(q);
       const matchesAmount = String(tx.amount).includes(q);
       const matchesDate = tx.date.includes(q);
-      if (!matchesNote && !catName.includes(q) && !accName.includes(q) && !matchesAmount && !matchesDate) {
+      const isTransferMatch = tx.type === 'transfer' && 'transfer'.includes(q);
+      if (
+        !matchesNote &&
+        !catName.includes(q) &&
+        !accName.includes(q) &&
+        !fromAccName.includes(q) &&
+        !toAccName.includes(q) &&
+        !matchesAmount &&
+        !matchesDate &&
+        !isTransferMatch
+      ) {
         return false;
       }
     }
@@ -244,7 +277,30 @@ export function TrackerView({
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTx) return;
-    onUpdateTransaction(editingTx);
+
+    if (editingTx.type === 'transfer') {
+      const fromId = editingTx.fromAccountId || editingTx.accountId;
+      const toId = editingTx.toAccountId;
+      const fromAcc = accounts.find((a) => a.id === fromId);
+      const toAcc = accounts.find((a) => a.id === toId);
+
+      onUpdateTransaction({
+        ...editingTx,
+        accountId: fromId,
+        fromAccountId: fromId,
+        toAccountId: toId,
+        fromAccountName: fromAcc?.name || editingTx.fromAccountName,
+        toAccountName: toAcc?.name || editingTx.toAccountName,
+        fromAccountIcon: fromAcc?.icon || editingTx.fromAccountIcon,
+        toAccountIcon: toAcc?.icon || editingTx.toAccountIcon,
+        categoryId: '',
+        categoryName: undefined,
+        categoryIcon: undefined,
+        categoryColor: undefined,
+      });
+    } else {
+      onUpdateTransaction(editingTx);
+    }
     setEditingTx(null);
   };
 
@@ -305,6 +361,17 @@ export function TrackerView({
             >
               Income
             </button>
+            <button
+              id="filter-transfers-btn"
+              onClick={() => setFilterType('transfer')}
+              className={`h-full flex items-center px-2.5 text-xs font-medium rounded-[3px] transition-colors ${
+                filterType === 'transfer'
+                  ? 'bg-white text-blue-600 shadow-2xs font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              Transfers
+            </button>
           </div>
 
           {/* Category Filter - custom styled matching CurrencySelect */}
@@ -312,7 +379,7 @@ export function TrackerView({
             <CategorySelect
               id="filter-category-select"
               ariaLabel="Filter by category"
-              categories={categories}
+              categories={uniqueFilterCategories}
               value={filterCategory}
               onChange={setFilterCategory}
               showAllOption={true}
@@ -371,10 +438,18 @@ export function TrackerView({
         {/* Persistent Section Header Bar: Month/Date & Interactive Calendar Selector */}
         <div className="p-4 sm:p-5 pb-3 flex flex-wrap items-center justify-between gap-3 bg-white rounded-t-[5px]">
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-zinc-600" />
-            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">
-              {selectedDate && selectedMonthYearLabel ? selectedMonthYearLabel : (selectedMonthYearLabel || 'Transaction History')}
-            </h3>
+            <button
+              type="button"
+              id="btn-tracker-title-calendar"
+              onClick={() => setIsCalendarOpen((prev) => !prev)}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer text-left"
+              title="Click to open calendar selector"
+            >
+              <Calendar className="w-4 h-4 text-zinc-600" />
+              <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">
+                {selectedDate && selectedMonthYearLabel ? selectedMonthYearLabel : (selectedMonthYearLabel || 'Transaction History')}
+              </h3>
+            </button>
 
             {/* In-App Interactive Calendar Selector */}
             <div className="relative inline-flex items-center ml-1">
@@ -382,9 +457,12 @@ export function TrackerView({
                 ref={calendarButtonRef}
                 id="btn-tracker-calendar-picker"
                 type="button"
-                onClick={() => setIsCalendarOpen((prev) => !prev)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCalendarOpen((prev) => !prev);
+                }}
                 aria-expanded={isCalendarOpen}
-                className={`p-1.5 rounded-[4px] border transition-colors cursor-pointer flex items-center gap-1 ${
+                className={`w-7 h-7 rounded-[4px] border transition-colors cursor-pointer flex items-center justify-center shrink-0 ${
                   selectedDate
                     ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
                     : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border-zinc-200 bg-white'
@@ -392,6 +470,24 @@ export function TrackerView({
                 title={selectedDate ? 'Change selected date' : 'Select date from calendar'}
               >
                 <CalendarDays className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Red Reload Button with rotating arrow circle icon - same size as calendar button */}
+              <button
+                id="btn-tracker-reload-month"
+                type="button"
+                onClick={() => {
+                  onSelectDate?.(null);
+                  setIsCalendarOpen(false);
+                  setSearchQuery('');
+                  setFilterType('all');
+                  setFilterCategory('all');
+                }}
+                className="ml-1.5 w-7 h-7 rounded-[4px] border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
+                title="Reset filters and show full month"
+                aria-label="Reset filters and show full month"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-red-600" />
               </button>
 
               {/* In-App Popover Calendar Selector */}
@@ -517,18 +613,6 @@ export function TrackerView({
                   </div>
                 </div>
               )}
-
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => onSelectDate?.(null)}
-                  className="ml-2 text-[11px] font-sans text-zinc-600 hover:text-zinc-900 px-2 py-1 bg-zinc-100 hover:bg-zinc-200 rounded-[3px] transition-colors cursor-pointer flex items-center gap-1"
-                  title="Clear date filter and show full month"
-                >
-                  <X className="w-3 h-3" />
-                  <span>Show full month</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -560,10 +644,10 @@ export function TrackerView({
               <button
                 type="button"
                 onClick={() => onSelectDate?.(null)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
-                <span>Show full month</span>
+                <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+                <span>Reset to full month</span>
               </button>
             )}
           </div>
@@ -603,6 +687,7 @@ export function TrackerView({
                           {/* Chronological Row Entries */}
                           <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-[4px] overflow-hidden bg-white">
                             {day.transactions.map((tx) => {
+                              const isTransfer = tx.type === 'transfer';
                               const cat = categoryMap.get(tx.categoryId);
                               const catColor = cat ? cat.color : tx.categoryColor || '#52525B';
                               const catIcon = cat ? cat.icon : tx.categoryIcon || 'Tag';
@@ -612,46 +697,94 @@ export function TrackerView({
                               const accName = acc ? acc.name : tx.accountName;
                               const accIcon = acc ? acc.icon : tx.accountIcon || 'Wallet';
 
+                              const fromAcc = tx.fromAccountId
+                                ? accountMap.get(tx.fromAccountId)
+                                : tx.accountId
+                                ? accountMap.get(tx.accountId)
+                                : undefined;
+                              const fromAccName = fromAcc
+                                ? fromAcc.name
+                                : tx.fromAccountName || tx.accountName || 'Account 1';
+                              const fromAccIcon = fromAcc
+                                ? fromAcc.icon
+                                : tx.fromAccountIcon || tx.accountIcon || 'Wallet';
+
+                              const toAcc = tx.toAccountId ? accountMap.get(tx.toAccountId) : undefined;
+                              const toAccName = toAcc ? toAcc.name : tx.toAccountName || 'Account 2';
+                              const toAccIcon = toAcc ? toAcc.icon : tx.toAccountIcon || 'Wallet';
+
                               return (
                                 <div
                                   key={tx.id}
                                   id={`tx-row-${tx.id}`}
                                   className="group flex flex-wrap items-center justify-between py-2 px-3 hover:bg-zinc-50/80 transition-colors text-xs"
                                 >
-                                  {/* Left: Tag [OUT]/[IN], Amount (color-coded per category!), Category, Note */}
+                                  {/* Left: Tag [OUT]/[IN]/[Transfer], Amount, Category/Accounts, Note */}
                                   <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 min-w-[240px]">
-                                    {/* Tag Badge: fixed width so [OUT] and [IN] occupy identical width */}
-                                    <span
-                                      className={`w-12 shrink-0 flex items-center justify-center text-center py-0.5 rounded-[3px] font-mono text-[10px] font-bold tracking-wider uppercase border ${
-                                        tx.type === 'expense'
-                                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      }`}
-                                    >
-                                      [{tx.type === 'expense' ? 'OUT' : 'IN'}]
-                                    </span>
+                                    {/* Tag Badge */}
+                                    {isTransfer ? (
+                                      <span
+                                        className="w-12 shrink-0 flex items-center justify-center py-1 rounded-[3px] bg-blue-50 text-blue-700 border border-blue-200"
+                                        title="Transfer"
+                                      >
+                                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`w-12 shrink-0 flex items-center justify-center text-center py-0.5 rounded-[3px] font-mono text-[10px] font-bold tracking-wider uppercase border ${
+                                          tx.type === 'expense'
+                                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}
+                                      >
+                                        [{tx.type === 'expense' ? 'OUT' : 'IN'}]
+                                      </span>
+                                    )}
 
-                                    {/* Amount: fixed width so all amounts and following columns align vertically */}
+                                    {/* Amount: fixed width */}
                                     <span
                                       className={`font-mono text-sm font-semibold tabular-nums w-28 shrink-0 ${
-                                        tx.type === 'expense' ? 'text-zinc-900' : 'text-emerald-600'
+                                        isTransfer
+                                          ? 'text-blue-700'
+                                          : tx.type === 'expense'
+                                          ? 'text-zinc-900'
+                                          : 'text-emerald-600'
                                       }`}
                                     >
                                       {formatCurrency(tx.amount, currencySymbol)}
                                     </span>
 
-                                    {/* Category with Icon */}
-                                    <span className="flex items-center gap-1 text-zinc-700 font-medium whitespace-nowrap">
-                                      <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400" />
-                                      <span>{catName}</span>
-                                    </span>
+                                    {/* Transfer: From (Account 1) To (Account 2) with NO category */}
+                                    {isTransfer ? (
+                                      <div className="flex items-center gap-1.5 text-zinc-700 text-xs font-medium whitespace-nowrap">
+                                        <span className="text-zinc-400 text-[11px]">From</span>
+                                        <span className="flex items-center gap-1 bg-zinc-100 px-1.5 py-0.5 rounded-[3px] border border-zinc-200/60 font-semibold text-zinc-800">
+                                          <AccountIcon name={fromAccIcon} className="w-3 h-3 text-zinc-500" />
+                                          <span>{fromAccName}</span>
+                                        </span>
+                                        <ArrowRight className="w-3 h-3 text-zinc-400" />
+                                        <span className="text-zinc-400 text-[11px]">To</span>
+                                        <span className="flex items-center gap-1 bg-zinc-100 px-1.5 py-0.5 rounded-[3px] border border-zinc-200/60 font-semibold text-zinc-800">
+                                          <AccountIcon name={toAccIcon} className="w-3 h-3 text-zinc-500" />
+                                          <span>{toAccName}</span>
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        {/* Category with Icon */}
+                                        <span className="flex items-center gap-1 text-zinc-700 font-medium whitespace-nowrap">
+                                          <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400" />
+                                          <span>{catName}</span>
+                                        </span>
 
-                                    {/* Account Badge if available */}
-                                    {accName && (
-                                      <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-600 bg-zinc-100/90 px-1.5 py-0.5 rounded-[3px] border border-zinc-200/60 whitespace-nowrap">
-                                        <AccountIcon name={accIcon} className="w-3 h-3 shrink-0 text-zinc-500" />
-                                        <span>{accName}</span>
-                                      </span>
+                                        {/* Account Badge if available */}
+                                        {accName && (
+                                          <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-600 bg-zinc-100/90 px-1.5 py-0.5 rounded-[3px] border border-zinc-200/60 whitespace-nowrap">
+                                            <AccountIcon name={accIcon} className="w-3 h-3 shrink-0 text-zinc-500" />
+                                            <span>{accName}</span>
+                                          </span>
+                                        )}
+                                      </>
                                     )}
 
                                     {/* Description / Note */}
@@ -722,25 +855,44 @@ export function TrackerView({
 
       {/* Delete Confirmation Modal (per §5) */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-fade-in"
+          onMouseDown={(e) => {
+            deleteBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onMouseUp={(e) => {
+            if (deleteBackdropMouseDownRef.current && e.target === e.currentTarget) {
+              setDeleteConfirmId(null);
+            }
+            deleteBackdropMouseDownRef.current = false;
+          }}
+        >
           <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3">
             <div className="flex items-center gap-2 text-rose-600">
               <AlertCircle className="w-5 h-5" />
-              <h4 className="text-sm font-semibold text-zinc-900">Delete this transaction?</h4>
+              <h4 className="text-sm font-semibold text-zinc-900">
+                {transactions.find((t) => t.id === deleteConfirmId)?.type === 'transfer'
+                  ? 'Delete this transfer?'
+                  : 'Delete this transaction?'}
+              </h4>
             </div>
             <p className="text-xs text-zinc-600">
-              Delete this transaction? This can be undone immediately from the notification banner.
+              {transactions.find((t) => t.id === deleteConfirmId)?.type === 'transfer'
+                ? 'Are you sure you want to delete this transfer? This can be undone immediately from the notification banner.'
+                : 'Delete this transaction? This can be undone immediately from the notification banner.'}
             </p>
             <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
               <button
+                type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px]"
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={confirmDelete}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors"
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
               >
                 Confirm Delete
               </button>
@@ -751,17 +903,30 @@ export function TrackerView({
 
       {/* Edit Transaction Modal */}
       {editingTx && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-fade-in"
+          onMouseDown={(e) => {
+            editBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onMouseUp={(e) => {
+            if (editBackdropMouseDownRef.current && e.target === e.currentTarget) {
+              setEditingTx(null);
+            }
+            editBackdropMouseDownRef.current = false;
+          }}
+        >
           <form
             onSubmit={handleEditSubmit}
             className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4"
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-              <h4 className="text-sm font-semibold text-zinc-900">Edit Transaction</h4>
+              <h4 className="text-sm font-semibold text-zinc-900">
+                {editingTx.type === 'transfer' ? 'Edit Transfer' : 'Edit Transaction'}
+              </h4>
               <button
                 type="button"
                 onClick={() => setEditingTx(null)}
-                className="text-zinc-400 hover:text-zinc-600 text-xs"
+                className="text-zinc-400 hover:text-zinc-600 text-xs cursor-pointer"
               >
                 ✕
               </button>
@@ -811,40 +976,88 @@ export function TrackerView({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Category</label>
-                <div className="relative h-9">
-                  <CategorySelect
-                    id="edit-tx-category-select"
-                    ariaLabel="Transaction category"
-                    categories={categories.filter((c) => c.type === editingTx.type)}
-                    value={editingTx.categoryId}
-                    onChange={(catId) =>
-                      setEditingTx({ ...editingTx, categoryId: catId })
-                    }
-                    showAllOption={false}
-                    className="h-full"
-                  />
-                </div>
-              </div>
-
-              {accounts.length > 0 && (
-                <div>
-                  <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Account</label>
-                  <div className="relative h-9">
-                    <AccountSelect
-                      id="edit-tx-account-select"
-                      ariaLabel="Transaction account"
-                      accounts={accounts}
-                      value={editingTx.accountId || ''}
-                      onChange={(accId) =>
-                        setEditingTx({ ...editingTx, accountId: accId })
-                      }
-                      currencySymbol={currencySymbol}
-                      className="h-full"
-                    />
+              {editingTx.type === 'transfer' ? (
+                <>
+                  {/* Account 1 (From) */}
+                  <div>
+                    <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">From (Account 1)</label>
+                    <div className="relative h-9">
+                      <AccountSelect
+                        id="edit-transfer-from-select"
+                        ariaLabel="From Account"
+                        accounts={accounts}
+                        value={editingTx.fromAccountId || editingTx.accountId || ''}
+                        onChange={(accId) =>
+                          setEditingTx({ ...editingTx, fromAccountId: accId, accountId: accId })
+                        }
+                        currencySymbol={currencySymbol}
+                        className="h-full"
+                      />
+                    </div>
                   </div>
-                </div>
+
+                  {/* Account 2 (To) */}
+                  <div>
+                    <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">To (Account 2)</label>
+                    <div className="relative h-9">
+                      <AccountSelect
+                        id="edit-transfer-to-select"
+                        ariaLabel="To Account"
+                        accounts={accounts}
+                        value={editingTx.toAccountId || ''}
+                        onChange={(accId) =>
+                          setEditingTx({ ...editingTx, toAccountId: accId })
+                        }
+                        currencySymbol={currencySymbol}
+                        className="h-full"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Category</label>
+                    <div className="relative h-9">
+                      <CategorySelect
+                        id="edit-tx-category-select"
+                        ariaLabel="Transaction category"
+                        categories={categories.filter(
+                          (c) =>
+                            c.type === editingTx.type &&
+                            (c.accountId
+                              ? c.accountId === (editingTx.accountId || 'cash')
+                              : (editingTx.accountId || 'cash') === 'cash')
+                        )}
+                        value={editingTx.categoryId}
+                        onChange={(catId) =>
+                          setEditingTx({ ...editingTx, categoryId: catId })
+                        }
+                        showAllOption={false}
+                        className="h-full"
+                      />
+                    </div>
+                  </div>
+
+                  {accounts.length > 0 && (
+                    <div>
+                      <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">Account</label>
+                      <div className="relative h-9">
+                        <AccountSelect
+                          id="edit-tx-account-select"
+                          ariaLabel="Transaction account"
+                          accounts={accounts}
+                          value={editingTx.accountId || ''}
+                          onChange={(accId) =>
+                            setEditingTx({ ...editingTx, accountId: accId })
+                          }
+                          currencySymbol={currencySymbol}
+                          className="h-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <div>
@@ -871,13 +1084,13 @@ export function TrackerView({
               <button
                 type="button"
                 onClick={() => setEditingTx(null)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px]"
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-3 py-1.5 bg-zinc-900 text-white text-xs font-semibold rounded-[3px]"
+                className="px-3 py-1.5 bg-zinc-900 text-white text-xs font-semibold rounded-[3px] cursor-pointer"
               >
                 Save Changes
               </button>

@@ -235,7 +235,7 @@ export function SummaryPanel({
 
       {/* 3. CATEGORY BREAKDOWN */}
       <div className="bg-white border border-zinc-200 rounded-[5px] p-4 sm:p-5 shadow-xs">
-        <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-zinc-100">
           <div className="flex items-center gap-2">
             <PieChart className="w-4 h-4 text-zinc-600" />
             <h3 className="text-sm font-semibold text-zinc-900">
@@ -251,7 +251,7 @@ export function SummaryPanel({
         {/* Total Metric Header */}
         <div className="flex items-center justify-between text-xs mb-3 font-mono">
           <span className="text-zinc-500">
-            Total {breakdownType === 'income' ? 'Earned' : 'Spent'} ({periodLabels[selectedPeriod]}):
+            Total {breakdownType === 'income' ? 'Income' : 'Spent'} ({periodLabels[selectedPeriod]}):
           </span>
           <span className={`text-sm font-bold ${breakdownType === 'income' ? 'text-emerald-700' : 'text-zinc-900'}`}>
             {formatCurrency(activePeriodTotal, currencySymbol)}

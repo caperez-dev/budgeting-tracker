@@ -20,6 +20,7 @@ import {
   SEED_DEBTS,
   SEED_GOALS,
   SEED_TRANSACTIONS,
+  createDefaultAccountCategories,
 } from './data/initialData';
 import { Header, ActiveTab } from './components/Header';
 import { AuthScreen } from './components/AuthScreen';
@@ -526,43 +527,6 @@ export default function App() {
       const savedCats = localStorage.getItem(catKey);
       if (savedCats) setCategories(JSON.parse(savedCats));
     } catch {}
-
-    // 8. User Profile (avatar, nickname, email)
-    try {
-      const perUserProfileKey = getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, user.id);
-      let savedProfileRaw = localStorage.getItem(perUserProfileKey);
-      if (!savedProfileRaw) {
-        savedProfileRaw = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
-      }
-      if (savedProfileRaw) {
-        const parsed = JSON.parse(savedProfileRaw);
-        setUserProfile((prev) => ({
-          ...prev,
-          ...parsed,
-          nickname: parsed.nickname || user.nickname || prev.nickname,
-          email: parsed.email || user.email || prev.email,
-          avatarUrl:
-            parsed.avatarUrl !== undefined && parsed.avatarUrl !== ''
-              ? parsed.avatarUrl
-              : user.avatarUrl || prev.avatarUrl,
-        }));
-      } else {
-        // Fall back to currentUser's values (e.g. avatarUrl from Google OAuth)
-        setUserProfile((prev) => ({
-          ...prev,
-          nickname: user.nickname || prev.nickname,
-          email: user.email || prev.email,
-          avatarUrl: user.avatarUrl || prev.avatarUrl,
-        }));
-      }
-    } catch {
-      setUserProfile((prev) => ({
-        ...prev,
-        nickname: user.nickname || prev.nickname,
-        email: user.email || prev.email,
-        avatarUrl: user.avatarUrl || prev.avatarUrl,
-      }));
-    }
   };
 
   const handleSyncWithDB = async (targetUserId?: string) => {
@@ -1251,13 +1215,54 @@ export default function App() {
     }).catch(() => {});
   };
 
+  // Ensure every account has its own isolated categories and new accounts get default categories
+  useEffect(() => {
+    setCategories((prevCats) => {
+      let changed = false;
+      const updated = prevCats.map((c) => {
+        if (!c.accountId) {
+          changed = true;
+          return { ...c, accountId: 'cash' };
+        }
+        return c;
+      });
+
+      // Ensure each active account has its default categories if none exist for it
+      accounts.forEach((acc) => {
+        const hasCategories = updated.some((c) => (c.accountId || 'cash') === acc.id);
+        if (!hasCategories) {
+          changed = true;
+          const defaultCats = createDefaultAccountCategories(acc.id);
+          updated.push(...defaultCats);
+        }
+      });
+
+      return changed ? updated : prevCats;
+    });
+  }, [accounts]);
+
   // --- Handlers: Accounts ---
   const handleAddAccount = (accData: Omit<Account, 'id'>) => {
+    const newId = `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const newAcc: Account = {
       ...accData,
-      id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId,
     };
     setAccounts((prev) => [...prev, newAcc]);
+
+    // For new accounts - the default category should be Food & Drink, Transport, Bills, and Shopping ONLY
+    const newCats = createDefaultAccountCategories(newId);
+    setCategories((prev) => [...prev, ...newCats]);
+
+    if (currentUser?.id) {
+      newCats.forEach((cat) => {
+        fetch(`/api/db/categories?userId=${encodeURIComponent(currentUser.id)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+          body: JSON.stringify(cat),
+        }).catch(() => {});
+      });
+    }
   };
 
   const handleUpdateAccount = (updatedAcc: Account) => {
@@ -1286,6 +1291,7 @@ export default function App() {
     );
 
     setAccounts((prev) => prev.filter((a) => a.id !== id));
+    setCategories((prev) => prev.filter((c) => c.accountId !== id));
 
     // Persist deletion immediately to backend
     const delUrl = `/api/db/accounts/${encodeURIComponent(id)}${

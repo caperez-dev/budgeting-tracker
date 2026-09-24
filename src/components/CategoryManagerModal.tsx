@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Palette } from 'lucide-react';
-import { Category, TransactionType } from '../types';
-import { CategoryIcon, ICON_MAP } from './CategoryIcon';
+import React, { useState, useRef } from 'react';
+import { Plus, Trash2, Edit2, Check, X, Palette, Wallet } from 'lucide-react';
+import { Category, TransactionType, Account } from '../types';
+import { CategoryIcon, ICON_MAP, AccountIcon } from './CategoryIcon';
 
 interface CategoryManagerModalProps {
   categories: Category[];
+  accounts?: Account[];
+  initialAccountId?: string;
   onAddCategory: (category: Omit<Category, 'id'>) => void;
   onUpdateCategory: (category: Category) => void;
   onDeleteCategory: (id: string) => void;
@@ -31,12 +33,17 @@ const AVAILABLE_ICONS = Object.keys(ICON_MAP);
 
 export function CategoryManagerModal({
   categories,
+  accounts = [],
+  initialAccountId,
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
   onClose,
   initialType = 'expense',
 }: CategoryManagerModalProps) {
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(
+    initialAccountId || (accounts.length > 0 ? accounts[0].id : 'cash')
+  );
   const [activeTab, setActiveTab] = useState<TransactionType>(initialType);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
@@ -47,7 +54,16 @@ export function CategoryManagerModal({
   const [icon, setIcon] = useState('Tag');
   const [isAdding, setIsAdding] = useState(false);
 
-  const filteredCategories = categories.filter((c) => c.type === activeTab);
+  const backdropMouseDownRef = useRef(false);
+
+  const currentAccId = selectedAccountId || 'cash';
+  const filteredCategories = categories.filter((c) => {
+    if (c.type !== activeTab) return false;
+    const catAccId = c.accountId || 'cash';
+    return catAccId === currentAccId;
+  });
+
+  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +72,7 @@ export function CategoryManagerModal({
     onAddCategory({
       name: name.trim(),
       type: activeTab,
+      accountId: selectedAccountId,
       color,
       icon,
     });
@@ -69,28 +86,75 @@ export function CategoryManagerModal({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCat || !editingCat.name.trim()) return;
-    onUpdateCategory(editingCat);
+    onUpdateCategory({
+      ...editingCat,
+      accountId: selectedAccountId,
+    });
     setEditingCat(null);
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-in fade-in duration-150"
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
+    >
       <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-lg w-full shadow-lg space-y-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-100 shrink-0">
           <div>
-            <h3 className="text-sm font-semibold text-zinc-900">Category</h3>
+            <h3 className="text-sm font-semibold text-zinc-900">Categories</h3>
             <p className="text-xs text-zinc-500">
-              Customize categories, icons, and accent colors used in transaction rows.
+              Each account manages its own separate set of categories.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 p-1 rounded"
+            className="text-zinc-400 hover:text-zinc-600 p-1 rounded cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Account Selector Pill / Bar if accounts exist */}
+        {accounts.length > 0 && (
+          <div className="space-y-1.5 shrink-0">
+            <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider block">
+              Account
+            </label>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              {accounts.map((acc) => {
+                const isAccSelected = acc.id === selectedAccountId;
+                return (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedAccountId(acc.id);
+                      setIsAdding(false);
+                      setEditingCat(null);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-medium border transition-colors shrink-0 cursor-pointer ${
+                      isAccSelected
+                        ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
+                        : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
+                    }`}
+                  >
+                    <AccountIcon name={acc.icon} className="w-3.5 h-3.5" />
+                    <span>{acc.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Type Filter */}
         <div className="flex items-center justify-between gap-2 shrink-0">
@@ -102,7 +166,7 @@ export function CategoryManagerModal({
                 setIsAdding(false);
                 setEditingCat(null);
               }}
-              className={`py-1 rounded-[3px] transition-colors ${
+              className={`py-1 rounded-[3px] transition-colors cursor-pointer ${
                 activeTab === 'expense'
                   ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
                   : 'text-zinc-500'
@@ -117,7 +181,7 @@ export function CategoryManagerModal({
                 setIsAdding(false);
                 setEditingCat(null);
               }}
-              className={`py-1 rounded-[3px] transition-colors ${
+              className={`py-1 rounded-[3px] transition-colors cursor-pointer ${
                 activeTab === 'income'
                   ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
                   : 'text-zinc-500'
@@ -130,7 +194,7 @@ export function CategoryManagerModal({
           {!isAdding && !editingCat && (
             <button
               onClick={() => setIsAdding(true)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-[4px] hover:bg-zinc-800 transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-[4px] hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Category</span>

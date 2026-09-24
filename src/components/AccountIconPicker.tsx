@@ -17,7 +17,7 @@ export const STANDARD_ACCOUNT_ICONS = [
 
 interface AccountIconPickerProps {
   value: string;
-  onChange: (icon: string) => void;
+  onChange: (icon: string, name?: string) => void;
 }
 
 const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3 MB
@@ -163,29 +163,33 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
       {/* Tab: Real-life Bank & Wallet Logos */}
       {activeTab === 'banks' && (
         <div className="space-y-1.5">
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 max-h-48 overflow-y-auto p-1 bg-zinc-50/50 rounded-[4px] border border-zinc-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 bg-zinc-50/50 rounded-[4px] border border-zinc-200">
             {BANK_LOGOS.map((bank) => {
               const isSelected = value === bank.id;
               return (
                 <button
                   key={bank.id}
                   type="button"
-                  onClick={() => onChange(bank.id)}
+                  onClick={() => onChange(bank.id, bank.name)}
                   title={bank.name}
-                  className={`flex items-center gap-2 p-1.5 rounded-[4px] border text-left transition-all cursor-pointer ${
+                  className={`flex items-center gap-2.5 p-2 rounded-[5px] border text-left transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs ring-1 ring-zinc-900'
                       : 'bg-white text-zinc-800 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
                   }`}
                 >
-                  <div className="w-5 h-5 shrink-0 rounded-[3px] overflow-hidden flex items-center justify-center">
-                    {bank.render('w-5 h-5')}
+                  <div className="w-6 h-6 shrink-0 rounded-[4px] overflow-hidden flex items-center justify-center">
+                    {bank.render('w-6 h-6')}
                   </div>
-                  <span className="text-[11px] font-medium truncate flex-1">
+                  <span
+                    className={`text-xs font-medium leading-snug flex-1 break-words whitespace-normal text-left ${
+                      isSelected ? 'text-white' : 'text-zinc-800'
+                    }`}
+                  >
                     {bank.name}
                   </span>
                   {isSelected && (
-                    <Check className="w-3 h-3 text-white shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />
                   )}
                 </button>
               );

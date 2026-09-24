@@ -19,6 +19,7 @@ export function DonateModal({
   const [handle, setHandle] = useState(donateInfo.handle);
   const [message, setMessage] = useState(donateInfo.message);
   const [linkUrl, setLinkUrl] = useState(donateInfo.linkUrl || '');
+  const backdropMouseDownRef = React.useRef(false);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(handle);
@@ -38,7 +39,18 @@ export function DonateModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
+    >
       <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-100">

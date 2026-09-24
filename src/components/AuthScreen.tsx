@@ -368,32 +368,38 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     setSuccessMessage(null);
 
     const cleanEmail = email.trim();
-    if (!cleanEmail || !password) {
-      setErrorMessage('Please enter both your email and password.');
-      return;
-    }
+    const cleanUsername = nickname.trim();
 
     if (mode === 'register') {
-      const cleanNickname = nickname.trim();
-      if (!cleanNickname) {
-        setErrorMessage('Please choose a username.');
+      if (!cleanUsername) {
+        setErrorMessage('Please enter a username.');
         return;
       }
-      if (cleanNickname.length > 20) {
-        setErrorMessage('Username cannot be longer than 20 characters.');
+      if (cleanUsername.length > 20) {
+        setErrorMessage('Username can be up to 20 characters.');
+        return;
+      }
+
+      if (!cleanEmail) {
+        setErrorMessage('Please enter your email address.');
         return;
       }
       if (cleanEmail.length > 64) {
-        setErrorMessage('Email address cannot be longer than 64 characters.');
+        setErrorMessage('Email address can be up to 64 characters.');
         return;
       }
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailPattern.test(cleanEmail)) {
-        setErrorMessage('Please enter a valid email address (e.g. name@example.com).');
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        setErrorMessage('Please enter a valid email address.');
+        return;
+      }
+
+      if (!password) {
+        setErrorMessage('Please enter a password.');
         return;
       }
       if (password.length < 6) {
-        setErrorMessage('Password must be at least 6 characters.');
+        setErrorMessage('Password must be at least 6 characters long.');
         return;
       }
       if (password !== confirmPassword) {
@@ -402,6 +408,11 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       }
       if (!agreedToTerms) {
         setErrorMessage('Please agree to the Terms and Conditions to create your account.');
+        return;
+      }
+    } else {
+      if (!cleanEmail || !password) {
+        setErrorMessage('Please enter both your email and password.');
         return;
       }
     }
@@ -416,7 +427,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           : {
               email: cleanEmail,
               password,
-              nickname: nickname.trim() || cleanEmail.split('@')[0],
+              nickname: cleanUsername,
               avatarUrl: selectedAvatar,
             };
 

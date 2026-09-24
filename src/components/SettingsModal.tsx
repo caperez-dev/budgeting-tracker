@@ -44,62 +44,21 @@ export function SettingsModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const compressImage = (file: File, maxSize = 256, quality = 0.85): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.onload = () => {
-        const img = new Image();
-        img.onerror = () => reject(new Error('Failed to decode image'));
-        img.onload = () => {
-          let { width, height } = img;
-          if (width > maxSize || height > maxSize) {
-            if (width >= height) {
-              height = Math.round((height * maxSize) / width);
-              width = maxSize;
-            } else {
-              width = Math.round((width * maxSize) / height);
-              height = maxSize;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Canvas 2D context unavailable'));
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          try {
-            resolve(canvas.toDataURL('image/jpeg', quality));
-          } catch (err) {
-            reject(err);
-          }
-        };
-        img.src = reader.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setErrorMessage('Please select an image file (JPG, PNG, etc.).');
-        return;
-      }
       if (file.size > 5 * 1024 * 1024) {
         setErrorMessage('Please choose a photo smaller than 5MB.');
         return;
       }
       setErrorMessage(null);
-      try {
-        const compressedDataUrl = await compressImage(file);
-        setAvatarUrl(compressedDataUrl);
-      } catch (err: any) {
-        setErrorMessage(err?.message || 'Failed to process the selected photo.');
-      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setAvatarUrl(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -167,15 +126,27 @@ export function SettingsModal({
     }
   };
 
+  const mouseDownOnBackdropRef = useRef(false);
+
+  const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    mouseDownOnBackdropRef.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (mouseDownOnBackdropRef.current && e.target === e.currentTarget && !isSubmitting) {
+      onClose();
+    }
+    mouseDownOnBackdropRef.current = false;
+  };
+
   const initialLetter = (nickname || email || 'U').charAt(0).toUpperCase();
 
   return (
     <div
       id="modal-settings-backdrop"
       className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
       <div
         id="modal-settings"

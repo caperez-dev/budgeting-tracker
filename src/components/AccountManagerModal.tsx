@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Plus, Trash2, Edit2, Check, X, Wallet, Smartphone, Banknote, Landmark, CreditCard, PiggyBank, Coins, AlertCircle } from 'lucide-react';
 import { Account, AccountType, Transaction } from '../types';
 import { AccountIcon } from './CategoryIcon';
@@ -70,6 +70,19 @@ export function AccountManagerModal({
   const [icon, setIcon] = useState('bank-gcash');
   const [initialBalance, setInitialBalance] = useState<string>('0');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const backdropMouseDownRef = useRef(false);
+
+  const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    backdropMouseDownRef.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+      onClose();
+    }
+    backdropMouseDownRef.current = false;
+  };
 
   // Calculate balances for each account based on transactions
   const accountBalances = useMemo(() => {
@@ -182,6 +195,8 @@ export function AccountManagerModal({
   return (
     <div
       id="modal-accounts-backdrop"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
       className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
     >
       <div
@@ -231,6 +246,9 @@ export function AccountManagerModal({
               onClick={() => {
                 setIsAdding(true);
                 setEditingAccount(null);
+                setName('GCash');
+                setIcon('bank-gcash');
+                setInitialBalance('0');
               }}
               className="flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
             >
@@ -327,7 +345,16 @@ export function AccountManagerModal({
               </div>
 
               {/* Icon Selection */}
-              <AccountIconPicker value={icon} onChange={setIcon} />
+              <AccountIconPicker
+                value={icon}
+                onChange={(newIcon, iconName) => {
+                  setIcon(newIcon);
+                  if (iconName) {
+                    setName(iconName);
+                    if (errorMessage) setErrorMessage(null);
+                  }
+                }}
+              />
 
               {errorMessage && (
                 <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px] flex items-center gap-1.5">
@@ -452,8 +479,15 @@ export function AccountManagerModal({
               {/* Icon selection */}
               <AccountIconPicker
                 value={editingAccount.icon}
-                onChange={(newIcon) =>
-                  setEditingAccount({ ...editingAccount, icon: newIcon })
+                onChange={(newIcon, iconName) =>
+                  setEditingAccount((prev) => {
+                    if (!prev) return null;
+                    return {
+                      ...prev,
+                      icon: newIcon,
+                      name: iconName || prev.name,
+                    };
+                  })
                 }
               />
 

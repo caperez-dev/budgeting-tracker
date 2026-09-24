@@ -1,4 +1,4 @@
-export type TransactionType = 'income' | 'expense';
+export type TransactionType = 'income' | 'expense' | 'transfer';
 
 export interface Currency {
   code: string;
@@ -10,6 +10,7 @@ export interface Currency {
 
 export interface Category {
   id: string;
+  accountId?: string; // Account this category belongs to
   name: string;
   type: TransactionType;
   color: string; // Accent color used for categories in transaction views
@@ -36,7 +37,13 @@ export interface Transaction {
   amount: number;
   currency: string;
   categoryId: string;
-  accountId?: string;
+  accountId?: string; // Primary or From account
+  fromAccountId?: string; // For transfers
+  toAccountId?: string; // For transfers
+  fromAccountName?: string;
+  toAccountName?: string;
+  fromAccountIcon?: string;
+  toAccountIcon?: string;
   categoryName?: string;
   categoryIcon?: string;
   categoryColor?: string;
