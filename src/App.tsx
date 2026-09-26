@@ -124,6 +124,202 @@ const getUserStorageKey = (prefix: string, userId?: string | null) => {
   return userId ? `${prefix}_${userId}` : `${prefix}_guest`;
 };
 
+// Consolidates any legacy dual-entry transfer pairs (one IN, one OUT) into a single transfer transaction
+export const consolidateTransferTransactions = (txList: Transaction[], accountsList?: Account[]): Transaction[] => {
+  if (!Array.isArray(txList) || txList.length === 0) return txList;
+
+  const result: Transaction[] = [];
+  const processedIds = new Set<string>();
+
+  // Helper to extract clean note and account names from legacy transfer notes
+  const extractTransferInfo = (tx: Transaction) => {
+    let cleanNote = tx.note || '';
+    let targetAccName = '';
+    let sourceAccName = '';
+
+    const toMatch = (tx.note || '').match(/Transfer to ([^:]+)(?::\s*(.*))?/i);
+    if (toMatch) {
+      targetAccName = toMatch[1].trim();
+      cleanNote = toMatch[2]?.trim() || '';
+    } else if ((tx.note || '').toLowerCase().startsWith('transfer to ')) {
+      targetAccName = (tx.note || '').substring(12).trim();
+      cleanNote = '';
+    }
+
+    const fromMatch = (tx.note || '').match(/Transfer from ([^:]+)(?::\s*(.*))?/i);
+    if (fromMatch) {
+      sourceAccName = fromMatch[1].trim();
+      cleanNote = fromMatch[2]?.trim() || '';
+    } else if ((tx.note || '').toLowerCase().startsWith('transfer from ')) {
+      sourceAccName = (tx.note || '').substring(14).trim();
+      cleanNote = '';
+    }
+
+    return { cleanNote, targetAccName, sourceAccName };
+  };
+
+  const isTransferOut = (t: Transaction) =>
+    t.id.startsWith('tx-transfer-out-') ||
+    (t.type === 'expense' && (t.categoryName?.toLowerCase() === 'transfer' || (t.note || '').toLowerCase().startsWith('transfer to')));
+
+  const isTransferIn = (t: Transaction) =>
+    t.id.startsWith('tx-transfer-in-') ||
+    (t.type === 'income' && (t.categoryName?.toLowerCase() === 'transfer' || (t.note || '').toLowerCase().startsWith('transfer from')));
+
+  // Pre-filter OUT and IN candidates
+  const outTxList = txList.filter(isTransferOut);
+  const inTxList = txList.filter(isTransferIn);
+
+  // 1. Process matching OUT and IN pairs
+  for (const outTx of outTxList) {
+    if (processedIds.has(outTx.id)) continue;
+
+    // Find best matching IN candidate
+    const inTx = inTxList.find((candidate) => {
+      if (processedIds.has(candidate.id) || candidate.id === outTx.id) return false;
+      // Must match amount
+      if (Math.abs(candidate.amount - outTx.amount) > 0.001) return false;
+
+      // Check matching timestamp within 5 minutes or matching date
+      const timeDiff = Math.abs((candidate.timestamp || 0) - (outTx.timestamp || 0));
+      if (timeDiff < 300000) return true;
+      if (candidate.date === outTx.date) return true;
+      return false;
+    });
+
+    processedIds.add(outTx.id);
+    if (inTx) processedIds.add(inTx.id);
+
+    const { cleanNote: outNote, targetAccName } = extractTransferInfo(outTx);
+    const { cleanNote: inNote, sourceAccName } = inTx ? extractTransferInfo(inTx) : { cleanNote: '', sourceAccName: '' };
+
+    const fromAccId = outTx.fromAccountId || outTx.accountId || (inTx ? inTx.fromAccountId : undefined) || 'cash';
+    const toAccId = (inTx ? (inTx.toAccountId || inTx.accountId) : outTx.toAccountId) || 'ewallet';
+
+    const fromAcc = accountsList?.find(
+      (a) => a.id === fromAccId || (sourceAccName && a.name.toLowerCase() === sourceAccName.toLowerCase())
+    );
+    const toAcc = accountsList?.find(
+      (a) => a.id === toAccId || (targetAccName && a.name.toLowerCase() === targetAccName.toLowerCase())
+    );
+
+    const cleanNote = outNote || inNote || ((outTx.note || '').startsWith('Transfer') ? '' : outTx.note);
+
+    result.push({
+      id: outTx.id.startsWith('tx-transfer-out-')
+        ? outTx.id.replace('tx-transfer-out-', 'tx-transfer-')
+        : outTx.id.startsWith('tx-transfer-')
+        ? outTx.id
+        : `tx-transfer-${outTx.id}`,
+      userId: outTx.userId,
+      type: 'transfer',
+      amount: outTx.amount,
+      currency: outTx.currency,
+      categoryId: '',
+      categoryName: undefined,
+      categoryIcon: undefined,
+      categoryColor: undefined,
+      accountId: fromAccId,
+      fromAccountId: fromAccId,
+      toAccountId: toAccId,
+      fromAccountName: fromAcc?.name || outTx.fromAccountName || outTx.accountName || sourceAccName || 'Account 1',
+      toAccountName: toAcc?.name || (inTx?.toAccountName || inTx?.accountName) || targetAccName || 'Account 2',
+      fromAccountIcon: fromAcc?.icon || outTx.fromAccountIcon || outTx.accountIcon || 'Wallet',
+      toAccountIcon: toAcc?.icon || inTx?.toAccountIcon || inTx?.accountIcon || 'Wallet',
+      accountName: fromAcc?.name || outTx.accountName,
+      accountIcon: fromAcc?.icon || outTx.accountIcon || 'Wallet',
+      note: cleanNote,
+      date: outTx.date,
+      time: outTx.time,
+      timestamp: outTx.timestamp,
+      createdAt: outTx.createdAt,
+    });
+  }
+
+  // 2. Process any remaining orphaned IN transactions (had no matching OUT)
+  for (const inTx of inTxList) {
+    if (processedIds.has(inTx.id)) continue;
+    processedIds.add(inTx.id);
+
+    const { cleanNote, sourceAccName } = extractTransferInfo(inTx);
+    const toAccId = inTx.toAccountId || inTx.accountId || 'ewallet';
+    const fromAccId = inTx.fromAccountId || 'cash';
+    const fromAcc = accountsList?.find(
+      (a) => a.id === fromAccId || (sourceAccName && a.name.toLowerCase() === sourceAccName.toLowerCase())
+    );
+    const toAcc = accountsList?.find((a) => a.id === toAccId);
+
+    result.push({
+      id: inTx.id.startsWith('tx-transfer-in-')
+        ? inTx.id.replace('tx-transfer-in-', 'tx-transfer-')
+        : `tx-transfer-${inTx.id}`,
+      userId: inTx.userId,
+      type: 'transfer',
+      amount: inTx.amount,
+      currency: inTx.currency,
+      categoryId: '',
+      categoryName: undefined,
+      categoryIcon: undefined,
+      categoryColor: undefined,
+      accountId: fromAccId,
+      fromAccountId: fromAccId,
+      toAccountId: toAccId,
+      fromAccountName: fromAcc?.name || sourceAccName || 'Account 1',
+      toAccountName: toAcc?.name || inTx.toAccountName || inTx.accountName || 'Account 2',
+      fromAccountIcon: fromAcc?.icon || 'Wallet',
+      toAccountIcon: toAcc?.icon || inTx.toAccountIcon || inTx.accountIcon || 'Wallet',
+      accountName: fromAcc?.name || inTx.accountName,
+      accountIcon: fromAcc?.icon || inTx.accountIcon || 'Wallet',
+      note: cleanNote || ((inTx.note || '').startsWith('Transfer') ? '' : inTx.note),
+      date: inTx.date,
+      time: inTx.time,
+      timestamp: inTx.timestamp,
+      createdAt: inTx.createdAt,
+    });
+  }
+
+  // 3. Process remaining transactions & deduplicate any dual transfer records
+  const seenTransfers = new Set<string>();
+
+  for (const tx of txList) {
+    if (processedIds.has(tx.id)) continue;
+
+    if (tx.type === 'transfer') {
+      const fromAccId = tx.fromAccountId || tx.accountId || 'cash';
+      const toAccId = tx.toAccountId || 'ewallet';
+      const fromAcc = accountsList?.find((a) => a.id === fromAccId);
+      const toAcc = accountsList?.find((a) => a.id === toAccId);
+
+      const normTx: Transaction = {
+        ...tx,
+        categoryId: '',
+        categoryName: undefined,
+        categoryIcon: undefined,
+        categoryColor: undefined,
+        accountId: fromAccId,
+        fromAccountId: fromAccId,
+        toAccountId: toAccId,
+        fromAccountName: fromAcc?.name || tx.fromAccountName || tx.accountName || 'Account 1',
+        toAccountName: toAcc?.name || tx.toAccountName || 'Account 2',
+        fromAccountIcon: fromAcc?.icon || tx.fromAccountIcon || tx.accountIcon || 'Wallet',
+        toAccountIcon: toAcc?.icon || tx.toAccountIcon || 'Wallet',
+      };
+
+      const transferKey = `${normTx.amount}_${normTx.date}_${normTx.fromAccountId}_${normTx.toAccountId}`;
+      if (seenTransfers.has(transferKey)) {
+        continue; // Deduplicate
+      }
+      seenTransfers.add(transferKey);
+      result.push(normTx);
+      continue;
+    }
+
+    result.push(tx);
+  }
+
+  return result;
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     try {
@@ -177,10 +373,9 @@ export default function App() {
           return null;
         }
       })();
-      if (!user?.id) return [];
-      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
+      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user?.id);
       const saved = localStorage.getItem(userKey);
-      return saved ? JSON.parse(saved) : [];
+      return saved ? consolidateTransferTransactions(JSON.parse(saved)) : [];
     } catch {
       return [];
     }
@@ -377,6 +572,7 @@ export default function App() {
   const [showQuickEntryModal, setShowQuickEntryModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [categoriesInitialType, setCategoriesInitialType] = useState<TransactionType>('expense');
+  const [categoriesInitialAccountId, setCategoriesInitialAccountId] = useState<string>('cash');
   const [showAccountsModal, setShowAccountsModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
@@ -489,7 +685,7 @@ export default function App() {
     try {
       const txKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
       const savedTx = localStorage.getItem(txKey);
-      setTransactions(savedTx ? JSON.parse(savedTx) : []);
+      setTransactions(savedTx ? consolidateTransferTransactions(JSON.parse(savedTx)) : []);
     } catch {
       setTransactions([]);
     }
@@ -549,11 +745,12 @@ export default function App() {
         const json = await res.json();
         if (json.success && json.data) {
           if (Array.isArray(json.data.transactions)) {
-            setTransactions(json.data.transactions);
+            const consolidated = consolidateTransferTransactions(json.data.transactions);
+            setTransactions(consolidated);
             try {
               localStorage.setItem(
                 getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid),
-                JSON.stringify(json.data.transactions)
+                JSON.stringify(consolidated)
               );
             } catch {}
           }
@@ -1084,6 +1281,32 @@ export default function App() {
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
+    if (updatedTx.type === 'transfer') {
+      const fromAccId = updatedTx.fromAccountId || updatedTx.accountId;
+      const toAccId = updatedTx.toAccountId;
+      const fromAcc = accounts.find((a) => a.id === fromAccId);
+      const toAcc = accounts.find((a) => a.id === toAccId);
+
+      const enrichedTx: Transaction = {
+        ...updatedTx,
+        categoryId: '',
+        categoryName: undefined,
+        categoryIcon: undefined,
+        categoryColor: undefined,
+        accountId: fromAccId,
+        fromAccountId: fromAccId,
+        toAccountId: toAccId,
+        fromAccountName: fromAcc?.name || updatedTx.fromAccountName,
+        toAccountName: toAcc?.name || updatedTx.toAccountName,
+        fromAccountIcon: fromAcc?.icon || updatedTx.fromAccountIcon || 'Wallet',
+        toAccountIcon: toAcc?.icon || updatedTx.toAccountIcon || 'Wallet',
+        accountName: fromAcc?.name || updatedTx.accountName,
+        accountIcon: fromAcc?.icon || updatedTx.accountIcon || 'Wallet',
+      };
+      setTransactions((prev) => prev.map((t) => (t.id === enrichedTx.id ? enrichedTx : t)));
+      return;
+    }
+
     const cat = categories.find((c) => c.id === updatedTx.categoryId);
     const acc = updatedTx.accountId ? accounts.find((a) => a.id === updatedTx.accountId) : undefined;
     const enrichedTx: Transaction = {
@@ -1219,21 +1442,38 @@ export default function App() {
   useEffect(() => {
     setCategories((prevCats) => {
       let changed = false;
-      const updated = prevCats.map((c) => {
-        if (!c.accountId) {
-          changed = true;
-          return { ...c, accountId: 'cash' };
-        }
-        return c;
-      });
+      const updated = [...prevCats];
 
-      // Ensure each active account has its default categories if none exist for it
-      accounts.forEach((acc) => {
-        const hasCategories = updated.some((c) => (c.accountId || 'cash') === acc.id);
-        if (!hasCategories) {
+      // Assign missing accountId to 'cash'
+      for (let i = 0; i < updated.length; i++) {
+        if (!updated[i].accountId) {
+          updated[i] = { ...updated[i], accountId: 'cash' };
           changed = true;
-          const defaultCats = createDefaultAccountCategories(acc.id);
-          updated.push(...defaultCats);
+        }
+      }
+
+      // Check each account: ensure it has both expense and income categories
+      accounts.forEach((acc) => {
+        const accCats = updated.filter((c) => (c.accountId || 'cash') === acc.id);
+        const hasExpenses = accCats.some((c) => c.type === 'expense');
+        const hasIncome = accCats.some((c) => c.type === 'income');
+
+        if (!hasExpenses && !hasIncome) {
+          changed = true;
+          updated.push(...createDefaultAccountCategories(acc.id));
+        } else {
+          if (!hasExpenses) {
+            changed = true;
+            updated.push(
+              ...createDefaultAccountCategories(acc.id).filter((c) => c.type === 'expense')
+            );
+          }
+          if (!hasIncome) {
+            changed = true;
+            updated.push(
+              ...createDefaultAccountCategories(acc.id).filter((c) => c.type === 'income')
+            );
+          }
         }
       });
 
@@ -1250,9 +1490,10 @@ export default function App() {
     };
     setAccounts((prev) => [...prev, newAcc]);
 
-    // For new accounts - the default category should be Food & Drink, Transport, Bills, and Shopping ONLY
+    // For new accounts - the default category should be Food & Drink, Transport, Bills, and Shopping ONLY for Expense. Then, Salary, Allowance, Freelance, Business for Income
     const newCats = createDefaultAccountCategories(newId);
     setCategories((prev) => [...prev, ...newCats]);
+    setCategoriesInitialAccountId(newId);
 
     if (currentUser?.id) {
       newCats.forEach((cat) => {
@@ -1317,68 +1558,44 @@ export default function App() {
     const fromAcc = accounts.find((a) => a.id === fromAccountId);
     const toAcc = accounts.find((a) => a.id === toAccountId);
 
-    const transferExpenseCat =
-      categories.find((c) => c.name.toLowerCase() === 'transfer' && c.type === 'expense') ||
-      categories.find((c) => c.type === 'expense');
-
-    const transferIncomeCat =
-      categories.find((c) => c.name.toLowerCase() === 'transfer' && c.type === 'income') ||
-      categories.find((c) => c.type === 'income');
-
     const now = Date.now();
     const today = getTodayDateString();
     const currentTime = getCurrent12HourTime();
 
-    const fromTx: Transaction = {
-      id: `tx-transfer-out-${now}-${Math.random().toString(36).substr(2, 4)}`,
+    const transferTx: Transaction = {
+      id: `tx-transfer-${now}-${Math.random().toString(36).substr(2, 4)}`,
       userId: currentUser?.id,
-      type: 'expense',
+      type: 'transfer',
       amount,
       currency: settings.defaultCurrency,
-      categoryId: transferExpenseCat?.id || 'exp-other',
-      categoryName: transferExpenseCat?.name || 'Transfer',
-      categoryIcon: transferExpenseCat?.icon || 'ArrowLeftRight',
-      categoryColor: transferExpenseCat?.color || '#52525B',
+      categoryId: '',
+      categoryName: undefined,
+      categoryIcon: undefined,
+      categoryColor: undefined,
       accountId: fromAccountId,
+      fromAccountId,
+      toAccountId,
+      fromAccountName: fromAcc?.name || 'Account 1',
+      toAccountName: toAcc?.name || 'Account 2',
+      fromAccountIcon: fromAcc?.icon || 'Wallet',
+      toAccountIcon: toAcc?.icon || 'Wallet',
       accountName: fromAcc?.name,
       accountIcon: fromAcc?.icon || 'Wallet',
-      note: note ? `Transfer to ${toAcc?.name || 'Account'}: ${note}` : `Transfer to ${toAcc?.name || 'Account'}`,
+      note: note.trim(),
       date: today,
       time: currentTime,
       timestamp: now,
       createdAt: now,
     };
 
-    const toTx: Transaction = {
-      id: `tx-transfer-in-${now + 1}-${Math.random().toString(36).substr(2, 4)}`,
-      userId: currentUser?.id,
-      type: 'income',
-      amount,
-      currency: settings.defaultCurrency,
-      categoryId: transferIncomeCat?.id || 'inc-other',
-      categoryName: transferIncomeCat?.name || 'Transfer',
-      categoryIcon: transferIncomeCat?.icon || 'ArrowLeftRight',
-      categoryColor: transferIncomeCat?.color || '#52525B',
-      accountId: toAccountId,
-      accountName: toAcc?.name,
-      accountIcon: toAcc?.icon || 'Wallet',
-      note: note ? `Transfer from ${fromAcc?.name || 'Account'}: ${note}` : `Transfer from ${fromAcc?.name || 'Account'}`,
-      date: today,
-      time: currentTime,
-      timestamp: now + 1,
-      createdAt: now + 1,
-    };
-
-    setTransactions((prev) => [toTx, fromTx, ...prev]);
+    setTransactions((prev) => [transferTx, ...prev]);
 
     if (currentUser?.id) {
-      [fromTx, toTx].forEach((tx) => {
-        fetch(`/api/db/transactions?userId=${encodeURIComponent(currentUser.id)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-          body: JSON.stringify(tx),
-        }).catch(() => {});
-      });
+      fetch(`/api/db/transactions?userId=${encodeURIComponent(currentUser.id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+        body: JSON.stringify(transferTx),
+      }).catch(() => {});
     }
   };
 
@@ -1784,6 +2001,7 @@ export default function App() {
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
         onOpenCategories={() => {
           setCategoriesInitialType('expense');
+          setCategoriesInitialAccountId(accounts[0]?.id || 'cash');
           setShowCategoriesModal(true);
         }}
       />
@@ -1799,8 +2017,9 @@ export default function App() {
             transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
-            onOpenAddCategory={(type) => {
+            onOpenAddCategory={(type, accId) => {
               setCategoriesInitialType(type);
+              if (accId) setCategoriesInitialAccountId(accId);
               setShowCategoriesModal(true);
             }}
             onOpenAddAccount={() => setShowAccountsModal(true)}
@@ -1907,8 +2126,9 @@ export default function App() {
             transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
-            onOpenAddCategory={(type) => {
+            onOpenAddCategory={(type, accId) => {
               setCategoriesInitialType(type);
+              if (accId) setCategoriesInitialAccountId(accId);
               setShowCategoriesModal(true);
             }}
             onOpenAddAccount={() => {
@@ -1954,6 +2174,8 @@ export default function App() {
       {showCategoriesModal && (
         <CategoryManagerModal
           categories={categories}
+          accounts={accounts}
+          initialAccountId={categoriesInitialAccountId}
           onAddCategory={handleAddCategory}
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}

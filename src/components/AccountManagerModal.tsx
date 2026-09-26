@@ -5,6 +5,7 @@ import { AccountIcon } from './CategoryIcon';
 import { formatCurrency } from '../utils/formatters';
 import { AccountTypeSelect } from './AccountTypeSelect';
 import { AccountIconPicker } from './AccountIconPicker';
+import { BANK_LOGOS } from '../data/bankLogos';
 
 interface AccountManagerModalProps {
   accounts: Account[];
@@ -92,11 +93,20 @@ export function AccountManagerModal({
     });
 
     transactions.forEach((tx) => {
-      if (tx.accountId && balances.has(tx.accountId)) {
+      if (tx.type === 'transfer') {
+        const fromId = tx.fromAccountId || tx.accountId;
+        const toId = tx.toAccountId;
+        if (fromId && balances.has(fromId)) {
+          balances.set(fromId, balances.get(fromId)! - tx.amount);
+        }
+        if (toId && balances.has(toId)) {
+          balances.set(toId, balances.get(toId)! + tx.amount);
+        }
+      } else if (tx.accountId && balances.has(tx.accountId)) {
         const current = balances.get(tx.accountId)!;
         if (tx.type === 'income') {
           balances.set(tx.accountId, current + tx.amount);
-        } else {
+        } else if (tx.type === 'expense') {
           balances.set(tx.accountId, current - tx.amount);
         }
       }
@@ -109,7 +119,12 @@ export function AccountManagerModal({
   const accountTxCounts = useMemo(() => {
     const counts = new Map<string, number>();
     transactions.forEach((tx) => {
-      if (tx.accountId) {
+      if (tx.type === 'transfer') {
+        const fromId = tx.fromAccountId || tx.accountId;
+        const toId = tx.toAccountId;
+        if (fromId) counts.set(fromId, (counts.get(fromId) || 0) + 1);
+        if (toId) counts.set(toId, (counts.get(toId) || 0) + 1);
+      } else if (tx.accountId) {
         counts.set(tx.accountId, (counts.get(tx.accountId) || 0) + 1);
       }
     });
@@ -348,6 +363,23 @@ export function AccountManagerModal({
                     setName(iconName);
                     if (errorMessage) setErrorMessage(null);
                   }
+                  // Automatically set account type based on selected logo or symbol
+                  const bankItem = BANK_LOGOS.find((b) => b.id === newIcon);
+                  if (bankItem) {
+                    if (bankItem.category === 'wallet') {
+                      setType('ewallet');
+                    } else if (bankItem.category === 'bank') {
+                      setType('bank');
+                    }
+                  } else if (newIcon === 'CreditCard') {
+                    setType('credit_card');
+                  } else if (newIcon === 'Banknote' || newIcon === 'Coins') {
+                    setType('cash');
+                  } else if (newIcon === 'Landmark' || newIcon === 'PiggyBank' || newIcon === 'Shield') {
+                    setType('bank');
+                  } else if (newIcon === 'Smartphone' || newIcon === 'Wallet') {
+                    setType('ewallet');
+                  }
                 }}
               />
 
@@ -474,16 +506,32 @@ export function AccountManagerModal({
               {/* Icon selection */}
               <AccountIconPicker
                 value={editingAccount.icon}
-                onChange={(newIcon, iconName) =>
+                onChange={(newIcon, iconName) => {
+                  const bankItem = BANK_LOGOS.find((b) => b.id === newIcon);
                   setEditingAccount((prev) => {
                     if (!prev) return null;
+                    let nextType = prev.type;
+                    if (bankItem) {
+                      if (bankItem.category === 'wallet') nextType = 'ewallet';
+                      else if (bankItem.category === 'bank') nextType = 'bank';
+                    } else if (newIcon === 'CreditCard') {
+                      nextType = 'credit_card';
+                    } else if (newIcon === 'Banknote' || newIcon === 'Coins') {
+                      nextType = 'cash';
+                    } else if (newIcon === 'Landmark' || newIcon === 'PiggyBank' || newIcon === 'Shield') {
+                      nextType = 'bank';
+                    } else if (newIcon === 'Smartphone' || newIcon === 'Wallet') {
+                      nextType = 'ewallet';
+                    }
+
                     return {
                       ...prev,
                       icon: newIcon,
                       name: iconName || prev.name,
+                      type: nextType,
                     };
-                  })
-                }
+                  });
+                }}
               />
 
               {editErrorMessage && (
@@ -549,10 +597,10 @@ export function AccountManagerModal({
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-semibold text-zinc-900 truncate">
+                            <h4 className="text-xs font-semibold text-zinc-900 break-words">
                               {acc.name}
                             </h4>
-                            <span className="text-[10px] uppercase font-medium tracking-wider px-1.5 py-0.5 rounded-[3px] bg-zinc-100 text-zinc-600 border border-zinc-200/60">
+                            <span className="text-[10px] uppercase font-medium tracking-wider px-1.5 py-0.5 rounded-[3px] bg-zinc-100 text-zinc-600 border border-zinc-200/60 shrink-0">
                               {typeObj?.label || 'Asset'}
                             </span>
                           </div>

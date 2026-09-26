@@ -92,7 +92,7 @@ export const BANK_LOGOS: BankLogoItem[] = [
   },
   {
     id: 'bank-gotyme',
-    name: 'GoTyme',
+    name: 'GoTyme Bank',
     category: 'bank',
     render: (className = 'w-4 h-4') => (
       <svg viewBox="0 0 32 32" fill="none" className={className} aria-label="GoTyme">
@@ -111,7 +111,7 @@ export const BANK_LOGOS: BankLogoItem[] = [
   },
   {
     id: 'bank-eastwest',
-    name: 'EastWest',
+    name: 'EastWest Bank',
     category: 'bank',
     render: (className = 'w-4 h-4') => (
       <svg viewBox="0 0 32 32" fill="none" className={className} aria-label="EastWest Bank">
@@ -210,7 +210,7 @@ export const BANK_LOGOS: BankLogoItem[] = [
   },
   {
     id: 'bank-cimb',
-    name: 'CIMB',
+    name: 'CIMB Bank',
     category: 'bank',
     render: (className = 'w-4 h-4') => (
       <svg viewBox="0 0 32 32" fill="none" className={className} aria-label="CIMB Bank">

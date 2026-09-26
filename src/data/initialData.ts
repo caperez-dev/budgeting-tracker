@@ -16,6 +16,7 @@ export const DEFAULT_CURRENCIES: Currency[] = [
 ];
 
 export const createDefaultAccountCategories = (accountId: string): Category[] => [
+  // Expenses ONLY: Food & Drink, Transport, Bills, Shopping
   {
     id: `cat-${accountId}-food-${Math.random().toString(36).substr(2, 6)}`,
     accountId,
@@ -52,10 +53,47 @@ export const createDefaultAccountCategories = (accountId: string): Category[] =>
     icon: 'ShoppingBag',
     isDefault: true,
   },
+  // Income: Salary, Allowance, Freelance, Business
+  {
+    id: `cat-${accountId}-salary-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Salary',
+    type: 'income',
+    color: '#059669', // emerald
+    icon: 'Briefcase',
+    isDefault: true,
+  },
+  {
+    id: `cat-${accountId}-allowance-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Allowance',
+    type: 'income',
+    color: '#D97706', // amber
+    icon: 'Wallet',
+    isDefault: true,
+  },
+  {
+    id: `cat-${accountId}-freelance-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Freelance',
+    type: 'income',
+    color: '#2563EB', // blue
+    icon: 'Laptop',
+    isDefault: true,
+  },
+  {
+    id: `cat-${accountId}-business-${Math.random().toString(36).substr(2, 6)}`,
+    accountId,
+    name: 'Business',
+    type: 'income',
+    color: '#7C3AED', // purple
+    icon: 'Landmark',
+    isDefault: true,
+  },
 ];
 
 export const DEFAULT_CATEGORIES: Category[] = [
-  // Cash categories
+  // Cash categories - Expenses
   {
     id: 'exp-cash-food',
     accountId: 'cash',
@@ -92,45 +130,45 @@ export const DEFAULT_CATEGORIES: Category[] = [
     icon: 'ShoppingBag',
     isDefault: true,
   },
-  // Income categories for Cash
+  // Cash categories - Income
   {
-    id: 'inc-salary',
+    id: 'inc-cash-salary',
     accountId: 'cash',
     name: 'Salary',
     type: 'income',
-    color: '#059669', // emerald
+    color: '#059669',
     icon: 'Briefcase',
     isDefault: true,
   },
   {
-    id: 'inc-gift',
+    id: 'inc-cash-allowance',
     accountId: 'cash',
-    name: 'Gift',
+    name: 'Allowance',
     type: 'income',
-    color: '#D97706', // amber
-    icon: 'Gift',
+    color: '#D97706',
+    icon: 'Wallet',
     isDefault: true,
   },
   {
-    id: 'inc-freelance',
+    id: 'inc-cash-freelance',
     accountId: 'cash',
     name: 'Freelance',
     type: 'income',
-    color: '#2563EB', // blue
+    color: '#2563EB',
     icon: 'Laptop',
     isDefault: true,
   },
   {
-    id: 'inc-other',
+    id: 'inc-cash-business',
     accountId: 'cash',
-    name: 'Other',
+    name: 'Business',
     type: 'income',
-    color: '#4F46E5', // indigo
-    icon: 'CircleDollarSign',
+    color: '#7C3AED',
+    icon: 'Landmark',
     isDefault: true,
   },
 
-  // E-Wallet default categories
+  // E-Wallet default categories - Expenses
   {
     id: 'exp-ewallet-food',
     accountId: 'ewallet',
@@ -165,6 +203,43 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'expense',
     color: '#8B5CF6',
     icon: 'ShoppingBag',
+    isDefault: true,
+  },
+  // E-Wallet default categories - Income
+  {
+    id: 'inc-ewallet-salary',
+    accountId: 'ewallet',
+    name: 'Salary',
+    type: 'income',
+    color: '#059669',
+    icon: 'Briefcase',
+    isDefault: true,
+  },
+  {
+    id: 'inc-ewallet-allowance',
+    accountId: 'ewallet',
+    name: 'Allowance',
+    type: 'income',
+    color: '#D97706',
+    icon: 'Wallet',
+    isDefault: true,
+  },
+  {
+    id: 'inc-ewallet-freelance',
+    accountId: 'ewallet',
+    name: 'Freelance',
+    type: 'income',
+    color: '#2563EB',
+    icon: 'Laptop',
+    isDefault: true,
+  },
+  {
+    id: 'inc-ewallet-business',
+    accountId: 'ewallet',
+    name: 'Business',
+    type: 'income',
+    color: '#7C3AED',
+    icon: 'Landmark',
     isDefault: true,
   },
 ];

@@ -67,9 +67,16 @@ export function QuickEntryForm({
     setCurrency(selectedCurrency);
   }, [selectedCurrency]);
 
-  // Sync accountId if accounts change
+  // Sync accountId if accounts change or if a new account was just created
+  const prevAccountsLengthRef = React.useRef(accounts.length);
   React.useEffect(() => {
-    if (!accountId || !accounts.some((a) => a.id === accountId)) {
+    if (accounts.length > prevAccountsLengthRef.current) {
+      // A new account was added! Automatically switch to the newly created account
+      const newlyAdded = accounts[accounts.length - 1];
+      if (newlyAdded?.id) {
+        setAccountId(newlyAdded.id);
+      }
+    } else if (!accountId || !accounts.some((a) => a.id === accountId)) {
       if (accounts.length > 0) {
         setAccountId(
           accounts.find((a) => a.id === 'cash' || a.name.toLowerCase() === 'cash')?.id ||
@@ -78,6 +85,7 @@ export function QuickEntryForm({
         );
       }
     }
+    prevAccountsLengthRef.current = accounts.length;
   }, [accounts, accountId]);
 
   // Filter categories by account and type (EVERY ACCOUNT HAS THEIR OWN SET OF CATEGORIES)

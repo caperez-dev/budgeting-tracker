@@ -44,6 +44,14 @@ export function CategoryManagerModal({
   const [selectedAccountId, setSelectedAccountId] = useState<string>(
     initialAccountId || (accounts.length > 0 ? accounts[0].id : 'cash')
   );
+
+  React.useEffect(() => {
+    if (initialAccountId && accounts.some((a) => a.id === initialAccountId)) {
+      setSelectedAccountId(initialAccountId);
+    } else if (accounts.length > 0 && !accounts.some((a) => a.id === selectedAccountId)) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [initialAccountId, accounts]);
   const [activeTab, setActiveTab] = useState<TransactionType>(initialType);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);

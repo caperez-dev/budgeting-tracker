@@ -3,17 +3,24 @@ import { Upload, X, Check, Image as ImageIcon } from 'lucide-react';
 import { BANK_LOGOS } from '../data/bankLogos';
 import { AccountIcon } from './CategoryIcon';
 
-export const STANDARD_ACCOUNT_ICONS = [
-  'Smartphone',
-  'Wallet',
-  'Banknote',
-  'Landmark',
-  'CreditCard',
-  'PiggyBank',
-  'Coins',
-  'CircleDollarSign',
-  'Shield',
+export interface StandardIconItem {
+  id: string;
+  name: string;
+}
+
+export const STANDARD_ACCOUNT_ICONS_DATA: StandardIconItem[] = [
+  { id: 'Smartphone', name: 'Smartphone / E-Wallet' },
+  { id: 'Wallet', name: 'Wallet' },
+  { id: 'Banknote', name: 'Cash' },
+  { id: 'Landmark', name: 'Bank Account' },
+  { id: 'CreditCard', name: 'Credit Card' },
+  { id: 'PiggyBank', name: 'Savings' },
+  { id: 'Coins', name: 'Coins' },
+  { id: 'CircleDollarSign', name: 'Other Asset' },
+  { id: 'Shield', name: 'Emergency Fund' },
 ];
+
+export const STANDARD_ACCOUNT_ICONS = STANDARD_ACCOUNT_ICONS_DATA.map((i) => i.id);
 
 interface AccountIconPickerProps {
   value: string;
@@ -39,6 +46,10 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
 
   const isCustomUploaded =
     value && (value.startsWith('data:image/') || value.startsWith('blob:'));
+
+  const selectedBank = BANK_LOGOS.find((b) => b.id === value);
+  const selectedStandard = STANDARD_ACCOUNT_ICONS_DATA.find((s) => s.id === value);
+  const selectedItemName = selectedBank?.name || selectedStandard?.name || (isCustomUploaded ? 'Custom Upload' : value);
 
   const validateAndProcessFile = (file: File) => {
     setUploadError(null);
@@ -110,14 +121,17 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <label className="text-[11px] font-medium text-zinc-700">
-          Choose Account Icon
+          Choose Account Icon & Logo
         </label>
         {value && (
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-            <span>Selected:</span>
+          <div className="flex items-center gap-1.5 text-[11px] text-zinc-600 max-w-[65%]">
+            <span className="shrink-0 text-zinc-500">Selected:</span>
             <div className="w-5 h-5 rounded-[4px] bg-zinc-100 border border-zinc-200 flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
               <AccountIcon name={value} className="w-4 h-4" />
             </div>
+            <span className="font-semibold text-zinc-900 break-words" title={selectedItemName}>
+              {selectedItemName}
+            </span>
           </div>
         )}
       </div>
@@ -163,13 +177,14 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
       {/* Tab: Real-life Bank & Wallet Logos */}
       {activeTab === 'banks' && (
         <div className="space-y-1.5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 bg-zinc-50/50 rounded-[4px] border border-zinc-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2 bg-zinc-50/50 rounded-[4px] border border-zinc-200">
             {BANK_LOGOS.map((bank) => {
               const isSelected = value === bank.id;
               return (
                 <button
                   key={bank.id}
                   type="button"
+                  id={`btn-bank-logo-${bank.id}`}
                   onClick={() => onChange(bank.id, bank.name)}
                   title={bank.name}
                   className={`flex items-center gap-2.5 p-2 rounded-[5px] border text-left transition-all cursor-pointer ${
@@ -182,7 +197,7 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
                     {bank.render('w-6 h-6')}
                   </div>
                   <span
-                    className={`text-xs font-medium leading-snug flex-1 break-words whitespace-normal text-left ${
+                    className={`text-xs font-semibold leading-normal flex-1 break-words whitespace-normal text-left ${
                       isSelected ? 'text-white' : 'text-zinc-800'
                     }`}
                   >
@@ -200,22 +215,35 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
 
       {/* Tab: Standard Symbols */}
       {activeTab === 'standard' && (
-        <div className="flex flex-wrap gap-2 p-2 bg-zinc-50/50 rounded-[4px] border border-zinc-200">
-          {STANDARD_ACCOUNT_ICONS.map((ic) => {
-            const isSelected = value === ic;
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 bg-zinc-50/50 rounded-[4px] border border-zinc-200 max-h-64 overflow-y-auto">
+          {STANDARD_ACCOUNT_ICONS_DATA.map((ic) => {
+            const isSelected = value === ic.id;
             return (
               <button
-                key={ic}
+                key={ic.id}
                 type="button"
-                onClick={() => onChange(ic)}
-                title={ic}
-                className={`p-2 rounded-[4px] border transition-colors cursor-pointer ${
+                id={`btn-symbol-${ic.id}`}
+                onClick={() => onChange(ic.id, ic.name)}
+                title={ic.name}
+                className={`flex items-center gap-2.5 p-2 rounded-[5px] border text-left transition-colors cursor-pointer ${
                   isSelected
-                    ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
-                    : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900'
+                    ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs ring-1 ring-zinc-900'
+                    : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
                 }`}
               >
-                <AccountIcon name={ic} className="w-4 h-4" />
+                <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+                  <AccountIcon name={ic.id} className="w-4 h-4" />
+                </div>
+                <span
+                  className={`text-xs font-semibold leading-normal flex-1 break-words whitespace-normal text-left ${
+                    isSelected ? 'text-white' : 'text-zinc-800'
+                  }`}
+                >
+                  {ic.name}
+                </span>
+                {isSelected && (
+                  <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />
+                )}
               </button>
             );
           })}

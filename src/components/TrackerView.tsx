@@ -9,6 +9,7 @@ import {
   ArrowLeftRight,
   ArrowRight,
   RotateCcw,
+  RotateCw,
   AlertCircle,
   Clock,
   Calendar,
@@ -229,7 +230,7 @@ export function TrackerView({
   // Filter transactions
   const filtered = transactions.filter((tx) => {
     if (filterType !== 'all' && tx.type !== filterType) return false;
-    if (filterCategory !== 'all' && tx.categoryId !== filterCategory) return false;
+    if (filterType !== 'transfer' && filterCategory !== 'all' && tx.categoryId !== filterCategory) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const cat = categoryMap.get(tx.categoryId);
@@ -240,10 +241,12 @@ export function TrackerView({
       const toAcc = tx.toAccountId ? accountMap.get(tx.toAccountId) : undefined;
       const fromAccName = (fromAcc ? fromAcc.name : tx.fromAccountName || '').toLowerCase();
       const toAccName = (toAcc ? toAcc.name : tx.toAccountName || '').toLowerCase();
-      const matchesNote = tx.note.toLowerCase().includes(q);
+      const matchesNote = (tx.note || '').toLowerCase().includes(q);
       const matchesAmount = String(tx.amount).includes(q);
-      const matchesDate = tx.date.includes(q);
-      const isTransferMatch = tx.type === 'transfer' && 'transfer'.includes(q);
+      const matchesDate = (tx.date || '').includes(q);
+      const isTransferMatch =
+        tx.type === 'transfer' &&
+        ('transfer'.includes(q) || fromAccName.includes(q) || toAccName.includes(q));
       if (
         !matchesNote &&
         !catName.includes(q) &&
@@ -312,6 +315,21 @@ export function TrackerView({
     return filtered.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   }, [filtered]);
 
+  const totalTransfersFiltered = useMemo(() => {
+    return filtered.filter((t) => t.type === 'transfer').reduce((sum, t) => sum + t.amount, 0);
+  }, [filtered]);
+
+  const isTransferSameAccount =
+    editingTx?.type === 'transfer' &&
+    Boolean(
+      (editingTx.fromAccountId || editingTx.accountId) &&
+      editingTx.toAccountId &&
+      (editingTx.fromAccountId || editingTx.accountId) === editingTx.toAccountId
+    );
+
+  const isEditAmountInvalid = !editingTx?.amount || editingTx.amount <= 0;
+  const isEditSubmitDisabled = isEditAmountInvalid || isTransferSameAccount;
+
   return (
     <div id="tracker-main-view" className="space-y-4">
       {/* Controls Bar: Search, Filters, Stats */}
@@ -374,19 +392,21 @@ export function TrackerView({
             </button>
           </div>
 
-          {/* Category Filter - custom styled matching CurrencySelect */}
-          <div className="h-8 min-w-[160px]">
-            <CategorySelect
-              id="filter-category-select"
-              ariaLabel="Filter by category"
-              categories={uniqueFilterCategories}
-              value={filterCategory}
-              onChange={setFilterCategory}
-              showAllOption={true}
-              className="h-full"
-              buttonClassName="h-8 min-h-[32px]"
-            />
-          </div>
+          {/* Category Filter - hidden when filtering transfers as transfers have no categories */}
+          {filterType !== 'transfer' && (
+            <div className="h-8 min-w-[160px]">
+              <CategorySelect
+                id="filter-category-select"
+                ariaLabel="Filter by category"
+                categories={uniqueFilterCategories}
+                value={filterCategory}
+                onChange={setFilterCategory}
+                showAllOption={true}
+                className="h-full"
+                buttonClassName="h-8 min-h-[32px]"
+              />
+            </div>
+          )}
         </div>
 
         <div className="text-xs font-mono text-zinc-500">
@@ -472,7 +492,7 @@ export function TrackerView({
                 <CalendarDays className="w-3.5 h-3.5" />
               </button>
 
-              {/* Red Reload Button with rotating arrow circle icon - displayed only when a specific date is selected */}
+              {/* Red Reload Icon - displayed only when a specific date is selected, without a wrapper */}
               {selectedDate && (
                 <button
                   id="btn-tracker-reload-month"
@@ -484,11 +504,11 @@ export function TrackerView({
                     setFilterType('all');
                     setFilterCategory('all');
                   }}
-                  className="ml-1.5 w-7 h-7 rounded-[4px] border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
+                  className="ml-1.5 p-0 bg-transparent border-none text-red-500 hover:text-red-600 transition-colors cursor-pointer inline-flex items-center justify-center shrink-0 h-7 max-h-7 focus:outline-hidden"
                   title="Reset filters and show full month"
                   aria-label="Reset filters and show full month"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+                  <RotateCw className="w-4 h-4 text-red-500 hover:text-red-600 transition-colors" />
                 </button>
               )}
 
@@ -618,14 +638,23 @@ export function TrackerView({
             </div>
           </div>
 
-          {/* Period In/Out Totals */}
+          {/* Period In/Out / Transfer Totals */}
           <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
-            <span className="text-emerald-700 font-medium">
-              +{formatCurrency(totalInFiltered, currencySymbol)}
-            </span>
-            <span className="text-rose-700 font-medium">
-              -{formatCurrency(totalOutFiltered, currencySymbol)}
-            </span>
+            {filterType === 'transfer' ? (
+              <span className="text-blue-700 font-medium flex items-center gap-1">
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                <span>Total Transferred: {formatCurrency(totalTransfersFiltered, currencySymbol)}</span>
+              </span>
+            ) : (
+              <>
+                <span className="text-emerald-700 font-medium">
+                  +{formatCurrency(totalInFiltered, currencySymbol)}
+                </span>
+                <span className="text-rose-700 font-medium">
+                  -{formatCurrency(totalOutFiltered, currencySymbol)}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -689,7 +718,10 @@ export function TrackerView({
                           {/* Chronological Row Entries */}
                           <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-[4px] overflow-hidden bg-white">
                             {day.transactions.map((tx) => {
-                              const isTransfer = tx.type === 'transfer';
+                              const isTransfer =
+                                tx.type === 'transfer' ||
+                                tx.id.startsWith('tx-transfer') ||
+                                tx.categoryName?.toLowerCase() === 'transfer';
                               const cat = categoryMap.get(tx.categoryId);
                               const catColor = cat ? cat.color : tx.categoryColor || '#52525B';
                               const catIcon = cat ? cat.icon : tx.categoryIcon || 'Tag';
@@ -1015,6 +1047,13 @@ export function TrackerView({
                       />
                     </div>
                   </div>
+
+                  {isTransferSameAccount && (
+                    <div className="flex items-center gap-1.5 p-2 bg-amber-50 border border-amber-200 rounded-[4px] text-amber-800 text-xs">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Account 1 and Account 2 must be different accounts.</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -1050,9 +1089,19 @@ export function TrackerView({
                           ariaLabel="Transaction account"
                           accounts={accounts}
                           value={editingTx.accountId || ''}
-                          onChange={(accId) =>
-                            setEditingTx({ ...editingTx, accountId: accId })
-                          }
+                          onChange={(accId) => {
+                            const newAccCats = categories.filter(
+                              (c) =>
+                                c.type === editingTx.type &&
+                                (c.accountId ? c.accountId === (accId || 'cash') : (accId || 'cash') === 'cash')
+                            );
+                            const currentCatValid = newAccCats.some((c) => c.id === editingTx.categoryId);
+                            setEditingTx({
+                              ...editingTx,
+                              accountId: accId,
+                              categoryId: currentCatValid ? editingTx.categoryId : (newAccCats[0]?.id || editingTx.categoryId),
+                            });
+                          }}
                           currencySymbol={currencySymbol}
                           className="h-full"
                         />
@@ -1092,7 +1141,13 @@ export function TrackerView({
               </button>
               <button
                 type="submit"
-                className="px-3 py-1.5 bg-zinc-900 text-white text-xs font-semibold rounded-[3px] cursor-pointer"
+                id="btn-save-edit-tx"
+                disabled={isEditSubmitDisabled}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-[3px] transition-colors ${
+                  isEditSubmitDisabled
+                    ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-200'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-white cursor-pointer shadow-2xs'
+                }`}
               >
                 Save Changes
               </button>
