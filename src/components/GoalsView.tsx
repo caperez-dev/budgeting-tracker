@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Target,
   Plus,
@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   HelpCircle,
   Clock,
+  X,
 } from 'lucide-react';
 import { Currency, Goal } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
@@ -42,7 +43,9 @@ export function GoalsView({
   const [currency, setCurrency] = useState(selectedCurrency);
   const [plannedDate, setPlannedDate] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [imageError, setImageError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setCurrency(selectedCurrency);
@@ -55,17 +58,90 @@ export function GoalsView({
   const currencyObj = currencies.find((c) => c.code === selectedCurrency);
   const currencySymbol = currencyObj?.symbol || '₱';
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const compressGoalImage = (file: File, maxSize = 600, quality = 0.85): Promise<string> =>
+    new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        if (uploadEvent.target?.result) {
-          setImageUrl(uploadEvent.target.result as string);
-        }
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Failed to decode image file'));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxSize || height > maxSize) {
+            if (width >= height) {
+              height = Math.round((height * maxSize) / width);
+              width = maxSize;
+            } else {
+              width = Math.round((width * maxSize) / height);
+              height = maxSize;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas 2D context unavailable'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          try {
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
+    });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setImageError('Please select a valid image file (JPG, PNG, WebP, etc.).');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setImageError('Image file is too large. Please select an image under 5MB.');
+        return;
+      }
+      setImageError(null);
+      try {
+        const compressed = await compressGoalImage(file);
+        setImageUrl(compressed);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          if (uploadEvent.target?.result) {
+            setImageUrl(uploadEvent.target.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
+  };
+
+  const handleRemoveImage = () => {
+    setImageUrl('');
+    setImageError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCloseModal = () => {
+    setName('');
+    setTargetPrice('');
+    setPlannedDate('');
+    setImageUrl('');
+    setImageError(null);
+    setNotes('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setShowAddModal(false);
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -88,12 +164,7 @@ export function GoalsView({
       isAchieved: false,
     });
 
-    setName('');
-    setTargetPrice('');
-    setPlannedDate('');
-    setImageUrl('');
-    setNotes('');
-    setShowAddModal(false);
+    handleCloseModal();
   };
 
   const handleContributeSubmit = (e: React.FormEvent) => {
@@ -332,7 +403,7 @@ export function GoalsView({
               <h4 className="text-sm font-semibold text-zinc-900">Add Purchase Goal</h4>
               <button
                 type="button"
-                onClick={() => setShowAddModal(false)}
+                onClick={handleCloseModal}
                 className="text-zinc-400 hover:text-zinc-600 text-xs"
               >
                 ✕
@@ -394,25 +465,49 @@ export function GoalsView({
                 />
               </div>
 
-              {/* Image Upload or URL */}
+              {/* Optional Image File */}
               <div>
                 <label className="block text-zinc-500 font-medium mb-1">
-                  Optional Image (File or URL)
+                  Optional Image File
                 </label>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <input
+                    ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     onChange={handleImageUpload}
-                    className="text-xs text-zinc-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-[3px] file:border-0 file:text-xs file:font-semibold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 cursor-pointer"
+                    className="w-full text-xs text-zinc-500 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-[4px] file:border file:border-zinc-200 file:text-xs file:font-semibold file:bg-white file:text-zinc-800 hover:file:bg-zinc-50 cursor-pointer"
                   />
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="Image URL (https://...)"
-                    className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-zinc-800 text-xs"
-                  />
+                  {imageError && (
+                    <p className="text-[11px] text-rose-600 font-medium">{imageError}</p>
+                  )}
+                  {imageUrl && (
+                    <div className="flex items-center gap-3 p-2 bg-zinc-50 border border-zinc-200 rounded-[4px]">
+                      <div className="w-12 h-12 rounded-[4px] overflow-hidden border border-zinc-200 bg-zinc-100 shrink-0">
+                        <img
+                          src={imageUrl}
+                          alt="Goal Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium text-zinc-800 block truncate">
+                          Image selected
+                        </span>
+                        <span className="text-[10px] text-zinc-500 block">
+                          Preview ready for this goal
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="text-xs text-rose-600 hover:text-rose-700 font-medium px-2 py-1 hover:bg-rose-50 rounded-[3px] transition-colors cursor-pointer"
+                        title="Remove image"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -432,7 +527,7 @@ export function GoalsView({
             <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100">
               <button
                 type="button"
-                onClick={() => setShowAddModal(false)}
+                onClick={handleCloseModal}
                 className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px]"
               >
                 Cancel
