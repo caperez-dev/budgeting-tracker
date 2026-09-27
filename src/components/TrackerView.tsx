@@ -7,9 +7,9 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   RotateCcw,
+  RotateCw,
   AlertCircle,
   Clock,
-  Calendar,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -371,7 +371,6 @@ export function TrackerView({
         {/* Persistent Section Header Bar: Month/Date & Interactive Calendar Selector */}
         <div className="p-4 sm:p-5 pb-3 flex flex-wrap items-center justify-between gap-3 bg-white rounded-t-[5px]">
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-zinc-600" />
             <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">
               {selectedDate && selectedMonthYearLabel ? selectedMonthYearLabel : (selectedMonthYearLabel || 'Transaction History')}
             </h3>
@@ -393,6 +392,26 @@ export function TrackerView({
               >
                 <CalendarDays className="w-3.5 h-3.5" />
               </button>
+
+              {/* Reload Button - red reload icon only, no wrapper, height does not exceed calendar button, only displayed when date is selected */}
+              {selectedDate && (
+                <button
+                  id="btn-tracker-reload"
+                  type="button"
+                  onClick={() => {
+                    onSelectDate?.(null);
+                    setSearchQuery('');
+                    setFilterType('all');
+                    setFilterCategory('all');
+                    setVisibleCount(50);
+                  }}
+                  className="ml-1 p-1 text-red-500 hover:text-red-600 transition-colors cursor-pointer flex items-center justify-center h-7 w-7 max-h-[28px] max-w-[28px]"
+                  title="Clear date selection"
+                  aria-label="Clear date selection"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-red-500 hover:text-red-600" />
+                </button>
+              )}
 
               {/* In-App Popover Calendar Selector */}
               {isCalendarOpen && (
@@ -516,18 +535,6 @@ export function TrackerView({
                     </button>
                   </div>
                 </div>
-              )}
-
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => onSelectDate?.(null)}
-                  className="ml-2 text-[11px] font-sans text-zinc-600 hover:text-zinc-900 px-2 py-1 bg-zinc-100 hover:bg-zinc-200 rounded-[3px] transition-colors cursor-pointer flex items-center gap-1"
-                  title="Clear date filter and show full month"
-                >
-                  <X className="w-3 h-3" />
-                  <span>Show full month</span>
-                </button>
               )}
             </div>
           </div>
