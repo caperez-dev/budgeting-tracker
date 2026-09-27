@@ -91,6 +91,10 @@ export function ProfileDropdown({
     setIsEditingNickname(false);
   };
 
+  const activeEmail = currentUser?.email || profile.email || 'Personal Account';
+  const activeAvatar = profile.avatarUrl || currentUser?.avatarUrl || '';
+  const activeNickname = profile.nickname || currentUser?.nickname || 'User';
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Profile Trigger Button on Header 1 */}
@@ -101,12 +105,12 @@ export function ProfileDropdown({
         aria-expanded={isOpen}
         aria-haspopup="true"
         className="rounded-full focus:outline-hidden focus:ring-2 focus:ring-zinc-400/50 transition-transform active:scale-95 flex items-center justify-center p-0.5"
-        title={`Profile (${profile.nickname})`}
+        title={`Profile (${activeNickname})`}
       >
-        {profile.avatarUrl ? (
+        {activeAvatar ? (
           <img
-            src={profile.avatarUrl}
-            alt={profile.nickname}
+            src={activeAvatar}
+            alt={activeNickname}
             className={`w-8 h-8 rounded-full object-cover transition-all shrink-0 ${
               isOpen ? 'ring-2 ring-zinc-900 shadow-xs' : 'hover:ring-2 hover:ring-zinc-300'
             }`}
@@ -118,7 +122,7 @@ export function ProfileDropdown({
               isOpen ? 'ring-2 ring-zinc-900 shadow-xs' : 'hover:bg-zinc-800'
             }`}
           >
-            {profile.nickname.charAt(0).toUpperCase() || 'U'}
+            {activeNickname.charAt(0).toUpperCase() || 'U'}
           </div>
         )}
       </button>
@@ -133,16 +137,16 @@ export function ProfileDropdown({
           <div className="flex items-center gap-3">
             {/* Avatar */}
             <div className="relative shrink-0">
-              {profile.avatarUrl ? (
+              {activeAvatar ? (
                 <img
-                  src={profile.avatarUrl}
-                  alt={profile.nickname}
+                  src={activeAvatar}
+                  alt={activeNickname}
                   className="w-13 h-13 rounded-full object-cover border-2 border-zinc-100 shadow-xs"
                   referrerPolicy="no-referrer"
                 />
               ) : (
                 <div className="w-13 h-13 rounded-full bg-zinc-900 text-white font-mono text-base font-bold flex items-center justify-center shadow-xs">
-                  {profile.nickname.charAt(0).toUpperCase() || 'U'}
+                  {activeNickname.charAt(0).toUpperCase() || 'U'}
                 </div>
               )}
             </div>
@@ -182,7 +186,7 @@ export function ProfileDropdown({
               ) : (
                 <div className="flex items-center gap-1.5 group">
                   <h4 className="font-bold text-sm text-zinc-900 truncate">
-                    {profile.nickname}
+                    {activeNickname}
                   </h4>
                   <button
                     type="button"
@@ -196,7 +200,7 @@ export function ProfileDropdown({
               )}
 
               <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
-                {profile.email || 'Personal Account'}
+                {activeEmail}
               </p>
             </div>
           </div>

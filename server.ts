@@ -239,11 +239,13 @@ app.post("/api/auth/verify-pin", async (req, res) => {
       await user.save();
     }
 
-    // Synchronize default profile singleton
+    // Synchronize user profile record
     await (UserProfileModel as any).findOneAndUpdate(
-      { singletonId: "default_profile" },
+      { $or: [{ userId: user.id }, { singletonId: `profile_${user.id}` }] },
       {
         $set: {
+          userId: user.id,
+          singletonId: `profile_${user.id}`,
           nickname: user.nickname,
           email: user.email,
           avatarUrl: user.avatarUrl || "",
@@ -397,17 +399,19 @@ app.post("/api/auth/login", async (req, res) => {
         return;
       }
 
-      // Sync profile with logged in user
+      // Sync profile with logged in user (scoped strictly to this user's account)
       await (UserProfileModel as any).findOneAndUpdate(
-        { singletonId: "default_profile" },
+        { $or: [{ userId: user.id }, { singletonId: `profile_${user.id}` }] },
         {
           $set: {
+            userId: user.id,
+            singletonId: `profile_${user.id}`,
             nickname: user.nickname,
             email: user.email,
             avatarUrl: user.avatarUrl || "",
           },
         },
-        { upsert: true }
+        { upsert: true, new: true }
       );
 
       // Fetch this user's settings or fallback to default
@@ -753,16 +757,15 @@ app.post("/api/user/update-profile", async (req, res) => {
         await user.save();
       }
 
-      // Update UserProfileModel
-      const profileFilter = {
-        $or: [
-          { userId },
-          { singletonId: `profile_${userId}` },
-          { singletonId: "default_profile" },
-        ],
-      };
+      // Update UserProfileModel strictly scoped to this user
+      const profileFilter = userId
+        ? { $or: [{ userId }, { singletonId: `profile_${userId}` }] }
+        : { singletonId: "default_profile" };
 
-      const profileUpdate: any = { userId };
+      const profileUpdate: any = {
+        userId: userId || "",
+        singletonId: userId ? `profile_${userId}` : "default_profile",
+      };
       if (cleanNickname) profileUpdate.nickname = cleanNickname;
       if (cleanEmail) profileUpdate.email = cleanEmail;
       if (avatarUrl !== undefined) profileUpdate.avatarUrl = avatarUrl;
@@ -927,17 +930,19 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
       }
     }
 
-    // Update default profile singleton
+    // Update profile record strictly scoped to this user
     await (UserProfileModel as any).findOneAndUpdate(
-      { singletonId: "default_profile" },
+      { $or: [{ userId: user.id }, { singletonId: `profile_${user.id}` }] },
       {
         $set: {
+          userId: user.id,
+          singletonId: `profile_${user.id}`,
           nickname: user.nickname,
           email: user.email,
           avatarUrl: user.avatarUrl || "",
         },
       },
-      { upsert: true }
+      { upsert: true, new: true }
     );
 
     // Fetch this user's settings or fallback to default
@@ -1078,7 +1083,7 @@ app.get("/api/db/sync", async (req, res) => {
       ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
       : {};
 
-    const [transactions, categories, accounts, currencies, debts, goals, profileDoc] =
+    const [transactions, categories, accounts, currencies, debts, goals, profileDocFromDb] =
       await Promise.all([
         (TransactionModel as any).find(txQuery).sort({ date: -1 }).lean().exec(),
         (CategoryModel as any).find(catQuery).lean().exec(),
@@ -1089,12 +1094,29 @@ app.get("/api/db/sync", async (req, res) => {
         (UserProfileModel as any)
           .findOne(
             userId
-              ? { $or: [{ userId }, { singletonId: `profile_${userId}` }, { singletonId: "default_profile" }] }
+              ? { $or: [{ userId }, { singletonId: `profile_${userId}` }] }
               : { singletonId: "default_profile" }
           )
           .lean()
           .exec(),
       ]);
+
+    let profileDoc: any = profileDocFromDb;
+    let userObj: any = null;
+    if (userId) {
+      userObj = await (UserModel as any).findOne({ id: userId }).lean().exec();
+      if (userObj) {
+        profileDoc = {
+          nickname: profileDocFromDb?.nickname || userObj.nickname || "User",
+          email: userObj.email, // Authoritative email of this authenticated user account
+          avatarUrl:
+            profileDocFromDb?.avatarUrl !== undefined && profileDocFromDb.avatarUrl !== ""
+              ? profileDocFromDb.avatarUrl
+              : (userObj.avatarUrl || ""),
+          userId: userObj.id,
+        };
+      }
+    }
 
     let settingsDoc: any = null;
     if (userId) {
@@ -1104,7 +1126,9 @@ app.get("/api/db/sync", async (req, res) => {
         .exec();
 
       if (!settingsDoc || !settingsDoc.defaultCurrency) {
-        const userObj = await (UserModel as any).findOne({ id: userId }).lean().exec();
+        if (!userObj) {
+          userObj = await (UserModel as any).findOne({ id: userId }).lean().exec();
+        }
         if (userObj?.defaultCurrency) {
           settingsDoc = {
             ...(settingsDoc || {}),
@@ -1115,10 +1139,22 @@ app.get("/api/db/sync", async (req, res) => {
       }
     }
     if (!settingsDoc) {
-      settingsDoc = await (UserSettingsModel as any)
-        .findOne({ singletonId: "default_settings" })
-        .lean()
-        .exec();
+      if (userId) {
+        const fallbackCurr = userObj?.defaultCurrency || "PHP";
+        settingsDoc = {
+          userId,
+          singletonId: `settings_${userId}`,
+          defaultCurrency: fallbackCurr,
+          primaryCurrency: fallbackCurr,
+          soundEnabled: true,
+          autoBackup: true,
+        };
+      } else {
+        settingsDoc = await (UserSettingsModel as any)
+          .findOne({ singletonId: "default_settings" })
+          .lean()
+          .exec();
+      }
     }
     if (settingsDoc) {
       const curr = settingsDoc.defaultCurrency || settingsDoc.primaryCurrency || "PHP";

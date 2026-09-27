@@ -363,6 +363,26 @@ export default function App() {
 
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     try {
+      if (currentUser?.id) {
+        const perUserProfileKey = getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, currentUser.id);
+        const saved = localStorage.getItem(perUserProfileKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return {
+            nickname: parsed.nickname || currentUser.nickname || DEFAULT_USER_PROFILE.nickname,
+            email: currentUser.email || parsed.email || DEFAULT_USER_PROFILE.email,
+            avatarUrl:
+              parsed.avatarUrl !== undefined && parsed.avatarUrl !== ''
+                ? parsed.avatarUrl
+                : currentUser.avatarUrl || '',
+          };
+        }
+        return {
+          nickname: currentUser.nickname || DEFAULT_USER_PROFILE.nickname,
+          email: currentUser.email || DEFAULT_USER_PROFILE.email,
+          avatarUrl: currentUser.avatarUrl || '',
+        };
+      }
       const saved = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
       return saved ? JSON.parse(saved) : DEFAULT_USER_PROFILE;
     } catch {
@@ -530,38 +550,31 @@ export default function App() {
     // 8. User Profile (avatar, nickname, email)
     try {
       const perUserProfileKey = getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, user.id);
-      let savedProfileRaw = localStorage.getItem(perUserProfileKey);
-      if (!savedProfileRaw) {
-        savedProfileRaw = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
-      }
+      const savedProfileRaw = localStorage.getItem(perUserProfileKey);
       if (savedProfileRaw) {
         const parsed = JSON.parse(savedProfileRaw);
-        setUserProfile((prev) => ({
-          ...prev,
-          ...parsed,
-          nickname: parsed.nickname || user.nickname || prev.nickname,
-          email: parsed.email || user.email || prev.email,
+        setUserProfile({
+          nickname: parsed.nickname || user.nickname || 'User',
+          email: user.email, // Always enforce the logged-in user's email
           avatarUrl:
             parsed.avatarUrl !== undefined && parsed.avatarUrl !== ''
               ? parsed.avatarUrl
-              : user.avatarUrl || prev.avatarUrl,
-        }));
+              : user.avatarUrl || '',
+        });
       } else {
-        // Fall back to currentUser's values (e.g. avatarUrl from Google OAuth)
-        setUserProfile((prev) => ({
-          ...prev,
-          nickname: user.nickname || prev.nickname,
-          email: user.email || prev.email,
-          avatarUrl: user.avatarUrl || prev.avatarUrl,
-        }));
+        // Fall back to currentUser's values
+        setUserProfile({
+          nickname: user.nickname || 'User',
+          email: user.email,
+          avatarUrl: user.avatarUrl || '',
+        });
       }
     } catch {
-      setUserProfile((prev) => ({
-        ...prev,
-        nickname: user.nickname || prev.nickname,
-        email: user.email || prev.email,
-        avatarUrl: user.avatarUrl || prev.avatarUrl,
-      }));
+      setUserProfile({
+        nickname: user.nickname || 'User',
+        email: user.email,
+        avatarUrl: user.avatarUrl || '',
+      });
     }
   };
 
@@ -659,13 +672,30 @@ export default function App() {
             } catch {}
           }
           if (json.data.profile) {
-            setUserProfile(json.data.profile);
-            try {
-              localStorage.setItem(
-                getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, uid),
-                JSON.stringify(json.data.profile)
-              );
-            } catch {}
+            // Ensure profile is scoped to current user and matches their authenticated email
+            const profileEmail = json.data.profile.email;
+            const isMatch =
+              !currentUser?.email ||
+              !profileEmail ||
+              profileEmail.toLowerCase() === currentUser.email.toLowerCase();
+
+            if (isMatch) {
+              const safeProfile: UserProfile = {
+                nickname: json.data.profile.nickname || currentUser?.nickname || 'User',
+                email: currentUser?.email || profileEmail,
+                avatarUrl:
+                  json.data.profile.avatarUrl !== undefined && json.data.profile.avatarUrl !== ''
+                    ? json.data.profile.avatarUrl
+                    : currentUser?.avatarUrl || '',
+              };
+              setUserProfile(safeProfile);
+              try {
+                localStorage.setItem(
+                  getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, uid),
+                  JSON.stringify(safeProfile)
+                );
+              } catch {}
+            }
           }
           const nowStr = new Date().toLocaleTimeString('en-US', {
             hour: 'numeric',
@@ -871,8 +901,11 @@ export default function App() {
           JSON.stringify(userProfile)
         );
       } catch {}
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
+      } catch {}
     }
-    localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
   }, [userProfile, currentUser?.id]);
 
   // Clean up timer on unmount
@@ -1655,6 +1688,7 @@ export default function App() {
     setCurrentUser(null);
     setTransactions([]);
     setSettings(DEFAULT_SETTINGS);
+    setUserProfile(DEFAULT_USER_PROFILE);
   };
 
   const handleUpdateAccountSettings = async (data: {
