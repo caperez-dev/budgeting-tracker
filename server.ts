@@ -1076,14 +1076,12 @@ app.get("/api/db/sync", async (req, res) => {
     const goalQuery: any = userId
       ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
       : { userId: "__none__" };
-    const catQuery: any = userId
-      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
-      : {};
+    const catQuery: any = userId ? { userId } : { userId: "__none__" };
     const accQuery: any = userId
       ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
       : {};
 
-    const [transactions, categories, accounts, currencies, debts, goals, profileDocFromDb] =
+    const [transactions, fetchedCategories, accounts, currencies, debts, goals, profileDocFromDb] =
       await Promise.all([
         (TransactionModel as any).find(txQuery).sort({ date: -1 }).lean().exec(),
         (CategoryModel as any).find(catQuery).lean().exec(),
@@ -1100,6 +1098,104 @@ app.get("/api/db/sync", async (req, res) => {
           .lean()
           .exec(),
       ]);
+
+    let categories = fetchedCategories || [];
+    if (userId && categories.length === 0) {
+      // Default categories for new accounts:
+      // Expense: Food & Drink, Transport, Bills, and Shopping ONLY
+      // Income: Salary, Allowance, Freelance, Business
+      const defaultUserCats = [
+        // Income
+        {
+          id: `cat-cash-salary`,
+          userId,
+          accountId: 'cash',
+          name: 'Salary',
+          type: 'income',
+          color: '#059669',
+          icon: 'Briefcase',
+          isDefault: true,
+        },
+        {
+          id: `cat-cash-allowance`,
+          userId,
+          accountId: 'cash',
+          name: 'Allowance',
+          type: 'income',
+          color: '#10B981',
+          icon: 'Coins',
+          isDefault: true,
+        },
+        {
+          id: `cat-cash-freelance`,
+          userId,
+          accountId: 'cash',
+          name: 'Freelance',
+          type: 'income',
+          color: '#2563EB',
+          icon: 'Laptop',
+          isDefault: true,
+        },
+        {
+          id: `cat-cash-business`,
+          userId,
+          accountId: 'cash',
+          name: 'Business',
+          type: 'income',
+          color: '#4F46E5',
+          icon: 'CircleDollarSign',
+          isDefault: true,
+        },
+        // Expense (Food & Drink, Transport, Bills, Shopping ONLY)
+        {
+          id: `cat-cash-food-drink`,
+          userId,
+          accountId: 'cash',
+          name: 'Food & Drink',
+          type: 'expense',
+          color: '#E11D48',
+          icon: 'Utensils',
+          isDefault: true,
+        },
+        {
+          id: `cat-cash-transport`,
+          userId,
+          accountId: 'cash',
+          name: 'Transport',
+          type: 'expense',
+          color: '#0284C7',
+          icon: 'Car',
+          isDefault: true,
+        },
+        {
+          id: `cat-cash-bills`,
+          userId,
+          accountId: 'cash',
+          name: 'Bills',
+          type: 'expense',
+          color: '#EA580C',
+          icon: 'Receipt',
+          isDefault: true,
+        },
+        {
+          id: `cat-cash-shopping`,
+          userId,
+          accountId: 'cash',
+          name: 'Shopping',
+          type: 'expense',
+          color: '#9333EA',
+          icon: 'ShoppingBag',
+          isDefault: true,
+        },
+      ];
+
+      try {
+        await (CategoryModel as any).insertMany(defaultUserCats);
+        categories = defaultUserCats;
+      } catch {
+        categories = defaultUserCats;
+      }
+    }
 
     let profileDoc: any = profileDocFromDb;
     let userObj: any = null;
@@ -1238,24 +1334,40 @@ app.post("/api/db/sync", async (req, res) => {
 
     if (Array.isArray(categories)) {
       const activeCatIds = categories.map((c: any) => c.id);
-      const catDelFilter: any = { id: { $nin: activeCatIds } };
       if (userId) {
-        catDelFilter.$or = [{ userId }, { userId: "" }, { userId: { $exists: false } }];
-      }
-      await (CategoryModel as any).deleteMany(catDelFilter);
+        await (CategoryModel as any).deleteMany({
+          userId,
+          id: { $nin: activeCatIds },
+        });
 
-      if (categories.length > 0) {
-        promises.push(
-          (CategoryModel as any).bulkWrite(
-            categories.map((c: any) => ({
-              updateOne: {
-                filter: { id: c.id },
-                update: { $set: { ...c, userId: c.userId || userId || "" } },
-                upsert: true,
-              },
-            }))
-          )
-        );
+        if (categories.length > 0) {
+          promises.push(
+            (CategoryModel as any).bulkWrite(
+              categories.map((c: any) => ({
+                updateOne: {
+                  filter: { id: c.id, userId },
+                  update: { $set: { ...c, accountId: c.accountId || 'cash', userId } },
+                  upsert: true,
+                },
+              }))
+            )
+          );
+        }
+      } else {
+        await (CategoryModel as any).deleteMany({ id: { $nin: activeCatIds } });
+        if (categories.length > 0) {
+          promises.push(
+            (CategoryModel as any).bulkWrite(
+              categories.map((c: any) => ({
+                updateOne: {
+                  filter: { id: c.id },
+                  update: { $set: c },
+                  upsert: true,
+                },
+              }))
+            )
+          );
+        }
       }
     }
 
@@ -1441,9 +1553,12 @@ app.delete("/api/db/goals/:id", async (req, res) => {
 
 // Single Category Deletion
 app.delete("/api/db/categories/:id", async (req, res) => {
+  const userId = (req.query.userId as string) || (req.headers["x-user-id"] as string) || "";
   const connected = await connectDB();
   if (connected) {
-    await CategoryModel.deleteOne({ id: req.params.id }).catch(() => {});
+    const filter: any = { id: req.params.id };
+    if (userId) filter.userId = userId;
+    await CategoryModel.deleteOne(filter).catch(() => {});
   }
   res.json({ success: true });
 });

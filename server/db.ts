@@ -78,16 +78,20 @@ const TransactionSchema = new mongoose.Schema(
 
 const CategorySchema = new mongoose.Schema(
   {
-    id: { type: String, required: true, unique: true, index: true },
+    id: { type: String, required: true, index: true },
     userId: { type: String, index: true, default: '' },
+    accountId: { type: String, index: true, default: 'cash' },
     name: { type: String, required: true },
     type: { type: String, required: true, enum: ['income', 'expense'] },
     icon: { type: String, default: 'Tag' },
     color: { type: String, default: 'bg-zinc-500' },
+    isDefault: { type: Boolean, default: false },
     isCustom: { type: Boolean, default: false },
   },
   { timestamps: true, strict: false }
 );
+CategorySchema.index({ id: 1, userId: 1 });
+CategorySchema.index({ userId: 1, accountId: 1 });
 
 const AccountSchema = new mongoose.Schema(
   {

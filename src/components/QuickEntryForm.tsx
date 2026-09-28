@@ -27,7 +27,7 @@ interface QuickEntryFormProps {
     date: string;
     time: string;
   }) => void;
-  onOpenAddCategory: (type: TransactionType) => void;
+  onOpenAddCategory: (type: TransactionType, accountId?: string) => void;
   onOpenAddAccount?: () => void;
   onOpenCurrencyManager?: () => void;
   isModal?: boolean;
@@ -80,8 +80,15 @@ export function QuickEntryForm({
     }
   }, [accounts, accountId]);
 
-  // Filter categories by type
-  const availableCategories = categories.filter((c) => c.type === type);
+  // Filter categories strictly by the selected account and transaction type
+  const availableCategories = React.useMemo(() => {
+    const effectiveAccId = accountId || accounts[0]?.id || 'cash';
+    return categories.filter(
+      (c) =>
+        c.type === type &&
+        (c.accountId === effectiveAccId || (!c.accountId && effectiveAccId === 'cash'))
+    );
+  }, [categories, type, accountId, accounts]);
 
   const currencyObj = currencies.find((c) => c.code === currency) || currencies[0];
   const currencySymbol = currencyObj?.symbol || '₱';
@@ -315,7 +322,7 @@ export function QuickEntryForm({
             <button
               type="button"
               id="btn-add-category-inline"
-              onClick={() => onOpenAddCategory(type)}
+              onClick={() => onOpenAddCategory(type, accountId || accounts[0]?.id || 'cash')}
               className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
             >
               <PlusCircle className="w-3 h-3" />

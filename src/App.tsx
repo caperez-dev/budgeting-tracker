@@ -20,6 +20,7 @@ import {
   SEED_DEBTS,
   SEED_GOALS,
   SEED_TRANSACTIONS,
+  createDefaultCategoriesForAccount,
 } from './data/initialData';
 import { Header, ActiveTab } from './components/Header';
 import { AuthScreen } from './components/AuthScreen';
@@ -187,6 +188,9 @@ export default function App() {
 
   const [categories, setCategories] = useState<Category[]>(() => {
     try {
+      // Purge deprecated shared categories key
+      localStorage.removeItem(STORAGE_KEYS.CATEGORIES);
+
       const user = (() => {
         try {
           const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
@@ -195,16 +199,21 @@ export default function App() {
           return null;
         }
       })();
-      let saved = null;
       if (user?.id) {
-        saved = localStorage.getItem(getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, user.id));
+        const saved = localStorage.getItem(getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, user.id));
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((c: any) => ({
+              ...c,
+              accountId: c.accountId || 'cash',
+            }));
+          }
+        }
       }
-      if (!saved) {
-        saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
-      }
-      return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+      return createDefaultCategoriesForAccount('cash');
     } catch {
-      return DEFAULT_CATEGORIES;
+      return createDefaultCategoriesForAccount('cash');
     }
   });
 
@@ -396,6 +405,7 @@ export default function App() {
   const [showQuickEntryModal, setShowQuickEntryModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [categoriesInitialType, setCategoriesInitialType] = useState<TransactionType>('expense');
+  const [categoriesInitialAccountId, setCategoriesInitialAccountId] = useState<string>('cash');
   const [showAccountsModal, setShowAccountsModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
@@ -544,8 +554,24 @@ export default function App() {
     try {
       const catKey = getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, user.id);
       const savedCats = localStorage.getItem(catKey);
-      if (savedCats) setCategories(JSON.parse(savedCats));
-    } catch {}
+      if (savedCats) {
+        const parsed = JSON.parse(savedCats);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCategories(
+            parsed.map((c: any) => ({
+              ...c,
+              accountId: c.accountId || 'cash',
+            }))
+          );
+        } else {
+          setCategories(createDefaultCategoriesForAccount('cash'));
+        }
+      } else {
+        setCategories(createDefaultCategoriesForAccount('cash'));
+      }
+    } catch {
+      setCategories(createDefaultCategoriesForAccount('cash'));
+    }
 
     // 8. User Profile (avatar, nickname, email)
     try {
@@ -607,11 +633,24 @@ export default function App() {
             } catch {}
           }
           if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
-            setCategories(json.data.categories);
+            const mappedCats = json.data.categories.map((c: any) => ({
+              ...c,
+              accountId: c.accountId || 'cash',
+            }));
+            setCategories(mappedCats);
             try {
               localStorage.setItem(
                 getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, uid),
-                JSON.stringify(json.data.categories)
+                JSON.stringify(mappedCats)
+              );
+            } catch {}
+          } else {
+            const defaultCats = createDefaultCategoriesForAccount('cash');
+            setCategories(defaultCats);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, uid),
+                JSON.stringify(defaultCats)
               );
             } catch {}
           }
@@ -793,8 +832,26 @@ export default function App() {
         );
       } catch {}
     }
-    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
   }, [categories, currentUser?.id]);
+
+  // Ensure every account has its own dedicated set of categories
+  useEffect(() => {
+    if (accounts.length > 0) {
+      setCategories((prev) => {
+        const missing: Category[] = [];
+        accounts.forEach((acc) => {
+          const hasCats = prev.some(
+            (c) => c.accountId === acc.id || (!c.accountId && acc.id === 'cash')
+          );
+          if (!hasCats) {
+            missing.push(...createDefaultCategoriesForAccount(acc.id));
+          }
+        });
+        if (missing.length === 0) return prev;
+        return [...prev, ...missing];
+      });
+    }
+  }, [accounts]);
 
   useEffect(() => {
     if (currentUser?.id) {
@@ -1243,7 +1300,8 @@ export default function App() {
   const handleAddCategory = (catData: Omit<Category, 'id'>) => {
     const newCat: Category = {
       ...catData,
-      id: `cat-${Date.now()}`,
+      id: `cat-${catData.accountId || 'cash'}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      accountId: catData.accountId || accounts[0]?.id || 'cash',
     };
     setCategories((prev) => [...prev, newCat]);
   };
@@ -1291,6 +1349,12 @@ export default function App() {
       id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     };
     setAccounts((prev) => [...prev, newAcc]);
+
+    // Create the default categories dedicated to this new account:
+    // Expense: Food & Drink, Transport, Bills, and Shopping ONLY
+    // Income: Salary, Allowance, Freelance, Business
+    const newAccountCats = createDefaultCategoriesForAccount(newAcc.id);
+    setCategories((prev) => [...prev, ...newAccountCats]);
   };
 
   const handleUpdateAccount = (updatedAcc: Account) => {
@@ -1319,6 +1383,8 @@ export default function App() {
     );
 
     setAccounts((prev) => prev.filter((a) => a.id !== id));
+    // Remove categories belonging to this account
+    setCategories((prev) => prev.filter((c) => c.accountId !== id));
 
     // Persist deletion immediately to backend
     const delUrl = `/api/db/accounts/${encodeURIComponent(id)}${
@@ -1689,6 +1755,11 @@ export default function App() {
     setTransactions([]);
     setSettings(DEFAULT_SETTINGS);
     setUserProfile(DEFAULT_USER_PROFILE);
+    setAccounts(DEFAULT_ACCOUNTS);
+    setCategories(createDefaultCategoriesForAccount('cash'));
+    setCurrencies(DEFAULT_CURRENCIES);
+    setGoals([]);
+    setDebts([]);
   };
 
   const handleUpdateAccountSettings = async (data: {
@@ -1812,6 +1883,7 @@ export default function App() {
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
         onOpenCategories={() => {
           setCategoriesInitialType('expense');
+          setCategoriesInitialAccountId(accounts[0]?.id || 'cash');
           setShowCategoriesModal(true);
         }}
       />
@@ -1827,8 +1899,9 @@ export default function App() {
             transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
-            onOpenAddCategory={(type) => {
+            onOpenAddCategory={(type, accId) => {
               setCategoriesInitialType(type);
+              if (accId) setCategoriesInitialAccountId(accId);
               setShowCategoriesModal(true);
             }}
             onOpenAddAccount={() => setShowAccountsModal(true)}
@@ -1935,8 +2008,9 @@ export default function App() {
             transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
-            onOpenAddCategory={(type) => {
+            onOpenAddCategory={(type, accId) => {
               setCategoriesInitialType(type);
+              if (accId) setCategoriesInitialAccountId(accId);
               setShowCategoriesModal(true);
             }}
             onOpenAddAccount={() => {
@@ -1982,6 +2056,8 @@ export default function App() {
       {showCategoriesModal && (
         <CategoryManagerModal
           categories={categories}
+          accounts={accounts}
+          initialAccountId={categoriesInitialAccountId}
           onAddCategory={handleAddCategory}
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}

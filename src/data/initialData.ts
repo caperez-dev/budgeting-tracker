@@ -15,91 +15,87 @@ export const DEFAULT_CURRENCIES: Currency[] = [
   { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', flag: '🇸🇬', exchangeRate: 1.35 },
 ];
 
-export const DEFAULT_CATEGORIES: Category[] = [
-  // Income categories
-  {
-    id: 'inc-salary',
-    name: 'Salary',
-    type: 'income',
-    color: '#059669', // emerald
-    icon: 'Briefcase',
-    isDefault: true,
-  },
-  {
-    id: 'inc-gift',
-    name: 'Gift',
-    type: 'income',
-    color: '#D97706', // amber
-    icon: 'Gift',
-    isDefault: true,
-  },
-  {
-    id: 'inc-freelance',
-    name: 'Freelance',
-    type: 'income',
-    color: '#2563EB', // blue
-    icon: 'Laptop',
-    isDefault: true,
-  },
-  {
-    id: 'inc-other',
-    name: 'Other',
-    type: 'income',
-    color: '#4F46E5', // indigo
-    icon: 'CircleDollarSign',
-    isDefault: true,
-  },
+export function createDefaultCategoriesForAccount(accountId: string): Category[] {
+  return [
+    // Income categories
+    {
+      id: `cat-${accountId}-salary`,
+      name: 'Salary',
+      type: 'income',
+      color: '#059669', // emerald
+      icon: 'Briefcase',
+      isDefault: true,
+      accountId,
+    },
+    {
+      id: `cat-${accountId}-allowance`,
+      name: 'Allowance',
+      type: 'income',
+      color: '#10B981', // emerald-500
+      icon: 'Coins',
+      isDefault: true,
+      accountId,
+    },
+    {
+      id: `cat-${accountId}-freelance`,
+      name: 'Freelance',
+      type: 'income',
+      color: '#2563EB', // blue
+      icon: 'Laptop',
+      isDefault: true,
+      accountId,
+    },
+    {
+      id: `cat-${accountId}-business`,
+      name: 'Business',
+      type: 'income',
+      color: '#4F46E5', // indigo
+      icon: 'CircleDollarSign',
+      isDefault: true,
+      accountId,
+    },
 
-  // Expense categories (per spec: Transportation, Food, Dates, Projects, Spay, Other)
-  {
-    id: 'exp-transport',
-    name: 'Transportation',
-    type: 'expense',
-    color: '#0284C7', // sky-600
-    icon: 'Car',
-    isDefault: true,
-  },
-  {
-    id: 'exp-food',
-    name: 'Food',
-    type: 'expense',
-    color: '#E11D48', // rose-600
-    icon: 'Utensils',
-    isDefault: true,
-  },
-  {
-    id: 'exp-dates',
-    name: 'Dates',
-    type: 'expense',
-    color: '#DB2777', // pink-600
-    icon: 'Heart',
-    isDefault: true,
-  },
-  {
-    id: 'exp-projects',
-    name: 'Projects',
-    type: 'expense',
-    color: '#7C3AED', // violet-600
-    icon: 'FolderKanban',
-    isDefault: true,
-  },
-  {
-    id: 'exp-spay',
-    name: 'SPayLater / Bills', // Handled per spec note ("Spay" = Shopee PayLater / Installments / Bills)
-    type: 'expense',
-    color: '#EA580C', // orange-600
-    icon: 'CreditCard',
-    isDefault: true,
-  },
-  {
-    id: 'exp-other',
-    name: 'Other',
-    type: 'expense',
-    color: '#52525B', // zinc-600
-    icon: 'Tag',
-    isDefault: true,
-  },
-];
+    // Expense categories (Food & Drink, Transport, Bills, Shopping ONLY)
+    {
+      id: `cat-${accountId}-food-drink`,
+      name: 'Food & Drink',
+      type: 'expense',
+      color: '#E11D48', // rose-600
+      icon: 'Utensils',
+      isDefault: true,
+      accountId,
+    },
+    {
+      id: `cat-${accountId}-transport`,
+      name: 'Transport',
+      type: 'expense',
+      color: '#0284C7', // sky-600
+      icon: 'Car',
+      isDefault: true,
+      accountId,
+    },
+    {
+      id: `cat-${accountId}-bills`,
+      name: 'Bills',
+      type: 'expense',
+      color: '#EA580C', // orange-600
+      icon: 'Receipt',
+      isDefault: true,
+      accountId,
+    },
+    {
+      id: `cat-${accountId}-shopping`,
+      name: 'Shopping',
+      type: 'expense',
+      color: '#9333EA', // purple-600
+      icon: 'ShoppingBag',
+      isDefault: true,
+      accountId,
+    },
+  ];
+}
+
+export const DEFAULT_CATEGORIES: Category[] = createDefaultCategoriesForAccount('cash');
 
 // Helper to construct timestamp for Sep 2026 transactions matching the spec
 function makeTimestamp(dateStr: string, timeStr: string): number {

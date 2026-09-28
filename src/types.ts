@@ -15,6 +15,7 @@ export interface Category {
   color: string; // Accent color used for categories in transaction views
   icon: string; // Lucide icon identifier
   isDefault?: boolean;
+  accountId?: string; // Financial account ID this category belongs to
 }
 
 export type AccountType = 'ewallet' | 'cash' | 'bank' | 'credit_card' | 'other';

@@ -824,7 +824,12 @@ export function TrackerView({
                   <CategorySelect
                     id="edit-tx-category-select"
                     ariaLabel="Transaction category"
-                    categories={categories.filter((c) => c.type === editingTx.type)}
+                    categories={categories.filter(
+                      (c) =>
+                        c.type === editingTx.type &&
+                        (c.accountId === editingTx.accountId ||
+                          (!c.accountId && (!editingTx.accountId || editingTx.accountId === 'cash')))
+                    )}
                     value={editingTx.categoryId}
                     onChange={(catId) =>
                       setEditingTx({ ...editingTx, categoryId: catId })
@@ -844,9 +849,17 @@ export function TrackerView({
                       ariaLabel="Transaction account"
                       accounts={accounts}
                       value={editingTx.accountId || ''}
-                      onChange={(accId) =>
-                        setEditingTx({ ...editingTx, accountId: accId })
-                      }
+                      onChange={(accId) => {
+                        const newAccCats = categories.filter(
+                          (c) =>
+                            c.type === editingTx.type &&
+                            (c.accountId === accId || (!c.accountId && accId === 'cash'))
+                        );
+                        const newCatId = newAccCats.some((c) => c.id === editingTx.categoryId)
+                          ? editingTx.categoryId
+                          : newAccCats[0]?.id || editingTx.categoryId;
+                        setEditingTx({ ...editingTx, accountId: accId, categoryId: newCatId });
+                      }}
                       currencySymbol={currencySymbol}
                       className="h-full"
                     />
