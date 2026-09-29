@@ -15,96 +15,89 @@ export const DEFAULT_CURRENCIES: Currency[] = [
   { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', flag: '🇸🇬', exchangeRate: 1.35 },
 ];
 
-export function createDefaultCategoriesForAccount(accountId: string): Category[] {
-  return [
-    // Income categories
-    {
-      id: `cat-${accountId}-salary`,
-      name: 'Salary',
-      type: 'income',
-      color: '#059669', // emerald
-      icon: 'Briefcase',
-      isDefault: true,
-      accountId,
-    },
-    {
-      id: `cat-${accountId}-allowance`,
-      name: 'Allowance',
-      type: 'income',
-      color: '#10B981', // emerald-500
-      icon: 'Coins',
-      isDefault: true,
-      accountId,
-    },
-    {
-      id: `cat-${accountId}-cash-in`,
-      name: 'Cash In',
-      type: 'income',
-      color: '#0D9488', // teal-600
-      icon: 'Banknote',
-      isDefault: true,
-      accountId,
-    },
-    {
-      id: `cat-${accountId}-freelance`,
-      name: 'Freelance',
-      type: 'income',
-      color: '#2563EB', // blue
-      icon: 'Laptop',
-      isDefault: true,
-      accountId,
-    },
-    {
-      id: `cat-${accountId}-business`,
-      name: 'Business',
-      type: 'income',
-      color: '#4F46E5', // indigo
-      icon: 'CircleDollarSign',
-      isDefault: true,
-      accountId,
-    },
+export const DEFAULT_CATEGORIES: Category[] = [
+  // Income categories
+  {
+    id: 'cat-salary',
+    name: 'Salary',
+    type: 'income',
+    color: '#059669', // emerald
+    icon: 'Briefcase',
+    isDefault: true,
+  },
+  {
+    id: 'cat-allowance',
+    name: 'Allowance',
+    type: 'income',
+    color: '#10B981', // emerald-500
+    icon: 'Coins',
+    isDefault: true,
+  },
+  {
+    id: 'cat-cash-in',
+    name: 'Cash In',
+    type: 'income',
+    color: '#0D9488', // teal-600
+    icon: 'Banknote',
+    isDefault: true,
+  },
+  {
+    id: 'cat-freelance',
+    name: 'Freelance',
+    type: 'income',
+    color: '#2563EB', // blue
+    icon: 'Laptop',
+    isDefault: true,
+  },
+  {
+    id: 'cat-business',
+    name: 'Business',
+    type: 'income',
+    color: '#4F46E5', // indigo
+    icon: 'CircleDollarSign',
+    isDefault: true,
+  },
 
-    // Expense categories (Food & Drink, Transport, Bills, Shopping ONLY)
-    {
-      id: `cat-${accountId}-food-drink`,
-      name: 'Food & Drink',
-      type: 'expense',
-      color: '#E11D48', // rose-600
-      icon: 'Utensils',
-      isDefault: true,
-      accountId,
-    },
-    {
-      id: `cat-${accountId}-transport`,
-      name: 'Transport',
-      type: 'expense',
-      color: '#0284C7', // sky-600
-      icon: 'Car',
-      isDefault: true,
-      accountId,
-    },
-    {
-      id: `cat-${accountId}-bills`,
-      name: 'Bills',
-      type: 'expense',
-      color: '#EA580C', // orange-600
-      icon: 'Receipt',
-      isDefault: true,
-      accountId,
-    },
-    {
-      id: `cat-${accountId}-shopping`,
-      name: 'Shopping',
-      type: 'expense',
-      color: '#9333EA', // purple-600
-      icon: 'ShoppingBag',
-      isDefault: true,
-      accountId,
-    },
-  ];
+  // Expense categories (Food & Drink, Transport, Bills, Shopping ONLY)
+  {
+    id: 'cat-food-drink',
+    name: 'Food & Drink',
+    type: 'expense',
+    color: '#E11D48', // rose-600
+    icon: 'Utensils',
+    isDefault: true,
+  },
+  {
+    id: 'cat-transport',
+    name: 'Transport',
+    type: 'expense',
+    color: '#0284C7', // sky-600
+    icon: 'Car',
+    isDefault: true,
+  },
+  {
+    id: 'cat-bills',
+    name: 'Bills',
+    type: 'expense',
+    color: '#EA580C', // orange-600
+    icon: 'Receipt',
+    isDefault: true,
+  },
+  {
+    id: 'cat-shopping',
+    name: 'Shopping',
+    type: 'expense',
+    color: '#9333EA', // purple-600
+    icon: 'ShoppingBag',
+    isDefault: true,
+  },
+];
+
+export function createDefaultCategories(): Category[] {
+  return DEFAULT_CATEGORIES.map((c) => ({ ...c }));
 }
 
-export const DEFAULT_CATEGORIES: Category[] = createDefaultCategoriesForAccount('cash');
+export const createDefaultCategoriesForAccount = createDefaultCategories;
 
 // Helper to construct timestamp for Sep 2026 transactions matching the spec
 function makeTimestamp(dateStr: string, timeStr: string): number {

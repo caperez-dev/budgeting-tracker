@@ -86,7 +86,6 @@ const CategorySchema = new mongoose.Schema(
   {
     id: { type: String, required: true, index: true },
     userId: { type: String, index: true, default: '' },
-    accountId: { type: String, index: true, default: 'cash' },
     name: { type: String, required: true },
     type: { type: String, required: true, enum: ['income', 'expense'] },
     icon: { type: String, default: 'Tag' },
@@ -97,7 +96,6 @@ const CategorySchema = new mongoose.Schema(
   { timestamps: true, strict: false }
 );
 CategorySchema.index({ id: 1, userId: 1 });
-CategorySchema.index({ userId: 1, accountId: 1 });
 
 const AccountSchema = new mongoose.Schema(
   {

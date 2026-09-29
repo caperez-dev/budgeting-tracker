@@ -20,6 +20,7 @@ import {
   SEED_DEBTS,
   SEED_GOALS,
   SEED_TRANSACTIONS,
+  createDefaultCategories,
   createDefaultCategoriesForAccount,
 } from './data/initialData';
 import { Header, ActiveTab } from './components/Header';
@@ -204,16 +205,27 @@ export default function App() {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((c: any) => ({
-              ...c,
-              accountId: c.accountId || 'cash',
-            }));
+            const seen = new Set<string>();
+            const cleaned: Category[] = [];
+            for (const c of parsed) {
+              const key = `${(c.name || '').toLowerCase().trim()}_${c.type}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                const { accountId, ...rest } = c;
+                cleaned.push(rest);
+              }
+            }
+            if (!cleaned.some((c) => c.type === 'income' && c.name.toLowerCase() === 'cash in')) {
+              const cashInDef = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-cash-in');
+              if (cashInDef) cleaned.push({ ...cashInDef });
+            }
+            if (cleaned.length > 0) return cleaned;
           }
         }
       }
-      return createDefaultCategoriesForAccount('cash');
+      return createDefaultCategories();
     } catch {
-      return createDefaultCategoriesForAccount('cash');
+      return createDefaultCategories();
     }
   });
 
@@ -405,7 +417,6 @@ export default function App() {
   const [showQuickEntryModal, setShowQuickEntryModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [categoriesInitialType, setCategoriesInitialType] = useState<TransactionType>('expense');
-  const [categoriesInitialAccountId, setCategoriesInitialAccountId] = useState<string>('cash');
   const [showAccountsModal, setShowAccountsModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
@@ -557,20 +568,29 @@ export default function App() {
       if (savedCats) {
         const parsed = JSON.parse(savedCats);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setCategories(
-            parsed.map((c: any) => ({
-              ...c,
-              accountId: c.accountId || 'cash',
-            }))
-          );
+          const seen = new Set<string>();
+          const cleaned: Category[] = [];
+          for (const c of parsed) {
+            const key = `${(c.name || '').toLowerCase().trim()}_${c.type}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              const { accountId, ...rest } = c;
+              cleaned.push(rest);
+            }
+          }
+          if (!cleaned.some((c) => c.type === 'income' && c.name.toLowerCase() === 'cash in')) {
+            const cashInDef = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-cash-in');
+            if (cashInDef) cleaned.push({ ...cashInDef });
+          }
+          setCategories(cleaned.length > 0 ? cleaned : createDefaultCategories());
         } else {
-          setCategories(createDefaultCategoriesForAccount('cash'));
+          setCategories(createDefaultCategories());
         }
       } else {
-        setCategories(createDefaultCategoriesForAccount('cash'));
+        setCategories(createDefaultCategories());
       }
     } catch {
-      setCategories(createDefaultCategoriesForAccount('cash'));
+      setCategories(createDefaultCategories());
     }
 
     // 8. User Profile (avatar, nickname, email)
@@ -634,19 +654,30 @@ export default function App() {
             } catch {}
           }
           if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
-            const mappedCats = json.data.categories.map((c: any) => ({
-              ...c,
-              accountId: c.accountId || 'cash',
-            }));
-            setCategories(mappedCats);
+            const seen = new Set<string>();
+            const cleaned: Category[] = [];
+            for (const c of json.data.categories) {
+              const key = `${(c.name || '').toLowerCase().trim()}_${c.type}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                const { accountId, ...rest } = c;
+                cleaned.push(rest);
+              }
+            }
+            if (!cleaned.some((c) => c.type === 'income' && c.name.toLowerCase() === 'cash in')) {
+              const cashInDef = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-cash-in');
+              if (cashInDef) cleaned.push({ ...cashInDef });
+            }
+            const finalCats = cleaned.length > 0 ? cleaned : createDefaultCategories();
+            setCategories(finalCats);
             try {
               localStorage.setItem(
                 getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, uid),
-                JSON.stringify(mappedCats)
+                JSON.stringify(finalCats)
               );
             } catch {}
           } else {
-            const defaultCats = createDefaultCategoriesForAccount('cash');
+            const defaultCats = createDefaultCategories();
             setCategories(defaultCats);
             try {
               localStorage.setItem(
@@ -835,45 +866,41 @@ export default function App() {
     }
   }, [categories, currentUser?.id]);
 
-  // Ensure every account has its own dedicated set of categories
+  // Ensure categories are clean, deduplicated, and contain default 'Cash In'
   useEffect(() => {
-    if (accounts.length > 0) {
-      setCategories((prev) => {
-        let changed = false;
-        const updated = [...prev];
-        accounts.forEach((acc) => {
-          const hasCats = updated.some(
-            (c) => c.accountId === acc.id || (!c.accountId && acc.id === 'cash')
-          );
-          if (!hasCats) {
-            updated.push(...createDefaultCategoriesForAccount(acc.id));
-            changed = true;
-          } else {
-            // Also ensure 'Cash In' is available in income categories
-            const hasCashIn = updated.some(
-              (c) =>
-                c.type === 'income' &&
-                c.name.toLowerCase() === 'cash in' &&
-                (c.accountId === acc.id || (!c.accountId && acc.id === 'cash'))
-            );
-            if (!hasCashIn) {
-              updated.push({
-                id: `cat-${acc.id}-cash-in`,
-                name: 'Cash In',
-                type: 'income',
-                color: '#0D9488',
-                icon: 'Banknote',
-                isDefault: true,
-                accountId: acc.id,
-              });
-              changed = true;
-            }
-          }
-        });
-        if (!changed) return prev;
-        return updated;
-      });
-    }
+    setCategories((prev) => {
+      let changed = false;
+      const seen = new Set<string>();
+      const cleaned: Category[] = [];
+      for (const c of prev) {
+        const key = `${(c.name || '').toLowerCase().trim()}_${c.type}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          const { accountId, ...rest } = c as any;
+          if (accountId) changed = true;
+          cleaned.push(rest);
+        } else {
+          changed = true; // Dropped duplicate
+        }
+      }
+      const hasCashIn = cleaned.some(
+        (c) => c.type === 'income' && c.name.toLowerCase() === 'cash in'
+      );
+      if (!hasCashIn) {
+        const cashInDef = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-cash-in') || {
+          id: 'cat-cash-in',
+          name: 'Cash In',
+          type: 'income',
+          color: '#0D9488',
+          icon: 'Banknote',
+          isDefault: true,
+        };
+        cleaned.push({ ...cashInDef });
+        changed = true;
+      }
+      if (!changed) return prev;
+      return cleaned;
+    });
   }, [accounts]);
 
   useEffect(() => {
@@ -1348,8 +1375,7 @@ export default function App() {
   const handleAddCategory = (catData: Omit<Category, 'id'>) => {
     const newCat: Category = {
       ...catData,
-      id: `cat-${catData.accountId || 'cash'}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      accountId: catData.accountId || accounts[0]?.id || 'cash',
+      id: `cat-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     };
     setCategories((prev) => [...prev, newCat]);
   };
@@ -1397,12 +1423,6 @@ export default function App() {
       id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     };
     setAccounts((prev) => [...prev, newAcc]);
-
-    // Create the default categories dedicated to this new account:
-    // Expense: Food & Drink, Transport, Bills, and Shopping ONLY
-    // Income: Salary, Allowance, Freelance, Business
-    const newAccountCats = createDefaultCategoriesForAccount(newAcc.id);
-    setCategories((prev) => [...prev, ...newAccountCats]);
   };
 
   const handleUpdateAccount = (updatedAcc: Account) => {
@@ -1431,8 +1451,6 @@ export default function App() {
     );
 
     setAccounts((prev) => prev.filter((a) => a.id !== id));
-    // Remove categories belonging to this account
-    setCategories((prev) => prev.filter((c) => c.accountId !== id));
 
     // Persist deletion immediately to backend
     const delUrl = `/api/db/accounts/${encodeURIComponent(id)}${
@@ -1776,7 +1794,7 @@ export default function App() {
     setSettings(DEFAULT_SETTINGS);
     setUserProfile(DEFAULT_USER_PROFILE);
     setAccounts(DEFAULT_ACCOUNTS);
-    setCategories(createDefaultCategoriesForAccount('cash'));
+    setCategories(createDefaultCategories());
     setCurrencies(DEFAULT_CURRENCIES);
     setGoals([]);
     setDebts([]);
@@ -1903,7 +1921,6 @@ export default function App() {
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
         onOpenCategories={() => {
           setCategoriesInitialType('expense');
-          setCategoriesInitialAccountId(accounts[0]?.id || 'cash');
           setShowCategoriesModal(true);
         }}
       />
@@ -1919,9 +1936,8 @@ export default function App() {
             transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
-            onOpenAddCategory={(type, accId) => {
+            onOpenAddCategory={(type) => {
               setCategoriesInitialType(type);
-              if (accId) setCategoriesInitialAccountId(accId);
               setShowCategoriesModal(true);
             }}
             onOpenAddAccount={() => setShowAccountsModal(true)}
@@ -2028,9 +2044,8 @@ export default function App() {
             transactions={transactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
-            onOpenAddCategory={(type, accId) => {
+            onOpenAddCategory={(type) => {
               setCategoriesInitialType(type);
-              if (accId) setCategoriesInitialAccountId(accId);
               setShowCategoriesModal(true);
             }}
             onOpenAddAccount={() => {
@@ -2076,8 +2091,6 @@ export default function App() {
       {showCategoriesModal && (
         <CategoryManagerModal
           categories={categories}
-          accounts={accounts}
-          initialAccountId={categoriesInitialAccountId}
           onAddCategory={handleAddCategory}
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}

@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Palette, Wallet } from 'lucide-react';
-import { Category, TransactionType, Account } from '../types';
-import { CategoryIcon, AccountIcon, ICON_MAP } from './CategoryIcon';
+import { Plus, Trash2, Edit2, Check, X, Palette } from 'lucide-react';
+import { Category, TransactionType } from '../types';
+import { CategoryIcon, ICON_MAP } from './CategoryIcon';
 
 interface CategoryManagerModalProps {
   categories: Category[];
-  accounts?: Account[];
-  initialAccountId?: string;
   onAddCategory: (category: Omit<Category, 'id'>) => void;
   onUpdateCategory: (category: Category) => void;
   onDeleteCategory: (id: string) => void;
@@ -33,19 +31,12 @@ const AVAILABLE_ICONS = Object.keys(ICON_MAP);
 
 export function CategoryManagerModal({
   categories,
-  accounts,
-  initialAccountId,
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
   onClose,
   initialType = 'expense',
 }: CategoryManagerModalProps) {
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(() => {
-    if (initialAccountId) return initialAccountId;
-    if (accounts && accounts.length > 0) return accounts[0].id;
-    return 'cash';
-  });
   const [activeTab, setActiveTab] = useState<TransactionType>(initialType);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
@@ -56,12 +47,8 @@ export function CategoryManagerModal({
   const [icon, setIcon] = useState('Tag');
   const [isAdding, setIsAdding] = useState(false);
 
-  // Filter categories strictly for the currently selected account
-  const filteredCategories = categories.filter(
-    (c) =>
-      c.type === activeTab &&
-      (c.accountId === selectedAccountId || (!c.accountId && selectedAccountId === 'cash'))
-  );
+  // Filter categories strictly by transaction type (expense vs income)
+  const filteredCategories = categories.filter((c) => c.type === activeTab);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +59,6 @@ export function CategoryManagerModal({
       type: activeTab,
       color,
       icon,
-      accountId: selectedAccountId,
     });
 
     setName('');
@@ -106,38 +92,6 @@ export function CategoryManagerModal({
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Account Selector if multiple accounts exist */}
-        {accounts && accounts.length > 0 && (
-          <div className="shrink-0 flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="text-xs font-medium text-zinc-500 shrink-0">Account:</span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {accounts.map((acc) => {
-                const isSelected =
-                  acc.id === selectedAccountId || (!selectedAccountId && acc.id === 'cash');
-                return (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedAccountId(acc.id);
-                      setIsAdding(false);
-                      setEditingCat(null);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs transition-colors border cursor-pointer ${
-                      isSelected
-                        ? 'bg-zinc-900 text-white border-zinc-900 font-medium shadow-2xs'
-                        : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
-                    }`}
-                  >
-                    <AccountIcon name={acc.icon} className="w-3 h-3 shrink-0" />
-                    <span>{acc.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Type Filter */}
         <div className="flex items-center justify-between gap-2 shrink-0">

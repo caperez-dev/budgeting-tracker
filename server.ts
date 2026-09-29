@@ -1107,9 +1107,8 @@ app.get("/api/db/sync", async (req, res) => {
       const defaultUserCats = [
         // Income
         {
-          id: `cat-cash-salary`,
+          id: `cat-salary`,
           userId,
-          accountId: 'cash',
           name: 'Salary',
           type: 'income',
           color: '#059669',
@@ -1117,9 +1116,8 @@ app.get("/api/db/sync", async (req, res) => {
           isDefault: true,
         },
         {
-          id: `cat-cash-allowance`,
+          id: `cat-allowance`,
           userId,
-          accountId: 'cash',
           name: 'Allowance',
           type: 'income',
           color: '#10B981',
@@ -1127,9 +1125,8 @@ app.get("/api/db/sync", async (req, res) => {
           isDefault: true,
         },
         {
-          id: `cat-cash-cash-in`,
+          id: `cat-cash-in`,
           userId,
-          accountId: 'cash',
           name: 'Cash In',
           type: 'income',
           color: '#0D9488',
@@ -1137,9 +1134,8 @@ app.get("/api/db/sync", async (req, res) => {
           isDefault: true,
         },
         {
-          id: `cat-cash-freelance`,
+          id: `cat-freelance`,
           userId,
-          accountId: 'cash',
           name: 'Freelance',
           type: 'income',
           color: '#2563EB',
@@ -1147,9 +1143,8 @@ app.get("/api/db/sync", async (req, res) => {
           isDefault: true,
         },
         {
-          id: `cat-cash-business`,
+          id: `cat-business`,
           userId,
-          accountId: 'cash',
           name: 'Business',
           type: 'income',
           color: '#4F46E5',
@@ -1158,9 +1153,8 @@ app.get("/api/db/sync", async (req, res) => {
         },
         // Expense (Food & Drink, Transport, Bills, Shopping ONLY)
         {
-          id: `cat-cash-food-drink`,
+          id: `cat-food-drink`,
           userId,
-          accountId: 'cash',
           name: 'Food & Drink',
           type: 'expense',
           color: '#E11D48',
@@ -1168,9 +1162,8 @@ app.get("/api/db/sync", async (req, res) => {
           isDefault: true,
         },
         {
-          id: `cat-cash-transport`,
+          id: `cat-transport`,
           userId,
-          accountId: 'cash',
           name: 'Transport',
           type: 'expense',
           color: '#0284C7',
@@ -1178,9 +1171,8 @@ app.get("/api/db/sync", async (req, res) => {
           isDefault: true,
         },
         {
-          id: `cat-cash-bills`,
+          id: `cat-bills`,
           userId,
-          accountId: 'cash',
           name: 'Bills',
           type: 'expense',
           color: '#EA580C',
@@ -1188,9 +1180,8 @@ app.get("/api/db/sync", async (req, res) => {
           isDefault: true,
         },
         {
-          id: `cat-cash-shopping`,
+          id: `cat-shopping`,
           userId,
-          accountId: 'cash',
           name: 'Shopping',
           type: 'expense',
           color: '#9333EA',
@@ -1205,6 +1196,38 @@ app.get("/api/db/sync", async (req, res) => {
       } catch {
         categories = defaultUserCats;
       }
+    } else if (categories.length > 0) {
+      // Deduplicate categories by name and type, remove any legacy accountId
+      const seen = new Set<string>();
+      const cleanedCats: any[] = [];
+      for (const c of categories) {
+        const key = `${(c.name || '').toLowerCase().trim()}_${c.type}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          const { accountId, ...rest } = c;
+          cleanedCats.push(rest);
+        }
+      }
+      // Ensure 'Cash In' is available in income categories
+      const hasCashIn = cleanedCats.some(
+        (c: any) => c.type === 'income' && (c.name || '').toLowerCase() === 'cash in'
+      );
+      if (!hasCashIn) {
+        const cashInCat = {
+          id: `cat-cash-in-${Date.now()}`,
+          userId: userId || '',
+          name: 'Cash In',
+          type: 'income',
+          color: '#0D9488',
+          icon: 'Banknote',
+          isDefault: true,
+        };
+        cleanedCats.push(cashInCat);
+        if (userId) {
+          (CategoryModel as any).create(cashInCat).catch(() => {});
+        }
+      }
+      categories = cleanedCats;
     }
 
     let profileDoc: any = profileDocFromDb;
@@ -1353,13 +1376,16 @@ app.post("/api/db/sync", async (req, res) => {
         if (categories.length > 0) {
           promises.push(
             (CategoryModel as any).bulkWrite(
-              categories.map((c: any) => ({
-                updateOne: {
-                  filter: { id: c.id, userId },
-                  update: { $set: { ...c, accountId: c.accountId || 'cash', userId } },
-                  upsert: true,
-                },
-              }))
+              categories.map((c: any) => {
+                const { accountId, ...cleanedCat } = c;
+                return {
+                  updateOne: {
+                    filter: { id: c.id, userId },
+                    update: { $set: { ...cleanedCat, userId } },
+                    upsert: true,
+                  },
+                };
+              })
             )
           );
         }
@@ -1368,13 +1394,16 @@ app.post("/api/db/sync", async (req, res) => {
         if (categories.length > 0) {
           promises.push(
             (CategoryModel as any).bulkWrite(
-              categories.map((c: any) => ({
-                updateOne: {
-                  filter: { id: c.id },
-                  update: { $set: c },
-                  upsert: true,
-                },
-              }))
+              categories.map((c: any) => {
+                const { accountId, ...cleanedCat } = c;
+                return {
+                  updateOne: {
+                    filter: { id: c.id },
+                    update: { $set: cleanedCat },
+                    upsert: true,
+                  },
+                };
+              })
             )
           );
         }
