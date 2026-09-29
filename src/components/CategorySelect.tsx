@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check, Layers } from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
 import { Category } from '../types';
 import { CategoryIcon } from './CategoryIcon';
 
@@ -106,12 +106,9 @@ export function CategorySelect({
               </span>
             </>
           ) : (
-            <>
-              <Layers className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              <span className="font-semibold text-zinc-900 tracking-tight truncate">
-                {placeholder || (showAllOption ? 'All Categories' : 'Select Category')}
-              </span>
-            </>
+            <span className="font-semibold text-zinc-900 tracking-tight truncate">
+              {placeholder || (showAllOption ? 'All Categories' : 'Select Category')}
+            </span>
           )}
         </div>
         <ChevronDown
@@ -139,8 +136,7 @@ export function CategorySelect({
                 value === 'all' ? 'bg-zinc-100/70 font-semibold text-zinc-900' : 'text-zinc-800'
               }`}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <Layers className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              <div className="flex items-center min-w-0">
                 <span className="font-medium text-zinc-900">All Categories</span>
               </div>
               {value === 'all' && (

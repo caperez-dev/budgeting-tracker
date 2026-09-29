@@ -32,6 +32,54 @@ export function getCurrent12HourTime(): string {
   return `${hours}:${minutesStr} ${ampm}`;
 }
 
+export function formatTimeTo24Hour(time12?: string): string {
+  if (!time12) return '12:00';
+  const trimmed = time12.trim();
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+    const [h, m] = trimmed.split(':');
+    return `${h.padStart(2, '0')}:${m}`;
+  }
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return '12:00';
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const ampm = (match[3] || '').toUpperCase();
+
+  if (ampm === 'PM' && hours < 12) {
+    hours += 12;
+  } else if (ampm === 'AM' && hours === 12) {
+    hours = 0;
+  }
+  return `${String(hours).padStart(2, '0')}:${minutes}`;
+}
+
+export function format24HourTo12Hour(time24?: string): string {
+  if (!time24) return getCurrent12HourTime();
+  const parts = time24.split(':');
+  if (parts.length < 2) return time24;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  if (isNaN(hours)) return time24;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours}:${minutes} ${ampm}`;
+}
+
+export function calculateTimestamp(dateStr?: string, timeStr?: string): number {
+  try {
+    if (!dateStr) return Date.now();
+    const time24 = formatTimeTo24Hour(timeStr) || '12:00';
+    const d = new Date(`${dateStr}T${time24}:00`);
+    if (!isNaN(d.getTime())) {
+      return d.getTime();
+    }
+  } catch {
+    // fallback
+  }
+  return Date.now();
+}
+
 export function getTodayDateString(): string {
   const now = new Date();
   const year = now.getFullYear();

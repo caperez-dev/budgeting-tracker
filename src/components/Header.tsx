@@ -10,7 +10,6 @@ import {
   Coins,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ArrowLeftRight,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
@@ -188,14 +187,9 @@ export function Header({
             onClick={() => setIsMonthPickerOpen((prev) => !prev)}
             aria-expanded={isMonthPickerOpen}
             title="Click to select month and year"
-            className="flex items-center gap-1.5 px-2.5 py-1 text-sm font-semibold text-zinc-800 hover:text-zinc-950 hover:bg-zinc-100 rounded-[4px] transition-colors cursor-pointer group"
+            className="flex items-center px-2.5 py-1 text-sm font-semibold text-zinc-800 hover:text-zinc-950 hover:bg-zinc-100 rounded-[4px] transition-colors cursor-pointer"
           >
             <span>{monthYearDisplay}</span>
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-700 transition-transform ${
-                isMonthPickerOpen ? 'rotate-180 text-zinc-800' : ''
-              }`}
-            />
           </button>
 
           <button
