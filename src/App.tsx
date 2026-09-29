@@ -38,7 +38,7 @@ import { DonateModal } from './components/DonateModal';
 import { SettingsModal } from './components/SettingsModal';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { buildBudgetPdfDoc, exportPdfSaveAs } from './utils/pdfExport';
-import { getCurrent12HourTime, getTodayDateString } from './utils/formatters';
+import { getCurrent12HourTime, getTodayDateString, consolidateTransactions } from './utils/formatters';
 import {
   convertCurrency,
   roundToCurrency,
@@ -180,7 +180,7 @@ export default function App() {
       if (!user?.id) return [];
       const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
       const saved = localStorage.getItem(userKey);
-      return saved ? JSON.parse(saved) : [];
+      return saved ? consolidateTransactions(JSON.parse(saved)) : [];
     } catch {
       return [];
     }
@@ -624,11 +624,12 @@ export default function App() {
         const json = await res.json();
         if (json.success && json.data) {
           if (Array.isArray(json.data.transactions)) {
-            setTransactions(json.data.transactions);
+            const consolidated = consolidateTransactions(json.data.transactions, json.data.accounts || accounts);
+            setTransactions(consolidated);
             try {
               localStorage.setItem(
                 getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid),
-                JSON.stringify(json.data.transactions)
+                JSON.stringify(consolidated)
               );
             } catch {}
           }
@@ -838,17 +839,39 @@ export default function App() {
   useEffect(() => {
     if (accounts.length > 0) {
       setCategories((prev) => {
-        const missing: Category[] = [];
+        let changed = false;
+        const updated = [...prev];
         accounts.forEach((acc) => {
-          const hasCats = prev.some(
+          const hasCats = updated.some(
             (c) => c.accountId === acc.id || (!c.accountId && acc.id === 'cash')
           );
           if (!hasCats) {
-            missing.push(...createDefaultCategoriesForAccount(acc.id));
+            updated.push(...createDefaultCategoriesForAccount(acc.id));
+            changed = true;
+          } else {
+            // Also ensure 'Cash In' is available in income categories
+            const hasCashIn = updated.some(
+              (c) =>
+                c.type === 'income' &&
+                c.name.toLowerCase() === 'cash in' &&
+                (c.accountId === acc.id || (!c.accountId && acc.id === 'cash'))
+            );
+            if (!hasCashIn) {
+              updated.push({
+                id: `cat-${acc.id}-cash-in`,
+                name: 'Cash In',
+                type: 'income',
+                color: '#0D9488',
+                icon: 'Banknote',
+                isDefault: true,
+                accountId: acc.id,
+              });
+              changed = true;
+            }
           }
         });
-        if (missing.length === 0) return prev;
-        return [...prev, ...missing];
+        if (!changed) return prev;
+        return updated;
       });
     }
   }, [accounts]);
@@ -1210,6 +1233,31 @@ export default function App() {
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
+    if (updatedTx.type === 'transfer') {
+      const fromAcc = updatedTx.fromAccountId
+        ? accounts.find((a) => a.id === updatedTx.fromAccountId)
+        : accounts.find((a) => a.id === updatedTx.accountId);
+      const toAcc = updatedTx.toAccountId
+        ? accounts.find((a) => a.id === updatedTx.toAccountId)
+        : undefined;
+
+      const enrichedTx: Transaction = {
+        ...updatedTx,
+        fromAccountId: fromAcc?.id || updatedTx.fromAccountId || updatedTx.accountId,
+        fromAccountName: fromAcc?.name || updatedTx.fromAccountName || 'Account 1',
+        fromAccountIcon: fromAcc?.icon || updatedTx.fromAccountIcon || 'Wallet',
+        toAccountId: toAcc?.id || updatedTx.toAccountId,
+        toAccountName: toAcc?.name || updatedTx.toAccountName || 'Account 2',
+        toAccountIcon: toAcc?.icon || updatedTx.toAccountIcon || 'Wallet',
+        accountId: fromAcc?.id || updatedTx.fromAccountId || updatedTx.accountId,
+        accountName: fromAcc?.name,
+        accountIcon: fromAcc?.icon,
+        note: (updatedTx.note || '').trim(),
+      };
+      setTransactions((prev) => prev.map((t) => (t.id === enrichedTx.id ? enrichedTx : t)));
+      return;
+    }
+
     const cat = categories.find((c) => c.id === updatedTx.categoryId);
     const acc = updatedTx.accountId ? accounts.find((a) => a.id === updatedTx.accountId) : undefined;
     const enrichedTx: Transaction = {
@@ -1410,68 +1458,40 @@ export default function App() {
     const fromAcc = accounts.find((a) => a.id === fromAccountId);
     const toAcc = accounts.find((a) => a.id === toAccountId);
 
-    const transferExpenseCat =
-      categories.find((c) => c.name.toLowerCase() === 'transfer' && c.type === 'expense') ||
-      categories.find((c) => c.type === 'expense');
-
-    const transferIncomeCat =
-      categories.find((c) => c.name.toLowerCase() === 'transfer' && c.type === 'income') ||
-      categories.find((c) => c.type === 'income');
-
     const now = Date.now();
     const today = getTodayDateString();
     const currentTime = getCurrent12HourTime();
 
-    const fromTx: Transaction = {
-      id: `tx-transfer-out-${now}-${Math.random().toString(36).substr(2, 4)}`,
+    const transferTx: Transaction = {
+      id: `tx-transfer-${now}-${Math.random().toString(36).substr(2, 4)}`,
       userId: currentUser?.id,
-      type: 'expense',
+      type: 'transfer',
       amount,
       currency: settings.defaultCurrency,
-      categoryId: transferExpenseCat?.id || 'exp-other',
-      categoryName: transferExpenseCat?.name || 'Transfer',
-      categoryIcon: transferExpenseCat?.icon || 'ArrowLeftRight',
-      categoryColor: transferExpenseCat?.color || '#52525B',
+      fromAccountId,
+      toAccountId,
+      fromAccountName: fromAcc?.name || 'Account 1',
+      toAccountName: toAcc?.name || 'Account 2',
+      fromAccountIcon: fromAcc?.icon || 'Wallet',
+      toAccountIcon: toAcc?.icon || 'Wallet',
       accountId: fromAccountId,
       accountName: fromAcc?.name,
       accountIcon: fromAcc?.icon || 'Wallet',
-      note: note ? `Transfer to ${toAcc?.name || 'Account'}: ${note}` : `Transfer to ${toAcc?.name || 'Account'}`,
+      note: note.trim(),
       date: today,
       time: currentTime,
       timestamp: now,
       createdAt: now,
     };
 
-    const toTx: Transaction = {
-      id: `tx-transfer-in-${now + 1}-${Math.random().toString(36).substr(2, 4)}`,
-      userId: currentUser?.id,
-      type: 'income',
-      amount,
-      currency: settings.defaultCurrency,
-      categoryId: transferIncomeCat?.id || 'inc-other',
-      categoryName: transferIncomeCat?.name || 'Transfer',
-      categoryIcon: transferIncomeCat?.icon || 'ArrowLeftRight',
-      categoryColor: transferIncomeCat?.color || '#52525B',
-      accountId: toAccountId,
-      accountName: toAcc?.name,
-      accountIcon: toAcc?.icon || 'Wallet',
-      note: note ? `Transfer from ${fromAcc?.name || 'Account'}: ${note}` : `Transfer from ${fromAcc?.name || 'Account'}`,
-      date: today,
-      time: currentTime,
-      timestamp: now + 1,
-      createdAt: now + 1,
-    };
-
-    setTransactions((prev) => [toTx, fromTx, ...prev]);
+    setTransactions((prev) => [transferTx, ...prev]);
 
     if (currentUser?.id) {
-      [fromTx, toTx].forEach((tx) => {
-        fetch(`/api/db/transactions?userId=${encodeURIComponent(currentUser.id)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-          body: JSON.stringify(tx),
-        }).catch(() => {});
-      });
+      fetch(`/api/db/transactions?userId=${encodeURIComponent(currentUser.id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+        body: JSON.stringify(transferTx),
+      }).catch(() => {});
     }
   };
 

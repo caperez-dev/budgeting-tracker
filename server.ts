@@ -1103,7 +1103,7 @@ app.get("/api/db/sync", async (req, res) => {
     if (userId && categories.length === 0) {
       // Default categories for new accounts:
       // Expense: Food & Drink, Transport, Bills, and Shopping ONLY
-      // Income: Salary, Allowance, Freelance, Business
+      // Income: Salary, Allowance, Cash In, Freelance, Business
       const defaultUserCats = [
         // Income
         {
@@ -1124,6 +1124,16 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'income',
           color: '#10B981',
           icon: 'Coins',
+          isDefault: true,
+        },
+        {
+          id: `cat-cash-cash-in`,
+          userId,
+          accountId: 'cash',
+          name: 'Cash In',
+          type: 'income',
+          color: '#0D9488',
+          icon: 'Banknote',
           isDefault: true,
         },
         {

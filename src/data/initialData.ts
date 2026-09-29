@@ -37,6 +37,15 @@ export function createDefaultCategoriesForAccount(accountId: string): Category[]
       accountId,
     },
     {
+      id: `cat-${accountId}-cash-in`,
+      name: 'Cash In',
+      type: 'income',
+      color: '#0D9488', // teal-600
+      icon: 'Banknote',
+      isDefault: true,
+      accountId,
+    },
+    {
       id: `cat-${accountId}-freelance`,
       name: 'Freelance',
       type: 'income',

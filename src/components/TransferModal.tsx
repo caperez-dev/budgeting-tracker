@@ -38,11 +38,20 @@ export function TransferModal({
     });
 
     transactions.forEach((tx) => {
-      if (tx.accountId && balances.has(tx.accountId)) {
+      if (tx.type === 'transfer') {
+        const fromId = tx.fromAccountId || tx.accountId;
+        const toId = tx.toAccountId;
+        if (fromId && balances.has(fromId)) {
+          balances.set(fromId, (balances.get(fromId) ?? 0) - tx.amount);
+        }
+        if (toId && balances.has(toId)) {
+          balances.set(toId, (balances.get(toId) ?? 0) + tx.amount);
+        }
+      } else if (tx.accountId && balances.has(tx.accountId)) {
         const current = balances.get(tx.accountId)!;
         if (tx.type === 'income') {
           balances.set(tx.accountId, current + tx.amount);
-        } else {
+        } else if (tx.type === 'expense') {
           balances.set(tx.accountId, current - tx.amount);
         }
       }

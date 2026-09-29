@@ -1,4 +1,4 @@
-import { Transaction } from '../types';
+import { Transaction, Account } from '../types';
 
 export function formatCurrency(amount: number, symbol: string = '₱'): string {
   const isNegative = amount < 0;
@@ -117,7 +117,7 @@ export function groupTransactions(transactions: Transaction[]): MonthGroup[] {
 
       if (tx.type === 'income') {
         monthTotalIn += tx.amount;
-      } else {
+      } else if (tx.type === 'expense') {
         monthTotalOut += tx.amount;
       }
     });
@@ -140,7 +140,7 @@ export function groupTransactions(transactions: Transaction[]): MonthGroup[] {
 
         if (tx.type === 'income') {
           weekTotalIn += tx.amount;
-        } else {
+        } else if (tx.type === 'expense') {
           weekTotalOut += tx.amount;
         }
       });
@@ -159,7 +159,7 @@ export function groupTransactions(transactions: Transaction[]): MonthGroup[] {
         let dayTotalOut = 0;
         dayTxList.forEach((tx) => {
           if (tx.type === 'income') dayTotalIn += tx.amount;
-          else dayTotalOut += tx.amount;
+          else if (tx.type === 'expense') dayTotalOut += tx.amount;
         });
 
         days.push({
@@ -191,4 +191,124 @@ export function groupTransactions(transactions: Transaction[]): MonthGroup[] {
   });
 
   return monthGroups;
+}
+
+/**
+ * Consolidates legacy paired transfer records (IN and OUT entries) into a single transfer entry.
+ */
+export function consolidateTransactions(rawList: Transaction[], accountsList: Account[] = []): Transaction[] {
+  if (!Array.isArray(rawList)) return [];
+
+  const result: Transaction[] = [];
+  const processedToIds = new Set<string>();
+
+  const getAccount = (id?: string, name?: string) => {
+    if (id) {
+      const found = accountsList.find((a) => a.id === id);
+      if (found) return found;
+    }
+    if (name) {
+      const found = accountsList.find((a) => a.name.toLowerCase() === name.toLowerCase());
+      if (found) return found;
+    }
+    return undefined;
+  };
+
+  for (let i = 0; i < rawList.length; i++) {
+    const tx = rawList[i];
+    if (processedToIds.has(tx.id)) continue;
+
+    // Already a consolidated transfer entry
+    if (tx.type === 'transfer') {
+      const fromAcc = getAccount(tx.fromAccountId || tx.accountId, tx.fromAccountName);
+      const toAcc = getAccount(tx.toAccountId, tx.toAccountName);
+      result.push({
+        ...tx,
+        fromAccountId: tx.fromAccountId || tx.accountId,
+        fromAccountName: fromAcc?.name || tx.fromAccountName || tx.accountName || 'Account 1',
+        toAccountName: toAcc?.name || tx.toAccountName || 'Account 2',
+        fromAccountIcon: fromAcc?.icon || tx.fromAccountIcon || tx.accountIcon || 'Wallet',
+        toAccountIcon: toAcc?.icon || tx.toAccountIcon || 'Wallet',
+      });
+      continue;
+    }
+
+    // Check if legacy transfer out entry (e.g. id starts with "tx-transfer-out-" or note starts with "Transfer to ")
+    const isLegacyOut =
+      tx.id.startsWith('tx-transfer-out-') ||
+      (tx.type === 'expense' && (tx.categoryName?.toLowerCase() === 'transfer' || tx.note?.toLowerCase().startsWith('transfer to ')));
+
+    if (isLegacyOut) {
+      // Find matching legacy 'in' transaction
+      let matchingInIndex = -1;
+      for (let j = 0; j < rawList.length; j++) {
+        if (j === i || processedToIds.has(rawList[j].id)) continue;
+        const other = rawList[j];
+        if (
+          other.type === 'income' &&
+          (other.id.startsWith('tx-transfer-in-') || other.categoryName?.toLowerCase() === 'transfer' || other.note?.toLowerCase().startsWith('transfer from ')) &&
+          Math.abs(other.amount - tx.amount) < 0.001 &&
+          other.date === tx.date
+        ) {
+          matchingInIndex = j;
+          break;
+        }
+      }
+
+      const matchingIn = matchingInIndex !== -1 ? rawList[matchingInIndex] : undefined;
+      if (matchingIn) {
+        processedToIds.add(matchingIn.id);
+      }
+
+      // Extract destination account & clean note
+      let toAccId = matchingIn?.accountId || '';
+      let toAccName = matchingIn?.accountName || '';
+
+      // Clean note if it had "Transfer to [Account]: " prefix
+      let cleanNote = tx.note || '';
+      const toMatch = cleanNote.match(/^Transfer to ([^:]+)(?::\s*(.*))?$/i);
+      if (toMatch) {
+        if (!toAccName) toAccName = toMatch[1].trim();
+        cleanNote = (toMatch[2] || '').trim();
+      }
+
+      if (!toAccId && toAccName) {
+        const found = accountsList.find((a) => a.name.toLowerCase() === toAccName.toLowerCase());
+        if (found) toAccId = found.id;
+      }
+
+      const fromAcc = getAccount(tx.accountId, tx.accountName);
+      const toAcc = getAccount(toAccId, toAccName);
+
+      const consolidated: Transaction = {
+        ...tx,
+        id: tx.id.startsWith('tx-transfer-out-') ? tx.id.replace('tx-transfer-out-', 'tx-transfer-') : `tx-transfer-${tx.timestamp}`,
+        type: 'transfer',
+        fromAccountId: tx.accountId,
+        toAccountId: toAcc?.id || toAccId,
+        fromAccountName: fromAcc?.name || tx.accountName || 'Account 1',
+        toAccountName: toAcc?.name || toAccName || 'Account 2',
+        fromAccountIcon: fromAcc?.icon || tx.accountIcon || 'Wallet',
+        toAccountIcon: toAcc?.icon || 'Wallet',
+        note: cleanNote,
+        categoryName: undefined,
+        categoryIcon: undefined,
+      };
+
+      result.push(consolidated);
+      continue;
+    }
+
+    // Check if legacy orphan in entry that was not matched
+    const isLegacyIn =
+      tx.id.startsWith('tx-transfer-in-') ||
+      (tx.type === 'income' && tx.categoryName?.toLowerCase() === 'transfer' && tx.note?.toLowerCase().startsWith('transfer from '));
+    if (isLegacyIn) {
+      continue;
+    }
+
+    result.push(tx);
+  }
+
+  return result;
 }

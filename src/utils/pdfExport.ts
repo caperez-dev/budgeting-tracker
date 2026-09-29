@@ -126,10 +126,10 @@ export function buildBudgetPdfDoc({
 
   const txRows = sortedTransactions.map((tx) => [
     `${tx.date} ${tx.time}`,
-    tx.type === 'income' ? 'INCOME' : 'EXPENSE',
-    categoryMap.get(tx.categoryId) || 'General',
+    tx.type === 'income' ? 'INCOME' : tx.type === 'transfer' ? 'TRANSFER' : 'EXPENSE',
+    tx.type === 'transfer' ? (tx.fromAccountName && tx.toAccountName ? `From ${tx.fromAccountName} to ${tx.toAccountName}` : 'Transfer') : (categoryMap.get(tx.categoryId || '') || 'General'),
     tx.note || '-',
-    `${tx.type === 'income' ? '+' : '-'}${formatCurrency(tx.amount, currencySymbol)}`,
+    `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}${formatCurrency(tx.amount, currencySymbol)}`,
   ]);
 
   autoTable(doc, {
