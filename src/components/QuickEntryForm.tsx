@@ -82,7 +82,9 @@ export function QuickEntryForm({
 
   // Filter categories strictly by transaction type (expense vs income), never by account
   const availableCategories = React.useMemo(() => {
-    return categories.filter((c) => c.type === type);
+    return [...categories]
+      .filter((c) => c.type === type)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [categories, type]);
 
   const currencyObj = currencies.find((c) => c.code === currency) || currencies[0];

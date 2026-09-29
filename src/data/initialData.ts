@@ -1,9 +1,9 @@
 import { Category, Currency, Debt, Goal, Transaction, UserSettings, UserProfile } from '../types';
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
-  nickname: 'Carlos',
-  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  email: 'perez.carlos6566@gmail.com',
+  nickname: 'User',
+  avatarUrl: '',
+  email: '',
 };
 
 export const DEFAULT_CURRENCIES: Currency[] = [
@@ -23,6 +23,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'income',
     color: '#059669', // emerald
     icon: 'Briefcase',
+    order: 0,
     isDefault: true,
   },
   {
@@ -31,6 +32,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'income',
     color: '#10B981', // emerald-500
     icon: 'Coins',
+    order: 1,
     isDefault: true,
   },
   {
@@ -39,6 +41,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'income',
     color: '#0D9488', // teal-600
     icon: 'Banknote',
+    order: 2,
     isDefault: true,
   },
   {
@@ -47,6 +50,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'income',
     color: '#2563EB', // blue
     icon: 'Laptop',
+    order: 3,
     isDefault: true,
   },
   {
@@ -55,6 +59,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'income',
     color: '#4F46E5', // indigo
     icon: 'CircleDollarSign',
+    order: 4,
     isDefault: true,
   },
 
@@ -65,6 +70,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'expense',
     color: '#E11D48', // rose-600
     icon: 'Utensils',
+    order: 0,
     isDefault: true,
   },
   {
@@ -73,6 +79,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'expense',
     color: '#0284C7', // sky-600
     icon: 'Car',
+    order: 1,
     isDefault: true,
   },
   {
@@ -81,6 +88,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'expense',
     color: '#EA580C', // orange-600
     icon: 'Receipt',
+    order: 2,
     isDefault: true,
   },
   {
@@ -89,6 +97,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     type: 'expense',
     color: '#9333EA', // purple-600
     icon: 'ShoppingBag',
+    order: 3,
     isDefault: true,
   },
 ];

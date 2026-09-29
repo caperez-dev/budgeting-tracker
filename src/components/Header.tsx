@@ -42,6 +42,7 @@ interface HeaderProps {
   onNextMonth: () => void;
   userProfile: UserProfile;
   onUpdateProfile: (profile: UserProfile) => void;
+  isProfileLoading?: boolean;
   expenseCount: number;
   incomeCount: number;
   debtCount?: number;
@@ -75,6 +76,7 @@ export function Header({
   onNextMonth,
   userProfile,
   onUpdateProfile,
+  isProfileLoading,
   expenseCount,
   incomeCount,
   debtCount,
@@ -320,6 +322,7 @@ export function Header({
           {/* Profile Dropdown */}
           <ProfileDropdown
             profile={userProfile}
+            isLoading={isProfileLoading}
             onUpdateProfile={onUpdateProfile}
             expenseCount={expenseCount}
             incomeCount={incomeCount}

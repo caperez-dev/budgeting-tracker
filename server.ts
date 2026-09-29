@@ -1084,7 +1084,7 @@ app.get("/api/db/sync", async (req, res) => {
     const [transactions, fetchedCategories, accounts, currencies, debts, goals, profileDocFromDb] =
       await Promise.all([
         (TransactionModel as any).find(txQuery).sort({ date: -1 }).lean().exec(),
-        (CategoryModel as any).find(catQuery).lean().exec(),
+        (CategoryModel as any).find(catQuery).sort({ order: 1, _id: 1 }).lean().exec(),
         (AccountModel as any).find(accQuery).lean().exec(),
         (CurrencyModel as any).find({}).lean().exec(),
         (DebtModel as any).find(debtQuery).sort({ date: -1 }).lean().exec(),
@@ -1113,6 +1113,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'income',
           color: '#059669',
           icon: 'Briefcase',
+          order: 0,
           isDefault: true,
         },
         {
@@ -1122,6 +1123,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'income',
           color: '#10B981',
           icon: 'Coins',
+          order: 1,
           isDefault: true,
         },
         {
@@ -1131,6 +1133,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'income',
           color: '#0D9488',
           icon: 'Banknote',
+          order: 2,
           isDefault: true,
         },
         {
@@ -1140,6 +1143,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'income',
           color: '#2563EB',
           icon: 'Laptop',
+          order: 3,
           isDefault: true,
         },
         {
@@ -1149,6 +1153,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'income',
           color: '#4F46E5',
           icon: 'CircleDollarSign',
+          order: 4,
           isDefault: true,
         },
         // Expense (Food & Drink, Transport, Bills, Shopping ONLY)
@@ -1159,6 +1164,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'expense',
           color: '#E11D48',
           icon: 'Utensils',
+          order: 0,
           isDefault: true,
         },
         {
@@ -1168,6 +1174,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'expense',
           color: '#0284C7',
           icon: 'Car',
+          order: 1,
           isDefault: true,
         },
         {
@@ -1177,6 +1184,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'expense',
           color: '#EA580C',
           icon: 'Receipt',
+          order: 2,
           isDefault: true,
         },
         {
@@ -1186,6 +1194,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'expense',
           color: '#9333EA',
           icon: 'ShoppingBag',
+          order: 3,
           isDefault: true,
         },
       ];
@@ -1197,7 +1206,7 @@ app.get("/api/db/sync", async (req, res) => {
         categories = defaultUserCats;
       }
     } else if (categories.length > 0) {
-      // Deduplicate categories by name and type, remove any legacy accountId
+      // Deduplicate categories by name and type, remove any legacy accountId, and preserve order
       const seen = new Set<string>();
       const cleanedCats: any[] = [];
       for (const c of categories) {
@@ -1220,6 +1229,7 @@ app.get("/api/db/sync", async (req, res) => {
           type: 'income',
           color: '#0D9488',
           icon: 'Banknote',
+          order: 2,
           isDefault: true,
         };
         cleanedCats.push(cashInCat);
@@ -1227,6 +1237,7 @@ app.get("/api/db/sync", async (req, res) => {
           (CategoryModel as any).create(cashInCat).catch(() => {});
         }
       }
+      cleanedCats.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
       categories = cleanedCats;
     }
 
@@ -1376,12 +1387,13 @@ app.post("/api/db/sync", async (req, res) => {
         if (categories.length > 0) {
           promises.push(
             (CategoryModel as any).bulkWrite(
-              categories.map((c: any) => {
+              categories.map((c: any, index: number) => {
                 const { accountId, ...cleanedCat } = c;
+                const order = typeof c.order === 'number' ? c.order : index;
                 return {
                   updateOne: {
                     filter: { id: c.id, userId },
-                    update: { $set: { ...cleanedCat, userId } },
+                    update: { $set: { ...cleanedCat, order, userId } },
                     upsert: true,
                   },
                 };
@@ -1394,12 +1406,13 @@ app.post("/api/db/sync", async (req, res) => {
         if (categories.length > 0) {
           promises.push(
             (CategoryModel as any).bulkWrite(
-              categories.map((c: any) => {
+              categories.map((c: any, index: number) => {
                 const { accountId, ...cleanedCat } = c;
+                const order = typeof c.order === 'number' ? c.order : index;
                 return {
                   updateOne: {
                     filter: { id: c.id },
-                    update: { $set: cleanedCat },
+                    update: { $set: { ...cleanedCat, order } },
                     upsert: true,
                   },
                 };
@@ -1598,6 +1611,49 @@ app.delete("/api/db/categories/:id", async (req, res) => {
     const filter: any = { id: req.params.id };
     if (userId) filter.userId = userId;
     await CategoryModel.deleteOne(filter).catch(() => {});
+  }
+  res.json({ success: true });
+});
+
+// Category Reordering (Fast direct update)
+app.post("/api/db/categories/reorder", async (req, res) => {
+  const userId = (req.body.userId as string) || (req.headers["x-user-id"] as string) || "";
+  const { categories } = req.body;
+  if (!Array.isArray(categories)) {
+    res.status(400).json({ error: "Invalid categories list" });
+    return;
+  }
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      const bulkOps = categories.map((cat: any, index: number) => {
+        const order = typeof cat.order === "number" ? cat.order : index;
+        const { accountId, ...cleanedCat } = cat;
+        return {
+          updateOne: {
+            filter: userId ? { id: cat.id, userId } : { id: cat.id },
+            update: {
+              $set: {
+                ...cleanedCat,
+                order,
+                ...(userId ? { userId } : {}),
+              },
+            },
+            upsert: true,
+          },
+        };
+      });
+
+      if (bulkOps.length > 0) {
+        await (CategoryModel as any).bulkWrite(bulkOps);
+      }
+      res.json({ success: true });
+      return;
+    } catch (err: any) {
+      console.error("Error reordering categories:", err);
+      res.status(500).json({ error: err.message });
+      return;
+    }
   }
   res.json({ success: true });
 });

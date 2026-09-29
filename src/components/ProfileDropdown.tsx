@@ -25,6 +25,7 @@ interface ProfileDropdownProps {
   isSyncing?: boolean;
   lastSyncedTime?: string | null;
   currentUser?: AuthUser | null;
+  isLoading?: boolean;
   onOpenSettings?: () => void;
   onLogout?: () => void;
 }
@@ -40,6 +41,7 @@ export function ProfileDropdown({
   isSyncing = false,
   lastSyncedTime,
   currentUser,
+  isLoading = false,
   onOpenSettings,
   onLogout,
 }: ProfileDropdownProps) {
@@ -91,7 +93,8 @@ export function ProfileDropdown({
     setIsEditingNickname(false);
   };
 
-  const activeEmail = currentUser?.email || profile.email || 'Personal Account';
+  const isEmailLoading = isLoading || (!currentUser?.email && !profile.email);
+  const activeEmail = currentUser?.email || profile.email || '';
   const activeAvatar = profile.avatarUrl || currentUser?.avatarUrl || '';
   const activeNickname = profile.nickname || currentUser?.nickname || 'User';
 
@@ -104,10 +107,12 @@ export function ProfileDropdown({
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        className="rounded-full focus:outline-hidden focus:ring-2 focus:ring-zinc-400/50 transition-transform active:scale-95 flex items-center justify-center p-0.5"
+        className="rounded-full focus:outline-hidden focus:ring-2 focus:ring-zinc-400/50 transition-transform active:scale-95 flex items-center justify-center p-0.5 cursor-pointer"
         title={`Profile (${activeNickname})`}
       >
-        {activeAvatar ? (
+        {isEmailLoading ? (
+          <div className="w-8 h-8 rounded-full bg-zinc-200 animate-pulse border border-zinc-300/60 shrink-0" />
+        ) : activeAvatar ? (
           <img
             src={activeAvatar}
             alt={activeNickname}
@@ -137,7 +142,9 @@ export function ProfileDropdown({
           <div className="flex items-center gap-3">
             {/* Avatar */}
             <div className="relative shrink-0">
-              {activeAvatar ? (
+              {isEmailLoading ? (
+                <div className="w-13 h-13 rounded-full bg-zinc-200 animate-pulse border-2 border-zinc-100 shadow-xs shrink-0" />
+              ) : activeAvatar ? (
                 <img
                   src={activeAvatar}
                   alt={activeNickname}
@@ -153,55 +160,64 @@ export function ProfileDropdown({
 
             {/* Nickname & info */}
             <div className="flex-1 min-w-0">
-              {isEditingNickname ? (
-                <form onSubmit={handleSaveNickname} className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    value={tempNickname}
-                    onChange={(e) => setTempNickname(e.target.value)}
-                    maxLength={25}
-                    autoFocus
-                    placeholder="Enter nickname"
-                    className="w-full bg-zinc-50 border border-zinc-300 rounded-[3px] px-2 py-0.5 text-xs font-semibold text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                  />
-                  <button
-                    type="submit"
-                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                    title="Save"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempNickname(profile.nickname);
-                      setIsEditingNickname(false);
-                    }}
-                    className="p-1 text-zinc-400 hover:bg-zinc-100 rounded"
-                    title="Cancel"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </form>
-              ) : (
-                <div className="flex items-center gap-1.5 group">
-                  <h4 className="font-bold text-sm text-zinc-900 truncate">
-                    {activeNickname}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingNickname(true)}
-                    className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors"
-                    title="Edit nickname"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </button>
+              {isEmailLoading ? (
+                <div className="space-y-1.5 py-0.5">
+                  <div className="h-4 w-28 bg-zinc-200 rounded animate-pulse" />
+                  <div className="h-3 w-40 bg-zinc-100 rounded animate-pulse" />
                 </div>
-              )}
+              ) : (
+                <>
+                  {isEditingNickname ? (
+                    <form onSubmit={handleSaveNickname} className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={tempNickname}
+                        onChange={(e) => setTempNickname(e.target.value)}
+                        maxLength={25}
+                        autoFocus
+                        placeholder="Enter nickname"
+                        className="w-full bg-zinc-50 border border-zinc-300 rounded-[3px] px-2 py-0.5 text-xs font-semibold text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                      />
+                      <button
+                        type="submit"
+                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                        title="Save"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempNickname(profile.nickname);
+                          setIsEditingNickname(false);
+                        }}
+                        className="p-1 text-zinc-400 hover:bg-zinc-100 rounded"
+                        title="Cancel"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="flex items-center gap-1.5 group">
+                      <h4 className="font-bold text-sm text-zinc-900 truncate">
+                        {activeNickname}
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingNickname(true)}
+                        className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors"
+                        title="Edit nickname"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
 
-              <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
-                {activeEmail}
-              </p>
+                  <p className="text-[11px] text-zinc-500 font-mono mt-0.5 truncate">
+                    {activeEmail || 'Personal Account'}
+                  </p>
+                </>
+              )}
             </div>
           </div>
 

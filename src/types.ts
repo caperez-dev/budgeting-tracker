@@ -14,6 +14,7 @@ export interface Category {
   type: TransactionType;
   color: string; // Accent color used for categories in transaction views
   icon: string; // Lucide icon identifier
+  order?: number; // Custom display order for quick entry and listings
   isDefault?: boolean;
 }
 

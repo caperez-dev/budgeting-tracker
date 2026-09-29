@@ -90,6 +90,7 @@ const CategorySchema = new mongoose.Schema(
     type: { type: String, required: true, enum: ['income', 'expense'] },
     icon: { type: String, default: 'Tag' },
     color: { type: String, default: 'bg-zinc-500' },
+    order: { type: Number, default: 0, index: true },
     isDefault: { type: Boolean, default: false },
     isCustom: { type: Boolean, default: false },
   },

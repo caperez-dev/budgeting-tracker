@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Palette } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Trash2, Edit2, Check, X, Palette, GripVertical } from 'lucide-react';
 import { Category, TransactionType } from '../types';
 import { CategoryIcon, ICON_MAP } from './CategoryIcon';
 
@@ -8,6 +8,7 @@ interface CategoryManagerModalProps {
   onAddCategory: (category: Omit<Category, 'id'>) => void;
   onUpdateCategory: (category: Category) => void;
   onDeleteCategory: (id: string) => void;
+  onReorderCategories?: (categories: Category[]) => void;
   onClose: () => void;
   initialType?: TransactionType;
 }
@@ -34,6 +35,7 @@ export function CategoryManagerModal({
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
+  onReorderCategories,
   onClose,
   initialType = 'expense',
 }: CategoryManagerModalProps) {
@@ -47,8 +49,146 @@ export function CategoryManagerModal({
   const [icon, setIcon] = useState('Tag');
   const [isAdding, setIsAdding] = useState(false);
 
-  // Filter categories strictly by transaction type (expense vs income)
-  const filteredCategories = categories.filter((c) => c.type === activeTab);
+  // Reorderable items state for activeTab
+  const [items, setItems] = useState<Category[]>(() =>
+    categories.filter((c) => c.type === activeTab)
+  );
+
+  useEffect(() => {
+    setItems(categories.filter((c) => c.type === activeTab));
+  }, [categories, activeTab]);
+
+  // Drag-and-drop vertical-only reordering state
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragOffsetY, setDragOffsetY] = useState<number>(0);
+  const [currentHoverIndex, setCurrentHoverIndex] = useState<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<boolean>(false);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const startYRef = useRef<number>(0);
+  const minDeltaYRef = useRef<number>(0);
+  const maxDeltaYRef = useRef<number>(0);
+  const activeDragIndexRef = useRef<number | null>(null);
+  const currentHoverIndexRef = useRef<number | null>(null);
+  const rowHeightRef = useRef<number>(44);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>, index: number) => {
+    if (items.length <= 1) return;
+    if (e.button !== 0) return; // Only primary mouse button
+
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+
+    activeDragIndexRef.current = index;
+    currentHoverIndexRef.current = index;
+    startYRef.current = e.clientY;
+
+    if (rowRefs.current[index] && containerRef.current) {
+      const rowRect = rowRefs.current[index]!.getBoundingClientRect();
+      const contRect = containerRef.current.getBoundingClientRect();
+      // Strictly clamp within container wrapper boundaries so it never escapes vertically
+      minDeltaYRef.current = contRect.top - rowRect.top;
+      maxDeltaYRef.current = contRect.bottom - rowRect.bottom;
+      rowHeightRef.current = rowRect.height || 44;
+    }
+
+    setDraggingIndex(index);
+    setCurrentHoverIndex(index);
+    setDragOffsetY(0);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (activeDragIndexRef.current === null || !containerRef.current) return;
+
+    const deltaY = e.clientY - startYRef.current;
+    // Strictly clamp within wrapper vertically so the category never goes out of the wrapper
+    const clampedY = Math.max(minDeltaYRef.current, Math.min(maxDeltaYRef.current, deltaY));
+
+    setDragOffsetY(clampedY);
+
+    // Calculate hover index based on vertical row shifts
+    const rowH = rowHeightRef.current || 44;
+    const indexShift = Math.round(clampedY / rowH);
+    const targetIdx = Math.max(
+      0,
+      Math.min(items.length - 1, activeDragIndexRef.current + indexShift)
+    );
+
+    if (targetIdx !== currentHoverIndexRef.current) {
+      currentHoverIndexRef.current = targetIdx;
+      setCurrentHoverIndex(targetIdx);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (activeDragIndexRef.current === null) return;
+
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
+    const fromIdx = activeDragIndexRef.current;
+    const toIdx = currentHoverIndexRef.current;
+
+    activeDragIndexRef.current = null;
+    currentHoverIndexRef.current = null;
+    setDraggingIndex(null);
+    setDragOffsetY(0);
+    setCurrentHoverIndex(null);
+
+    if (toIdx !== null && toIdx !== fromIdx && toIdx >= 0 && toIdx < items.length) {
+      const reordered = [...items];
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      setItems(reordered);
+      onReorderCategories?.(reordered);
+      setSaveStatus(true);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        setSaveStatus(false);
+      }, 2000);
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+    activeDragIndexRef.current = null;
+    currentHoverIndexRef.current = null;
+    setDraggingIndex(null);
+    setDragOffsetY(0);
+    setCurrentHoverIndex(null);
+  };
+
+  const getRowTransform = (index: number) => {
+    if (draggingIndex === null) return undefined;
+    if (index === draggingIndex) {
+      // Moves ONLY vertically, never horizontally
+      return `translate3d(0, ${dragOffsetY}px, 0)`;
+    }
+    const rowH = rowHeightRef.current || 44;
+    if (currentHoverIndex !== null) {
+      if (draggingIndex < currentHoverIndex) {
+        if (index > draggingIndex && index <= currentHoverIndex) {
+          return `translate3d(0, -${rowH}px, 0)`;
+        }
+      } else if (draggingIndex > currentHoverIndex) {
+        if (index >= currentHoverIndex && index < draggingIndex) {
+          return `translate3d(0, ${rowH}px, 0)`;
+        }
+      }
+    }
+    return undefined;
+  };
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,39 +468,124 @@ export function CategoryManagerModal({
 
         {/* Existing Categories List (Hidden when adding or editing category) */}
         {!isAdding && !editingCat && (
-          <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 border border-zinc-100 rounded-[4px]">
-            {filteredCategories.map((cat) => (
-              <div
-                key={cat.id}
-                className="py-2.5 px-3 flex items-center justify-between text-xs hover:bg-zinc-50/70 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className="w-3 h-3 rounded-full inline-block shrink-0 shadow-2xs"
-                    style={{ backgroundColor: cat.color }}
-                  />
-                  <CategoryIcon name={cat.icon} className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                  <span className="font-semibold text-zinc-800">{cat.name}</span>
-                </div>
+          <div className="flex-1 flex flex-col min-h-0 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 px-1 shrink-0 h-4">
+              {saveStatus ? (
+                <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 transition-opacity">
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>Saved</span>
+                </span>
+              ) : (
+                <span />
+              )}
+              <span className="font-mono text-[10px] text-zinc-400">
+                {items.length} {items.length === 1 ? 'category' : 'categories'}
+              </span>
+            </div>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingCat(cat)}
-                    className="p-1 text-zinc-400 hover:text-zinc-700 rounded"
-                    title="Edit category"
+            <div
+              ref={containerRef}
+              className="flex-1 overflow-y-auto overflow-x-hidden border border-zinc-200 rounded-[4px] divide-y divide-zinc-100 relative bg-white select-none"
+            >
+              {items.map((cat, index) => {
+                const isDragging = draggingIndex === index;
+                const transform = getRowTransform(index);
+
+                return (
+                  <div
+                    key={cat.id}
+                    ref={(el) => {
+                      rowRefs.current[index] = el;
+                    }}
+                    style={{
+                      transform,
+                      zIndex: isDragging ? 30 : 10,
+                      transition: isDragging ? 'none' : 'transform 150ms ease-out',
+                    }}
+                    className={`py-2 px-3 flex items-center justify-between text-xs relative bg-white ${
+                      isDragging
+                        ? 'shadow-md ring-1 ring-zinc-300 rounded-[3px] bg-zinc-50/95'
+                        : 'hover:bg-zinc-50/70'
+                    }`}
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setCategoryToDelete(cat)}
-                    className="p-1 text-zinc-400 hover:text-rose-600 rounded cursor-pointer"
-                    title="Delete category"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <div className="flex items-center gap-2 min-w-0">
+                      {/* Drag Handle Indicator */}
+                      <button
+                        type="button"
+                        id={`btn-drag-handle-${cat.id}`}
+                        onPointerDown={(e) => handlePointerDown(e, index)}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onPointerCancel={handlePointerCancel}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowDown' && index < items.length - 1) {
+                            e.preventDefault();
+                            const reordered = [...items];
+                            const [moved] = reordered.splice(index, 1);
+                            reordered.splice(index + 1, 0, moved);
+                            setItems(reordered);
+                            onReorderCategories?.(reordered);
+                            setSaveStatus(true);
+                            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                            saveTimerRef.current = setTimeout(() => {
+                              setSaveStatus(false);
+                            }, 2000);
+                          } else if (e.key === 'ArrowUp' && index > 0) {
+                            e.preventDefault();
+                            const reordered = [...items];
+                            const [moved] = reordered.splice(index, 1);
+                            reordered.splice(index - 1, 0, moved);
+                            setItems(reordered);
+                            onReorderCategories?.(reordered);
+                            setSaveStatus(true);
+                            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                            saveTimerRef.current = setTimeout(() => {
+                              setSaveStatus(false);
+                            }, 2000);
+                          }
+                        }}
+                        className={`p-1 -ml-1 text-zinc-400 hover:text-zinc-700 active:text-zinc-950 flex items-center justify-center rounded-[3px] hover:bg-zinc-100 transition-colors touch-none cursor-grab active:cursor-grabbing shrink-0 ${
+                          isDragging ? 'cursor-grabbing text-zinc-900 bg-zinc-100' : ''
+                        }`}
+                        title="Drag to reorder"
+                        aria-label={`Drag to reorder ${cat.name}`}
+                      >
+                        <GripVertical className="w-4 h-4 shrink-0" />
+                      </button>
+
+                      <span
+                        className="w-3 h-3 rounded-full inline-block shrink-0 shadow-2xs"
+                        style={{ backgroundColor: cat.color }}
+                      />
+                      <CategoryIcon
+                        name={cat.icon}
+                        className="w-3.5 h-3.5 text-zinc-500 shrink-0"
+                      />
+                      <span className="font-semibold text-zinc-800 truncate">{cat.name}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingCat(cat)}
+                        className="p-1 text-zinc-400 hover:text-zinc-700 rounded transition-colors"
+                        title="Edit category"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryToDelete(cat)}
+                        className="p-1 text-zinc-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                        title="Delete category"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

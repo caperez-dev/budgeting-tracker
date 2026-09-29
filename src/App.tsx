@@ -219,6 +219,7 @@ export default function App() {
               const cashInDef = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-cash-in');
               if (cashInDef) cleaned.push({ ...cashInDef });
             }
+            cleaned.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             if (cleaned.length > 0) return cleaned;
           }
         }
@@ -390,8 +391,8 @@ export default function App() {
         if (saved) {
           const parsed = JSON.parse(saved);
           return {
-            nickname: parsed.nickname || currentUser.nickname || DEFAULT_USER_PROFILE.nickname,
-            email: currentUser.email || parsed.email || DEFAULT_USER_PROFILE.email,
+            nickname: parsed.nickname || currentUser.nickname || 'User',
+            email: currentUser.email || parsed.email || '',
             avatarUrl:
               parsed.avatarUrl !== undefined && parsed.avatarUrl !== ''
                 ? parsed.avatarUrl
@@ -399,17 +400,18 @@ export default function App() {
           };
         }
         return {
-          nickname: currentUser.nickname || DEFAULT_USER_PROFILE.nickname,
-          email: currentUser.email || DEFAULT_USER_PROFILE.email,
+          nickname: currentUser.nickname || 'User',
+          email: currentUser.email || '',
           avatarUrl: currentUser.avatarUrl || '',
         };
       }
-      const saved = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
-      return saved ? JSON.parse(saved) : DEFAULT_USER_PROFILE;
+      return DEFAULT_USER_PROFILE;
     } catch {
       return DEFAULT_USER_PROFILE;
     }
   });
+
+  const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('tracker');
 
@@ -582,6 +584,7 @@ export default function App() {
             const cashInDef = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-cash-in');
             if (cashInDef) cleaned.push({ ...cashInDef });
           }
+          cleaned.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           setCategories(cleaned.length > 0 ? cleaned : createDefaultCategories());
         } else {
           setCategories(createDefaultCategories());
@@ -668,6 +671,7 @@ export default function App() {
               const cashInDef = DEFAULT_CATEGORIES.find((c) => c.id === 'cat-cash-in');
               if (cashInDef) cleaned.push({ ...cashInDef });
             }
+            cleaned.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             const finalCats = cleaned.length > 0 ? cleaned : createDefaultCategories();
             setCategories(finalCats);
             try {
@@ -1376,12 +1380,52 @@ export default function App() {
     const newCat: Category = {
       ...catData,
       id: `cat-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      order: categories.length,
     };
     setCategories((prev) => [...prev, newCat]);
   };
 
   const handleUpdateCategory = (updatedCat: Category) => {
     setCategories((prev) => prev.map((c) => (c.id === updatedCat.id ? updatedCat : c)));
+  };
+
+  const handleReorderCategories = (reorderedTabCats: Category[]) => {
+    if (!reorderedTabCats || reorderedTabCats.length === 0) return;
+    const tabType = reorderedTabCats[0].type;
+    const otherCats = categories.filter((c) => c.type !== tabType);
+    const combined =
+      tabType === 'expense'
+        ? [...reorderedTabCats, ...otherCats]
+        : [...otherCats, ...reorderedTabCats];
+
+    const updated = combined.map((cat, idx) => ({
+      ...cat,
+      order: idx,
+    }));
+
+    setCategories(updated);
+
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.CATEGORIES_PREFIX, currentUser.id),
+          JSON.stringify(updated)
+        );
+      } catch {}
+
+      // Automatically and immediately save
+      fetch('/api/db/categories/reorder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          categories: updated,
+        }),
+      }).catch(() => {});
+    }
   };
 
   const handleDeleteCategory = (id: string) => {
@@ -1788,6 +1832,7 @@ export default function App() {
     }
     try {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
     } catch {}
     setCurrentUser(null);
     setTransactions([]);
@@ -1865,20 +1910,23 @@ export default function App() {
     return (
       <AuthScreen
         onLoginSuccess={(user, profileUpdate) => {
+          setIsProfileLoading(true);
           setCurrentUser(user);
           try {
             localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
           } catch {}
-          if (profileUpdate) {
-            setUserProfile((prev) => ({
-              ...prev,
-              nickname: profileUpdate.nickname || prev.nickname,
-              avatarUrl: profileUpdate.avatarUrl !== undefined ? profileUpdate.avatarUrl : prev.avatarUrl,
-              email: profileUpdate.email || prev.email,
-            }));
-          }
+          setUserProfile({
+            nickname: profileUpdate?.nickname || user.nickname || 'User',
+            avatarUrl:
+              profileUpdate?.avatarUrl !== undefined
+                ? profileUpdate.avatarUrl
+                : user.avatarUrl || '',
+            email: user.email,
+          });
           loadUserDataForUser(user);
-          handleSyncWithDB(user.id);
+          handleSyncWithDB(user.id).finally(() => {
+            setIsProfileLoading(false);
+          });
         }}
       />
     );
@@ -1905,6 +1953,7 @@ export default function App() {
         onNextMonth={handleNextMonth}
         userProfile={userProfile}
         onUpdateProfile={setUserProfile}
+        isProfileLoading={isProfileLoading}
         expenseCount={monthlyTransactions.filter((t) => t.type === 'expense').length}
         incomeCount={monthlyTransactions.filter((t) => t.type === 'income').length}
         debtCount={debtCount}
@@ -2094,6 +2143,7 @@ export default function App() {
           onAddCategory={handleAddCategory}
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}
+          onReorderCategories={handleReorderCategories}
           onClose={() => setShowCategoriesModal(false)}
           initialType={categoriesInitialType}
         />
