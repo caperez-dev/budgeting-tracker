@@ -65,7 +65,7 @@ export function AccountManagerModal({
   const [isAdding, setIsAdding] = useState(false);
 
   // New Account State
-  const [name, setName] = useState('');
+  const [name, setName] = useState('GCash');
   const [type, setType] = useState<AccountType>('ewallet');
   const [icon, setIcon] = useState('bank-gcash');
   const [initialBalance, setInitialBalance] = useState<string>('0');
@@ -157,7 +157,7 @@ export function AccountManagerModal({
       isDefault: accounts.length === 0,
     });
 
-    setName('');
+    setName('GCash');
     setType('ewallet');
     setIcon('bank-gcash');
     setInitialBalance('0');
@@ -243,6 +243,11 @@ export function AccountManagerModal({
               id="btn-show-add-account"
               type="button"
               onClick={() => {
+                setName('GCash');
+                setType('ewallet');
+                setIcon('bank-gcash');
+                setInitialBalance('0');
+                setErrorMessage(null);
                 setIsAdding(true);
                 setEditingAccount(null);
               }}
@@ -341,7 +346,21 @@ export function AccountManagerModal({
               </div>
 
               {/* Icon Selection */}
-              <AccountIconPicker value={icon} onChange={setIcon} />
+              <AccountIconPicker
+                value={icon}
+                onChange={(newIcon, meta) => {
+                  setIcon(newIcon);
+                  if (meta?.name) {
+                    setName(meta.name);
+                    if (meta.category === 'wallet') {
+                      setType('ewallet');
+                    } else if (meta.category === 'bank') {
+                      setType('bank');
+                    }
+                  }
+                  if (errorMessage) setErrorMessage(null);
+                }}
+              />
 
               {errorMessage && (
                 <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px] flex items-center gap-1.5">
@@ -466,9 +485,24 @@ export function AccountManagerModal({
               {/* Icon selection */}
               <AccountIconPicker
                 value={editingAccount.icon}
-                onChange={(newIcon) =>
-                  setEditingAccount({ ...editingAccount, icon: newIcon })
-                }
+                onChange={(newIcon, meta) => {
+                  setEditingAccount((prev) => {
+                    if (!prev) return null;
+                    const isCash = isCashAccount(prev);
+                    return {
+                      ...prev,
+                      icon: newIcon,
+                      name: !isCash && meta?.name ? meta.name : prev.name,
+                      type:
+                        !isCash && meta?.category === 'wallet'
+                          ? 'ewallet'
+                          : !isCash && meta?.category === 'bank'
+                          ? 'bank'
+                          : prev.type,
+                    };
+                  });
+                  if (editErrorMessage) setEditErrorMessage(null);
+                }}
               />
 
               {editErrorMessage && (

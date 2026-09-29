@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import crypto from "crypto";
@@ -26,9 +27,15 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
-// Health Check Endpoint for Cloud Run / uptime monitoring
+// Health Check Endpoints for Cloud Run / uptime monitoring
 app.get("/api/health", (_req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+app.get("/healthz", (_req, res) => {
+  res.status(200).send("OK");
+});
+app.get("/_health", (_req, res) => {
+  res.status(200).send("OK");
 });
 
 // Auth Endpoints
@@ -1945,28 +1952,70 @@ Guidelines:
 });
 
 async function startServer() {
-  const distPath = path.join(process.cwd(), "dist");
+  let fileDir = process.cwd();
+  try {
+    if (typeof import.meta !== "undefined" && import.meta?.url) {
+      fileDir = path.dirname(fileURLToPath(import.meta.url));
+    }
+  } catch {}
+
+  const candidateDistPaths = [
+    path.resolve(process.cwd(), "dist"),
+    path.resolve(fileDir, "dist"),
+    path.resolve(process.cwd(), "build"),
+    path.resolve(fileDir, "build"),
+  ];
+
+  const distPath =
+    candidateDistPaths.find((p) => fs.existsSync(path.join(p, "index.html"))) ||
+    candidateDistPaths[0];
   const hasDist = fs.existsSync(path.join(distPath, "index.html"));
-  const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.K_SERVICE) || hasDist;
+
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    Boolean(process.env.K_SERVICE) ||
+    Boolean(process.env.PORT && process.env.PORT !== "3000" && hasDist);
 
   // In production (Cloud Run or built preview), serve static files from dist
-  if (isProd && hasDist) {
-    app.use(express.static(distPath));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+  if (isProd || hasDist) {
+    if (hasDist) {
+      console.log(`Serving static production build from: ${distPath}`);
+      app.use(express.static(distPath));
+      app.get("*", (_req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    } else {
+      console.warn(
+        "Production environment detected, but dist/index.html was not found. Serving fallback page."
+      );
+      app.get("*", (_req, res) => {
+        res
+          .status(200)
+          .send(
+            "<!DOCTYPE html><html><head><title>Budget Tracker</title></head><body><div id='root'>Budget Tracker is starting...</div></body></html>"
+          );
+      });
+    }
   } else {
-    // Vite middleware for local development (lazy-loaded so Vercel Output File Tracing does not pull in the 50MB Vite package)
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    // Only in local development: Vite middleware
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.error("Failed to start Vite dev middleware:", err);
+    }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Budget Tracker server running on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on("error", (err: any) => {
+    console.error("Server listen error:", err);
   });
 }
 
