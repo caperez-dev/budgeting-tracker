@@ -114,12 +114,19 @@ export interface MonthGroup {
 }
 
 /**
- * Calculates week of the month (1-indexed).
- * Using standard 7-day brackets: days 1-7 = Week 1, 8-14 = Week 2, 15-21 = Week 3, 22-28 = Week 4, 29+ = Week 5
- * This matches the spec where Sep 1 is Week 1 and Sep 8 is Week 2.
+ * Calculates calendar week of the month (1-indexed), where each new week starts on Sunday.
  */
-export function getWeekOfMonth(day: number): number {
-  return Math.min(5, Math.floor((day - 1) / 7) + 1);
+export function getWeekOfMonth(dateOrDay: string | number, year?: number, month?: number): number {
+  if (typeof dateOrDay === 'string') {
+    const [y, m, d] = dateOrDay.split('-').map(Number);
+    const firstDayOfWeek = new Date(y, m - 1, 1).getDay(); // 0 = Sunday, 1 = Monday, etc.
+    return Math.floor(((d - 1) + firstDayOfWeek) / 7) + 1;
+  }
+  if (year !== undefined && month !== undefined) {
+    const firstDayOfWeek = new Date(year, month, 1).getDay();
+    return Math.floor(((dateOrDay - 1) + firstDayOfWeek) / 7) + 1;
+  }
+  return Math.min(5, Math.floor((dateOrDay - 1) / 7) + 1);
 }
 
 export function groupTransactions(transactions: Transaction[]): MonthGroup[] {
@@ -153,11 +160,10 @@ export function groupTransactions(transactions: Transaction[]): MonthGroup[] {
     let monthTotalIn = 0;
     let monthTotalOut = 0;
 
-    // Group by week
+    // Group by week (weeks start on Sundays)
     const weekMap = new Map<number, Transaction[]>();
     txList.forEach((tx) => {
-      const day = parseInt(tx.date.slice(8, 10), 10);
-      const weekNum = getWeekOfMonth(day);
+      const weekNum = getWeekOfMonth(tx.date);
       if (!weekMap.has(weekNum)) {
         weekMap.set(weekNum, []);
       }

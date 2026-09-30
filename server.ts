@@ -1959,30 +1959,40 @@ async function startServer() {
     }
   } catch {}
 
-  const candidateDistPaths = [
-    path.resolve(process.cwd(), "dist"),
-    path.resolve(fileDir, "dist"),
-    path.resolve(process.cwd(), "build"),
-    path.resolve(fileDir, "build"),
-  ];
-
-  const distPath =
-    candidateDistPaths.find((p) => fs.existsSync(path.join(p, "index.html"))) ||
-    candidateDistPaths[0];
-  const hasDist = fs.existsSync(path.join(distPath, "index.html"));
-
   const isProd =
-    process.env.NODE_ENV === "production" ||
-    Boolean(process.env.K_SERVICE) ||
-    Boolean(process.env.PORT && process.env.PORT !== "3000" && hasDist);
+    process.env.NODE_ENV === "production" || Boolean(process.env.K_SERVICE);
 
-  // In production (Cloud Run or built preview), serve static files from dist
-  if (isProd || hasDist) {
+  // In production (Cloud Run), serve static files from dist
+  if (isProd) {
+    const candidateDistPaths = [
+      path.resolve(process.cwd(), "dist"),
+      path.resolve(fileDir, "dist"),
+      path.resolve(process.cwd(), "build"),
+      path.resolve(fileDir, "build"),
+    ];
+
+    const distPath =
+      candidateDistPaths.find((p) => fs.existsSync(path.join(p, "index.html"))) ||
+      candidateDistPaths[0];
+    const hasDist = fs.existsSync(path.join(distPath, "index.html"));
+
     if (hasDist) {
       console.log(`Serving static production build from: ${distPath}`);
       app.use(express.static(distPath));
       app.get("*", (_req, res) => {
-        res.sendFile(path.join(distPath, "index.html"));
+        const indexPath = path.join(distPath, "index.html");
+        res.sendFile(indexPath, (err) => {
+          if (err) {
+            console.error("Error serving index.html:", err);
+            if (!res.headersSent) {
+              res
+                .status(200)
+                .send(
+                  "<!DOCTYPE html><html><head><title>Budget Tracker</title></head><body><div id='root'>Budget Tracker is starting...</div></body></html>"
+                );
+            }
+          }
+        });
       });
     } else {
       console.warn(

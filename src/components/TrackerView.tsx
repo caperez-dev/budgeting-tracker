@@ -7,6 +7,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   ArrowLeftRight,
+  ArrowRight,
   RotateCcw,
   RotateCw,
   AlertCircle,
@@ -800,23 +801,23 @@ export function TrackerView({
                                 >
                                   {/* Left: Tag [OUT]/[IN]/[Transfer], Amount, Category/Accounts, Note */}
                                   <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 min-w-[240px]">
-                                    {/* Tag Badge: fixed width so all badges occupy identical width */}
+                                    {/* Tag Badge: clean in / out / transfer indicators */}
                                     {isTransfer ? (
                                       <span
-                                        className="w-12 shrink-0 flex items-center justify-center py-0.5 rounded-[3px] border bg-blue-50 text-blue-700 border-blue-200"
+                                        className="w-14 shrink-0 flex items-center justify-center text-center py-0.5 rounded-[3px] font-mono text-[11px] font-medium border bg-zinc-100 text-zinc-700 border-zinc-200/80"
                                         title="Transfer"
                                       >
-                                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                                        transfer
                                       </span>
                                     ) : (
                                       <span
-                                        className={`w-12 shrink-0 flex items-center justify-center text-center py-0.5 rounded-[3px] font-mono text-[10px] font-bold tracking-wider uppercase border ${
+                                        className={`w-14 shrink-0 flex items-center justify-center text-center py-0.5 rounded-[3px] font-mono text-[11px] font-medium border ${
                                           tx.type === 'expense'
-                                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
                                         }`}
                                       >
-                                        [{tx.type === 'expense' ? 'OUT' : 'IN'}]
+                                        {tx.type === 'expense' ? 'out' : 'in'}
                                       </span>
                                     )}
 
@@ -835,16 +836,15 @@ export function TrackerView({
 
                                     {/* Transfer vs Regular Category & Account */}
                                     {isTransfer ? (
-                                      <div className="flex items-center gap-1.5 text-xs text-zinc-700 whitespace-nowrap">
-                                        <span className="text-zinc-500 font-medium">From</span>
-                                        <span className="inline-flex items-center gap-1 bg-zinc-100 text-zinc-800 font-medium px-1.5 py-0.5 rounded-[3px] border border-zinc-200">
-                                          <AccountIcon name={fromIcon} className="w-3 h-3 text-zinc-500 shrink-0" />
-                                          <span>{fromName}</span>
+                                      <div className="inline-flex items-center gap-1.5 py-0.5 px-2 bg-zinc-50 border border-zinc-200/80 rounded-[4px] text-xs shadow-2xs whitespace-nowrap">
+                                        <span className="flex items-center gap-1 font-medium text-zinc-800">
+                                          <AccountIcon name={fromIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                          <span className="text-zinc-900">{fromName}</span>
                                         </span>
-                                        <span className="text-zinc-500 font-medium">To</span>
-                                        <span className="inline-flex items-center gap-1 bg-zinc-100 text-zinc-800 font-medium px-1.5 py-0.5 rounded-[3px] border border-zinc-200">
-                                          <AccountIcon name={toIcon} className="w-3 h-3 text-zinc-500 shrink-0" />
-                                          <span>{toName}</span>
+                                        <span className="text-zinc-400 text-xs font-normal select-none">→</span>
+                                        <span className="flex items-center gap-1 font-medium text-zinc-800">
+                                          <AccountIcon name={toIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                          <span className="text-zinc-900">{toName}</span>
                                         </span>
                                       </div>
                                     ) : (
