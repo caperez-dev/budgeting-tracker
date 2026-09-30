@@ -168,10 +168,10 @@ export function CategorySelect({
                   <span className="font-medium text-zinc-900 truncate">{cat.name}</span>
                   {showAllOption && cat.type && (
                     <span
-                      className={`text-[10px] px-1 py-0.5 rounded uppercase font-medium ${
+                      className={`text-[10px] uppercase font-medium ${
                         cat.type === 'expense'
-                          ? 'text-rose-600 bg-rose-50'
-                          : 'text-emerald-700 bg-emerald-50'
+                          ? 'text-rose-600'
+                          : 'text-emerald-700'
                       }`}
                     >
                       {cat.type}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Wallet, Smartphone, Banknote, Landmark, CreditCard, PiggyBank, Coins, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Smartphone, Banknote, Landmark, CreditCard, PiggyBank, Coins, AlertCircle } from 'lucide-react';
 import { Account, AccountType, Transaction } from '../types';
 import { AccountIcon } from './CategoryIcon';
 import { formatCurrency } from '../utils/formatters';
@@ -204,16 +204,11 @@ export function AccountManagerModal({
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-[4px] bg-zinc-100 flex items-center justify-center text-zinc-800">
-              <Wallet className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-900">Accounts</h2>
-              <p className="text-xs text-zinc-500">
-                Track your money across Cash, E-Wallets, Cards, and Banks.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">Accounts</h2>
+            <p className="text-xs text-zinc-500">
+              Track your money across Cash, E-Wallets, Cards, and Banks.
+            </p>
           </div>
           <button
             id="button-close-accounts-modal"
@@ -227,7 +222,7 @@ export function AccountManagerModal({
         </div>
 
         {/* Top Summary Bar */}
-        <div className="px-5 py-3 bg-zinc-50 border-b border-zinc-100 flex items-center justify-between shrink-0">
+        <div className="px-5 py-3 bg-white border-b border-zinc-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-zinc-600">Total in Accounts:</span>
             <span
@@ -636,7 +631,7 @@ export function AccountManagerModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3 bg-zinc-50 border-t border-zinc-100 flex items-center justify-end shrink-0">
+        <div className="px-5 py-3 bg-white border-t border-zinc-100 flex items-center justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}

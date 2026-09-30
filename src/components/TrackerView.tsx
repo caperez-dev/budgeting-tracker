@@ -469,13 +469,9 @@ export function TrackerView({
             </button>
           </div>
 
-          {/* Category Filter - custom styled matching CurrencySelect */}
-          <div className="h-8 min-w-[160px]">
-            {filterType === 'transfer' ? (
-              <div className="h-full px-2.5 flex items-center bg-zinc-50 border border-zinc-200 rounded-[4px] text-zinc-400 text-xs">
-                No category for transfers
-              </div>
-            ) : (
+          {/* Category Filter - custom styled matching CurrencySelect, hidden when viewing transfers */}
+          {filterType !== 'transfer' && (
+            <div className="h-8 min-w-[160px]">
               <CategorySelect
                 id="filter-category-select"
                 ariaLabel="Filter by category"
@@ -486,8 +482,8 @@ export function TrackerView({
                 className="h-full"
                 buttonClassName="h-8 min-h-[32px]"
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="text-xs font-mono text-zinc-500">
