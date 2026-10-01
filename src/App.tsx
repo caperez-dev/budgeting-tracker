@@ -165,6 +165,63 @@ export default function App() {
     }
   }, []);
 
+  // Helpers to ensure underlying financial data preserves original values and recovers from corrupted state
+  const ensureTxOriginals = (tx: Transaction): Transaction => {
+    const rawAmt = tx.originalAmount !== undefined ? tx.originalAmount : tx.amount;
+    const origAmt = typeof rawAmt === 'number' ? rawAmt : parseFloat(String(rawAmt)) || 0;
+    const origCurr = tx.originalCurrency || tx.currency || 'PHP';
+    return {
+      ...tx,
+      amount: origAmt,
+      currency: origCurr,
+      originalAmount: origAmt,
+      originalCurrency: origCurr,
+    };
+  };
+
+  const ensureDebtOriginals = (d: Debt): Debt => {
+    const rawAmt = d.originalAmount !== undefined ? d.originalAmount : d.amount;
+    const origAmt = typeof rawAmt === 'number' ? rawAmt : parseFloat(String(rawAmt)) || 0;
+    const origCurr = d.originalCurrency || d.currency || 'PHP';
+    return {
+      ...d,
+      amount: origAmt,
+      currency: origCurr,
+      originalAmount: origAmt,
+      originalCurrency: origCurr,
+    };
+  };
+
+  const ensureGoalOriginals = (g: Goal): Goal => {
+    const rawTarget = g.originalTargetPrice !== undefined ? g.originalTargetPrice : g.targetPrice;
+    const origTarget = typeof rawTarget === 'number' ? rawTarget : parseFloat(String(rawTarget)) || 0;
+    const rawEarmarked = g.originalEarmarkedAmount !== undefined ? g.originalEarmarkedAmount : (g.earmarkedAmount || 0);
+    const origEarmarked = typeof rawEarmarked === 'number' ? rawEarmarked : parseFloat(String(rawEarmarked)) || 0;
+    const origCurr = g.originalCurrency || g.currency || 'PHP';
+    return {
+      ...g,
+      targetPrice: origTarget,
+      earmarkedAmount: origEarmarked,
+      currency: origCurr,
+      originalTargetPrice: origTarget,
+      originalEarmarkedAmount: origEarmarked,
+      originalCurrency: origCurr,
+    };
+  };
+
+  const ensureAccountOriginals = (a: Account): Account => {
+    const rawBal = a.originalInitialBalance !== undefined ? a.originalInitialBalance : (a.initialBalance || 0);
+    const origBal = typeof rawBal === 'number' ? rawBal : parseFloat(String(rawBal)) || 0;
+    const origCurr = a.originalCurrency || a.currency || 'PHP';
+    return {
+      ...a,
+      initialBalance: origBal,
+      currency: origCurr,
+      originalInitialBalance: origBal,
+      originalCurrency: origCurr,
+    };
+  };
+
   // --- Persistent State loaded from LocalStorage (isolated per user) ---
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
@@ -181,7 +238,9 @@ export default function App() {
       if (!user?.id) return [];
       const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
       const saved = localStorage.getItem(userKey);
-      return saved ? consolidateTransactions(JSON.parse(saved)) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? consolidateTransactions(parsed).map(ensureTxOriginals) : [];
     } catch {
       return [];
     }
@@ -283,12 +342,12 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return ensureCashAccount(parsed);
+          return ensureCashAccount(parsed).map(ensureAccountOriginals);
         }
       }
-      return DEFAULT_ACCOUNTS;
+      return DEFAULT_ACCOUNTS.map(ensureAccountOriginals);
     } catch {
-      return DEFAULT_ACCOUNTS;
+      return DEFAULT_ACCOUNTS.map(ensureAccountOriginals);
     }
   });
 
@@ -309,9 +368,9 @@ export default function App() {
       if (!saved) {
         saved = localStorage.getItem(STORAGE_KEYS.DEBTS);
       }
-      return saved ? JSON.parse(saved) : SEED_DEBTS;
+      return saved ? (JSON.parse(saved) as Debt[]).map(ensureDebtOriginals) : SEED_DEBTS.map(ensureDebtOriginals);
     } catch {
-      return SEED_DEBTS;
+      return SEED_DEBTS.map(ensureDebtOriginals);
     }
   });
 
@@ -332,9 +391,9 @@ export default function App() {
       if (!saved) {
         saved = localStorage.getItem(STORAGE_KEYS.GOALS);
       }
-      return saved ? JSON.parse(saved) : SEED_GOALS;
+      return saved ? (JSON.parse(saved) as Goal[]).map(ensureGoalOriginals) : SEED_GOALS.map(ensureGoalOriginals);
     } catch {
-      return SEED_GOALS;
+      return SEED_GOALS.map(ensureGoalOriginals);
     }
   });
 
@@ -531,7 +590,7 @@ export default function App() {
     try {
       const txKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
       const savedTx = localStorage.getItem(txKey);
-      setTransactions(savedTx ? JSON.parse(savedTx) : []);
+      setTransactions(savedTx ? (JSON.parse(savedTx) as Transaction[]).map(ensureTxOriginals) : []);
     } catch {
       setTransactions([]);
     }
@@ -540,14 +599,14 @@ export default function App() {
     try {
       const debtKey = getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, user.id);
       const savedDebts = localStorage.getItem(debtKey);
-      if (savedDebts) setDebts(JSON.parse(savedDebts));
+      if (savedDebts) setDebts((JSON.parse(savedDebts) as Debt[]).map(ensureDebtOriginals));
     } catch {}
 
     // 5. Goals
     try {
       const goalKey = getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, user.id);
       const savedGoals = localStorage.getItem(goalKey);
-      if (savedGoals) setGoals(JSON.parse(savedGoals));
+      if (savedGoals) setGoals((JSON.parse(savedGoals) as Goal[]).map(ensureGoalOriginals));
     } catch {}
 
     // 6. Accounts
@@ -555,12 +614,12 @@ export default function App() {
       const accKey = getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, user.id);
       const savedAccs = localStorage.getItem(accKey);
       if (savedAccs) {
-        setAccounts(ensureCashAccount(JSON.parse(savedAccs)));
+        setAccounts(ensureCashAccount(JSON.parse(savedAccs)).map(ensureAccountOriginals));
       } else {
-        setAccounts(DEFAULT_ACCOUNTS);
+        setAccounts(DEFAULT_ACCOUNTS.map(ensureAccountOriginals));
       }
     } catch {
-      setAccounts(DEFAULT_ACCOUNTS);
+      setAccounts(DEFAULT_ACCOUNTS.map(ensureAccountOriginals));
     }
 
     // 7. Categories
@@ -647,7 +706,7 @@ export default function App() {
         const json = await res.json();
         if (json.success && json.data) {
           if (Array.isArray(json.data.transactions)) {
-            const consolidated = consolidateTransactions(json.data.transactions, json.data.accounts || accounts);
+            const consolidated = consolidateTransactions(json.data.transactions, json.data.accounts || accounts).map(ensureTxOriginals);
             setTransactions(consolidated);
             try {
               localStorage.setItem(
@@ -691,20 +750,22 @@ export default function App() {
             } catch {}
           }
           if (Array.isArray(json.data.debts)) {
-            setDebts(json.data.debts);
+            const normalizedDebts = (json.data.debts as Debt[]).map(ensureDebtOriginals);
+            setDebts(normalizedDebts);
             try {
               localStorage.setItem(
                 getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, uid),
-                JSON.stringify(json.data.debts)
+                JSON.stringify(normalizedDebts)
               );
             } catch {}
           }
           if (Array.isArray(json.data.goals)) {
-            setGoals(json.data.goals);
+            const normalizedGoals = (json.data.goals as Goal[]).map(ensureGoalOriginals);
+            setGoals(normalizedGoals);
             try {
               localStorage.setItem(
                 getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, uid),
-                JSON.stringify(json.data.goals)
+                JSON.stringify(normalizedGoals)
               );
             } catch {}
           }
@@ -737,7 +798,7 @@ export default function App() {
             } catch {}
           }
           if (Array.isArray(json.data.accounts) && json.data.accounts.length > 0) {
-            const safeAccs = ensureCashAccount(json.data.accounts);
+            const safeAccs = ensureCashAccount(json.data.accounts).map(ensureAccountOriginals);
             setAccounts(safeAccs);
             try {
               localStorage.setItem(
@@ -1102,13 +1163,110 @@ export default function App() {
     }).format(dateObj);
   }, [selectedYearMonth, selectedDate]);
 
+  // Custom exchange rates map
+  const ratesMap: Record<string, number> = useMemo(() => {
+    const map: Record<string, number> = {};
+    currencies.forEach((c) => {
+      if (c.exchangeRate) map[c.code] = c.exchangeRate;
+    });
+    return map;
+  }, [currencies]);
+
+  // Dynamic converted views for the currently selected display currency (WITHOUT mutating stored data)
+  const displayTransactions: Transaction[] = useMemo(() => {
+    const targetCurr = settings.defaultCurrency || 'PHP';
+    return transactions.map((t) => {
+      const origAmt = t.originalAmount !== undefined ? t.originalAmount : t.amount;
+      const origCurr = t.originalCurrency || t.currency || targetCurr;
+      const convertedAmt =
+        origCurr === targetCurr
+          ? origAmt
+          : roundToCurrency(convertCurrency(origAmt, origCurr, targetCurr, ratesMap));
+
+      return {
+        ...t,
+        amount: convertedAmt,
+        currency: targetCurr,
+        originalAmount: origAmt,
+        originalCurrency: origCurr,
+      };
+    });
+  }, [transactions, settings.defaultCurrency, ratesMap]);
+
+  const displayDebts: Debt[] = useMemo(() => {
+    const targetCurr = settings.defaultCurrency || 'PHP';
+    return debts.map((d) => {
+      const origAmt = d.originalAmount !== undefined ? d.originalAmount : d.amount;
+      const origCurr = d.originalCurrency || d.currency || targetCurr;
+      const convertedAmt =
+        origCurr === targetCurr
+          ? origAmt
+          : roundToCurrency(convertCurrency(origAmt, origCurr, targetCurr, ratesMap));
+
+      return {
+        ...d,
+        amount: convertedAmt,
+        currency: targetCurr,
+        originalAmount: origAmt,
+        originalCurrency: origCurr,
+      };
+    });
+  }, [debts, settings.defaultCurrency, ratesMap]);
+
+  const displayGoals: Goal[] = useMemo(() => {
+    const targetCurr = settings.defaultCurrency || 'PHP';
+    return goals.map((g) => {
+      const origTarget = g.originalTargetPrice !== undefined ? g.originalTargetPrice : g.targetPrice;
+      const origEarmarked = g.originalEarmarkedAmount !== undefined ? g.originalEarmarkedAmount : g.earmarkedAmount;
+      const origCurr = g.originalCurrency || g.currency || targetCurr;
+      const convertedTarget =
+        origCurr === targetCurr
+          ? origTarget
+          : roundToCurrency(convertCurrency(origTarget, origCurr, targetCurr, ratesMap));
+      const convertedEarmarked =
+        origCurr === targetCurr
+          ? origEarmarked
+          : roundToCurrency(convertCurrency(origEarmarked, origCurr, targetCurr, ratesMap));
+
+      return {
+        ...g,
+        targetPrice: convertedTarget,
+        earmarkedAmount: convertedEarmarked,
+        currency: targetCurr,
+        originalTargetPrice: origTarget,
+        originalEarmarkedAmount: origEarmarked,
+        originalCurrency: origCurr,
+      };
+    });
+  }, [goals, settings.defaultCurrency, ratesMap]);
+
+  const displayAccounts: Account[] = useMemo(() => {
+    const targetCurr = settings.defaultCurrency || 'PHP';
+    return accounts.map((acc) => {
+      const origBal = acc.originalInitialBalance !== undefined ? acc.originalInitialBalance : (acc.initialBalance || 0);
+      const accCurr = acc.originalCurrency || acc.currency || targetCurr;
+      const convertedBal =
+        accCurr === targetCurr
+          ? origBal
+          : roundToCurrency(convertCurrency(origBal, accCurr, targetCurr, ratesMap));
+
+      return {
+        ...acc,
+        initialBalance: convertedBal,
+        currency: targetCurr,
+        originalInitialBalance: origBal,
+        originalCurrency: accCurr,
+      };
+    });
+  }, [accounts, settings.defaultCurrency, ratesMap]);
+
   // Monthly filtered transactions for the selected month or specific date
   const monthlyTransactions = useMemo(() => {
     if (selectedDate) {
-      return transactions.filter((t) => t.date === selectedDate);
+      return displayTransactions.filter((t) => t.date === selectedDate);
     }
-    return transactions.filter((t) => t.date.startsWith(selectedYearMonth));
-  }, [transactions, selectedYearMonth, selectedDate]);
+    return displayTransactions.filter((t) => t.date.startsWith(selectedYearMonth));
+  }, [displayTransactions, selectedYearMonth, selectedDate]);
 
   // Monthly financial figures for the selected month
   const monthlyIncome = useMemo(() => {
@@ -1127,29 +1285,37 @@ export default function App() {
   const monthlySavings = monthlyIncome - monthlyExpense;
 
   // --- Financial Computations ---
-  const totalIncome = transactions
-    .filter((t) => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = useMemo(() => {
+    return displayTransactions
+      .filter((t) => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [displayTransactions]);
 
-  const totalExpense = transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = useMemo(() => {
+    return displayTransactions
+      .filter((t) => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [displayTransactions]);
 
-  const expenseCount = transactions.filter((t) => t.type === 'expense').length;
-  const incomeCount = transactions.filter((t) => t.type === 'income').length;
-  const debtCount = debts.filter((d) => !d.settled).length;
+  const expenseCount = displayTransactions.filter((t) => t.type === 'expense').length;
+  const incomeCount = displayTransactions.filter((t) => t.type === 'income').length;
+  const debtCount = displayDebts.filter((d) => !d.settled).length;
 
   // Current Savings = Total Income minus Total Expenses as mandated by §7
   const currentSavings = totalIncome - totalExpense;
 
   // Debts Net Calculation
-  const totalYouOweUnsettled = debts
-    .filter((d) => d.type === 'owe' && !d.settled)
-    .reduce((sum, d) => sum + d.amount, 0);
+  const totalYouOweUnsettled = useMemo(() => {
+    return displayDebts
+      .filter((d) => d.type === 'owe' && !d.settled)
+      .reduce((sum, d) => sum + d.amount, 0);
+  }, [displayDebts]);
 
-  const totalOwedToYouUnsettled = debts
-    .filter((d) => d.type === 'owed' && !d.settled)
-    .reduce((sum, d) => sum + d.amount, 0);
+  const totalOwedToYouUnsettled = useMemo(() => {
+    return displayDebts
+      .filter((d) => d.type === 'owed' && !d.settled)
+      .reduce((sum, d) => sum + d.amount, 0);
+  }, [displayDebts]);
 
   // positive = net owed to you, negative = net you owe
   const netDebt = totalOwedToYouUnsettled - totalYouOweUnsettled;
@@ -1164,11 +1330,12 @@ export default function App() {
     amount: number;
     currency: string;
     categoryId: string;
+    accountId?: string;
     note: string;
     date: string;
     time: string;
   }) => {
-    const fromCurr = newTxData.currency || settings.defaultCurrency;
+    const txCurrency = newTxData.currency || settings.defaultCurrency || 'PHP';
 
     // If transaction used a world currency not yet in active list, auto-add it
     if (newTxData.currency && !currencies.some((c) => c.code === newTxData.currency)) {
@@ -1184,16 +1351,6 @@ export default function App() {
       }
     }
 
-    const ratesMap: Record<string, number> = {};
-    currencies.forEach((c) => {
-      if (c.exchangeRate) ratesMap[c.code] = c.exchangeRate;
-    });
-
-    const finalAmount =
-      fromCurr !== settings.defaultCurrency
-        ? roundToCurrency(convertCurrency(newTxData.amount, fromCurr, settings.defaultCurrency, ratesMap))
-        : newTxData.amount;
-
     const matchedCategory = categories.find((c) => c.id === newTxData.categoryId);
     const matchedAccount = (newTxData as any).accountId
       ? accounts.find((a) => a.id === (newTxData as any).accountId)
@@ -1201,8 +1358,10 @@ export default function App() {
 
     const newTx: Transaction = {
       ...newTxData,
-      amount: finalAmount,
-      currency: settings.defaultCurrency,
+      amount: newTxData.amount,
+      currency: txCurrency,
+      originalAmount: newTxData.amount,
+      originalCurrency: txCurrency,
       id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       userId: currentUser?.id,
       timestamp: new Date(`${newTxData.date}T${new Date().toTimeString().slice(0, 8)}`).getTime(),
@@ -1274,6 +1433,10 @@ export default function App() {
 
       const enrichedTx: Transaction = {
         ...updatedTx,
+        amount: updatedTx.amount,
+        currency: updatedTx.currency,
+        originalAmount: updatedTx.amount,
+        originalCurrency: updatedTx.currency,
         fromAccountId: fromAcc?.id || updatedTx.fromAccountId || updatedTx.accountId,
         fromAccountName: fromAcc?.name || updatedTx.fromAccountName || 'Account 1',
         fromAccountIcon: fromAcc?.icon || updatedTx.fromAccountIcon || 'Wallet',
@@ -1293,6 +1456,10 @@ export default function App() {
     const acc = updatedTx.accountId ? accounts.find((a) => a.id === updatedTx.accountId) : undefined;
     const enrichedTx: Transaction = {
       ...updatedTx,
+      amount: updatedTx.amount,
+      currency: updatedTx.currency,
+      originalAmount: updatedTx.amount,
+      originalCurrency: updatedTx.currency,
       categoryName: cat?.name || updatedTx.categoryName || 'Other',
       categoryIcon: cat?.icon || updatedTx.categoryIcon || 'Tag',
       categoryColor: cat?.color || updatedTx.categoryColor || '#52525B',
@@ -1304,21 +1471,13 @@ export default function App() {
 
   // --- Handlers: Debts ---
   const handleAddDebt = (debtData: Omit<Debt, 'id' | 'createdAt' | 'settled'>) => {
-    const fromCurr = debtData.currency || settings.defaultCurrency;
-    const ratesMap: Record<string, number> = {};
-    currencies.forEach((c) => {
-      if (c.exchangeRate) ratesMap[c.code] = c.exchangeRate;
-    });
-
-    const finalAmount =
-      fromCurr !== settings.defaultCurrency
-        ? roundToCurrency(convertCurrency(debtData.amount, fromCurr, settings.defaultCurrency, ratesMap))
-        : debtData.amount;
-
+    const debtCurrency = debtData.currency || settings.defaultCurrency || 'PHP';
     const newDebt: Debt = {
       ...debtData,
-      amount: finalAmount,
-      currency: settings.defaultCurrency,
+      amount: debtData.amount,
+      currency: debtCurrency,
+      originalAmount: debtData.amount,
+      originalCurrency: debtCurrency,
       id: `debt-${Date.now()}`,
       createdAt: Date.now(),
       settled: false,
@@ -1346,21 +1505,15 @@ export default function App() {
 
   // --- Handlers: Goals ---
   const handleAddGoal = (goalData: Omit<Goal, 'id' | 'createdAt'>) => {
-    const fromCurr = goalData.currency || settings.defaultCurrency;
-    const ratesMap: Record<string, number> = {};
-    currencies.forEach((c) => {
-      if (c.exchangeRate) ratesMap[c.code] = c.exchangeRate;
-    });
-
-    const finalTarget =
-      fromCurr !== settings.defaultCurrency
-        ? roundToCurrency(convertCurrency(goalData.targetPrice, fromCurr, settings.defaultCurrency, ratesMap))
-        : goalData.targetPrice;
-
+    const goalCurrency = goalData.currency || settings.defaultCurrency || 'PHP';
     const newGoal: Goal = {
       ...goalData,
-      targetPrice: finalTarget,
-      currency: settings.defaultCurrency,
+      targetPrice: goalData.targetPrice,
+      earmarkedAmount: goalData.earmarkedAmount || 0,
+      currency: goalCurrency,
+      originalTargetPrice: goalData.targetPrice,
+      originalEarmarkedAmount: goalData.earmarkedAmount || 0,
+      originalCurrency: goalCurrency,
       id: `goal-${Date.now()}`,
       createdAt: Date.now(),
     };
@@ -1368,7 +1521,21 @@ export default function App() {
   };
 
   const handleUpdateGoal = (updatedGoal: Goal) => {
-    setGoals((prev) => prev.map((g) => (g.id === updatedGoal.id ? updatedGoal : g)));
+    setGoals((prev) =>
+      prev.map((g) =>
+        g.id === updatedGoal.id
+          ? {
+              ...updatedGoal,
+              targetPrice: updatedGoal.targetPrice,
+              earmarkedAmount: updatedGoal.earmarkedAmount || 0,
+              currency: updatedGoal.currency,
+              originalTargetPrice: updatedGoal.targetPrice,
+              originalEarmarkedAmount: updatedGoal.earmarkedAmount || 0,
+              originalCurrency: updatedGoal.currency,
+            }
+          : g
+      )
+    );
   };
 
   const handleDeleteGoal = (id: string) => {
@@ -1462,15 +1629,31 @@ export default function App() {
 
   // --- Handlers: Accounts ---
   const handleAddAccount = (accData: Omit<Account, 'id'>) => {
+    const accCurrency = accData.currency || settings.defaultCurrency || 'PHP';
+    const initBal = accData.initialBalance || 0;
     const newAcc: Account = {
       ...accData,
+      initialBalance: initBal,
+      currency: accCurrency,
+      originalInitialBalance: initBal,
+      originalCurrency: accCurrency,
       id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     };
     setAccounts((prev) => [...prev, newAcc]);
   };
 
   const handleUpdateAccount = (updatedAcc: Account) => {
-    setAccounts((prev) => prev.map((a) => (a.id === updatedAcc.id ? updatedAcc : a)));
+    setAccounts((prev) =>
+      prev.map((a) =>
+        a.id === updatedAcc.id
+          ? {
+              ...updatedAcc,
+              originalInitialBalance: updatedAcc.initialBalance,
+              originalCurrency: updatedAcc.currency || a.originalCurrency || settings.defaultCurrency,
+            }
+          : a
+      )
+    );
   };
 
   const handleDeleteAccount = (id: string) => {
@@ -1523,13 +1706,16 @@ export default function App() {
     const now = Date.now();
     const today = getTodayDateString();
     const currentTime = getCurrent12HourTime();
+    const transferCurrency = settings.defaultCurrency || 'PHP';
 
     const transferTx: Transaction = {
       id: `tx-transfer-${now}-${Math.random().toString(36).substr(2, 4)}`,
       userId: currentUser?.id,
       type: 'transfer',
       amount,
-      currency: settings.defaultCurrency,
+      currency: transferCurrency,
+      originalAmount: amount,
+      originalCurrency: transferCurrency,
       fromAccountId,
       toAccountId,
       fromAccountName: fromAcc?.name || 'Account 1',
@@ -1616,74 +1802,7 @@ export default function App() {
   }, []);
 
   const handleSelectDefaultCurrency = (newCode: string) => {
-    const oldCode = settings.defaultCurrency || 'PHP';
-
-    // Build custom rates map
-    const ratesMap: Record<string, number> = {};
-    currencies.forEach((c) => {
-      if (c.exchangeRate) ratesMap[c.code] = c.exchangeRate;
-    });
-
-    let updatedTransactions = transactions;
-    let updatedDebts = debts;
-    let updatedGoals = goals;
-
-    if (newCode !== oldCode) {
-      // 1. Convert all transactions
-      updatedTransactions = transactions.map((t) => {
-        const fromCurr = t.currency || oldCode;
-        const converted = convertCurrency(t.amount, fromCurr, newCode, ratesMap);
-        return {
-          ...t,
-          amount: roundToCurrency(converted),
-          currency: newCode,
-        };
-      });
-      setTransactions(updatedTransactions);
-
-      // Convert pending undo transaction if any
-      if (pendingUndoTx) {
-        setPendingUndoTx((prev) =>
-          prev
-            ? {
-                ...prev,
-                amount: roundToCurrency(
-                  convertCurrency(prev.amount, prev.currency || oldCode, newCode, ratesMap)
-                ),
-                currency: newCode,
-              }
-            : null
-        );
-      }
-
-      // 2. Convert all debts
-      updatedDebts = debts.map((d) => {
-        const fromCurr = d.currency || oldCode;
-        const converted = convertCurrency(d.amount, fromCurr, newCode, ratesMap);
-        return {
-          ...d,
-          amount: roundToCurrency(converted),
-          currency: newCode,
-        };
-      });
-      setDebts(updatedDebts);
-
-      // 3. Convert all goals
-      updatedGoals = goals.map((g) => {
-        const fromCurr = g.currency || oldCode;
-        const convertedTarget = convertCurrency(g.targetPrice, fromCurr, newCode, ratesMap);
-        const convertedEarmarked = convertCurrency(g.earmarkedAmount, fromCurr, newCode, ratesMap);
-        return {
-          ...g,
-          targetPrice: roundToCurrency(convertedTarget),
-          earmarkedAmount: roundToCurrency(convertedEarmarked),
-          currency: newCode,
-        };
-      });
-      setGoals(updatedGoals);
-    }
-
-    // 4. Update default currency in settings
+    // 1. Update default currency in settings
     const updatedSettings: UserSettings = {
       ...settings,
       defaultCurrency: newCode,
@@ -1691,7 +1810,7 @@ export default function App() {
     };
     setSettings(updatedSettings);
 
-    // 5. Explicitly associate and persist to active user account
+    // 2. Explicitly associate and persist to active user account
     if (currentUser) {
       const updatedUser: AuthUser = {
         ...currentUser,
@@ -1711,18 +1830,6 @@ export default function App() {
           getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, currentUser.id),
           JSON.stringify(currencies)
         );
-        localStorage.setItem(
-          getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id),
-          JSON.stringify(updatedTransactions)
-        );
-        localStorage.setItem(
-          getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, currentUser.id),
-          JSON.stringify(updatedDebts)
-        );
-        localStorage.setItem(
-          getUserStorageKey(STORAGE_KEYS.GOALS_PREFIX, currentUser.id),
-          JSON.stringify(updatedGoals)
-        );
       } catch {}
 
       // Update in saved device accounts list
@@ -1740,7 +1847,7 @@ export default function App() {
         }
       } catch {}
 
-      // Sync with server
+      // Sync with server (preserving original underlying transaction amounts and currencies)
       fetch('/api/db/sync', {
         method: 'POST',
         headers: {
@@ -1751,9 +1858,9 @@ export default function App() {
           userId: currentUser.id,
           settings: updatedSettings,
           currencies,
-          transactions: updatedTransactions.map((t) => ({ ...t, userId: currentUser.id })),
-          debts: updatedDebts,
-          goals: updatedGoals,
+          transactions: transactions.map((t) => ({ ...t, userId: currentUser.id })),
+          debts,
+          goals,
           accounts,
           categories,
           profile: userProfile,
@@ -1779,10 +1886,10 @@ export default function App() {
     try {
       setIsExporting(true);
       const options = {
-        transactions,
+        transactions: displayTransactions,
         categories,
-        debts,
-        goals,
+        debts: displayDebts,
+        goals: displayGoals,
         currentSavings,
         totalIncome,
         totalExpense,
@@ -1981,8 +2088,8 @@ export default function App() {
           <QuickEntryForm
             currencies={currencies}
             categories={categories}
-            accounts={accounts}
-            transactions={transactions}
+            accounts={displayAccounts}
+            transactions={displayTransactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
             onOpenAddCategory={(type) => {
@@ -2004,7 +2111,7 @@ export default function App() {
             onSelectDate={handleSelectDate}
             categories={categories}
             currencies={currencies}
-            accounts={accounts}
+            accounts={displayAccounts}
             selectedCurrency={settings.defaultCurrency}
             onDeleteTransaction={handleDeleteTransaction}
             onUpdateTransaction={handleUpdateTransaction}
@@ -2016,7 +2123,7 @@ export default function App() {
 
         {activeTab === 'summary' && (
           <SummaryPanel
-            transactions={transactions}
+            transactions={displayTransactions}
             categories={categories}
             currencySymbol={currencySymbol}
           />
@@ -2024,7 +2131,7 @@ export default function App() {
 
         {activeTab === 'debts' && (
           <DebtTracker
-            debts={debts}
+            debts={displayDebts}
             currencies={currencies}
             selectedCurrency={settings.defaultCurrency}
             onAddDebt={handleAddDebt}
@@ -2035,7 +2142,7 @@ export default function App() {
 
         {activeTab === 'goals' && (
           <GoalsView
-            goals={goals}
+            goals={displayGoals}
             currencies={currencies}
             selectedCurrency={settings.defaultCurrency}
             currentSavings={currentSavings}
@@ -2047,10 +2154,10 @@ export default function App() {
 
         {activeTab === 'ai' && (
           <AIAdvisorModal
-            transactions={transactions}
+            transactions={displayTransactions}
             categories={categories}
-            debts={debts}
-            goals={goals}
+            debts={displayDebts}
+            goals={displayGoals}
             currentSavings={currentSavings}
             totalIncome={totalIncome}
             totalExpenses={totalExpense}
@@ -2089,8 +2196,8 @@ export default function App() {
           <QuickEntryForm
             currencies={currencies}
             categories={categories}
-            accounts={accounts}
-            transactions={transactions}
+            accounts={displayAccounts}
+            transactions={displayTransactions}
             selectedCurrency={settings.defaultCurrency}
             onSave={handleSaveTransaction}
             onOpenAddCategory={(type) => {
@@ -2114,8 +2221,8 @@ export default function App() {
       {/* Accounts & Assets Manager Modal */}
       {showAccountsModal && (
         <AccountManagerModal
-          accounts={accounts}
-          transactions={transactions}
+          accounts={displayAccounts}
+          transactions={displayTransactions}
           currencySymbol={currencySymbol}
           onAddAccount={handleAddAccount}
           onUpdateAccount={handleUpdateAccount}
@@ -2128,8 +2235,8 @@ export default function App() {
       <TransferModal
         isOpen={showTransferModal}
         onClose={() => setShowTransferModal(false)}
-        accounts={accounts}
-        transactions={transactions}
+        accounts={displayAccounts}
+        transactions={displayTransactions}
         currencySymbol={currencySymbol}
         defaultCurrency={settings.defaultCurrency}
         onTransfer={handleTransfer}

@@ -77,3 +77,21 @@ export function roundToCurrency(amount: number, decimals: number = 2): number {
   const factor = Math.pow(10, decimals);
   return Math.round((amount + Number.EPSILON) * factor) / factor;
 }
+
+/**
+ * Accurately gets the display amount for an item in the target currency,
+ * always converting directly from the original stored amount & currency without compounding errors.
+ */
+export function getDisplayAmount(
+  item: { amount: number; currency?: string; originalAmount?: number; originalCurrency?: string },
+  targetCurrency: string,
+  customRates?: Record<string, number>
+): number {
+  const origAmount = item.originalAmount !== undefined ? item.originalAmount : item.amount;
+  const origCurrency = item.originalCurrency || item.currency || targetCurrency;
+
+  if (origCurrency === targetCurrency) {
+    return origAmount;
+  }
+  return roundToCurrency(convertCurrency(origAmount, origCurrency, targetCurrency, customRates));
+}

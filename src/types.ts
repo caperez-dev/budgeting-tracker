@@ -27,6 +27,9 @@ export interface Account {
   color: string;
   icon: string; // Lucide icon identifier
   initialBalance?: number;
+  currency?: string;
+  originalInitialBalance?: number;
+  originalCurrency?: string;
   isDefault?: boolean;
 }
 
@@ -36,6 +39,8 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   currency: string;
+  originalAmount?: number;
+  originalCurrency?: string;
   categoryId?: string;
   accountId?: string;
   fromAccountId?: string;
@@ -62,6 +67,8 @@ export interface Debt {
   person: string;
   amount: number;
   currency: string;
+  originalAmount?: number;
+  originalCurrency?: string;
   note?: string;
   dueDate?: string; // YYYY-MM-DD
   createdAt: number;
@@ -73,11 +80,14 @@ export interface Goal {
   id: string;
   name: string;
   targetPrice: number;
+  earmarkedAmount: number;
   currency: string;
+  originalTargetPrice?: number;
+  originalEarmarkedAmount?: number;
+  originalCurrency?: string;
   plannedDate: string; // YYYY-MM-DD
   imageUrl?: string;
   allocationMode: 'shared' | 'earmarked';
-  earmarkedAmount: number;
   isAchieved?: boolean;
   notes?: string;
   createdAt: number;

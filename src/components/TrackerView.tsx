@@ -907,7 +907,13 @@ export function TrackerView({
                                     {/* Actions */}
                                     <div className="flex items-center opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity gap-1">
                                       <button
-                                        onClick={() => setEditingTx(tx)}
+                                        onClick={() =>
+                                          setEditingTx({
+                                            ...tx,
+                                            amount: tx.originalAmount !== undefined ? tx.originalAmount : tx.amount,
+                                            currency: tx.originalCurrency || tx.currency || selectedCurrency,
+                                          })
+                                        }
                                         className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] hover:bg-zinc-200/60"
                                         title={isTransfer ? 'Edit transfer' : 'Edit transaction'}
                                       >

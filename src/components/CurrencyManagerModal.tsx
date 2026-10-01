@@ -64,7 +64,7 @@ export function CurrencyManagerModal({
 
   const handleSetDefault = (currCode: string) => {
     onSelectDefaultCurrency(currCode);
-    showNotification(`Default currency updated to ${currCode}. Historical data converted.`);
+    showNotification(`Currency switched to ${currCode}.`);
   };
 
   const handleAddWorldCurrency = (wc: WorldCurrency) => {

@@ -222,7 +222,7 @@ export function AccountManagerModal({
         </div>
 
         {/* Top Summary Bar */}
-        <div className="px-5 py-3 bg-white border-b border-zinc-100 flex items-center justify-between shrink-0">
+        <div className="px-5 py-3 bg-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-zinc-600">Total in Accounts:</span>
             <span
@@ -527,15 +527,15 @@ export function AccountManagerModal({
 
           {/* List of Accounts (Hidden when adding or editing an account) */}
           {!isAdding && !editingAccount && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="block text-xs font-medium text-zinc-700">
-                  Active Accounts ({modifiableAccounts.length})
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-end text-[11px] text-zinc-500 px-1">
+                <span className="font-mono text-[10px] text-zinc-400">
+                  {modifiableAccounts.length} {modifiableAccounts.length === 1 ? 'account' : 'accounts'}
                 </span>
               </div>
 
               {modifiableAccounts.length === 0 ? (
-                <div className="p-4 rounded-[5px] border border-dashed border-zinc-200 text-center bg-zinc-50/50">
+                <div className="p-4 rounded-[4px] border border-dashed border-zinc-200 text-center bg-zinc-50/50">
                   <p className="text-xs text-zinc-600 font-medium">
                     No other accounts added yet.
                   </p>
@@ -544,44 +544,33 @@ export function AccountManagerModal({
                   </p>
                 </div>
               ) : (
-                modifiableAccounts.map((acc) => {
-                  const currentBalance = accountBalances.get(acc.id) ?? (acc.initialBalance || 0);
-                  const txCount = accountTxCounts.get(acc.id) || 0;
-                  const typeObj = ACCOUNT_TYPES.find((t) => t.id === acc.type);
+                <div className="border border-zinc-200 rounded-[4px] divide-y divide-zinc-100 bg-white overflow-hidden">
+                  {modifiableAccounts.map((acc) => {
+                    const currentBalance = accountBalances.get(acc.id) ?? (acc.initialBalance || 0);
+                    const typeObj = ACCOUNT_TYPES.find((t) => t.id === acc.type);
 
-                  return (
-                    <div
-                      key={acc.id}
-                      id={`account-card-${acc.id}`}
-                      className="p-3 bg-white border border-zinc-200 hover:border-zinc-300 rounded-[5px] transition-colors flex items-center justify-between gap-3"
-                    >
-                      {/* Left: Icon & Info */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-[5px] flex items-center justify-center bg-zinc-100 text-zinc-700 shrink-0 border border-zinc-200/60">
-                          <AccountIcon name={acc.icon} className="w-4 h-4 text-zinc-700" />
-                        </div>
+                    return (
+                      <div
+                        key={acc.id}
+                        id={`account-card-${acc.id}`}
+                        className="py-2.5 px-3 flex items-center justify-between text-xs bg-white hover:bg-zinc-50/70 transition-colors"
+                      >
+                        {/* Left: Icon & Info */}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <AccountIcon name={acc.icon} className="w-4 h-4 text-zinc-600 shrink-0" />
 
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-semibold text-zinc-900 truncate">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h4 className="font-semibold text-zinc-900 truncate">
                               {acc.name}
                             </h4>
-                            <span className="text-[10px] uppercase font-medium tracking-wider px-1.5 py-0.5 rounded-[3px] bg-zinc-100 text-zinc-600 border border-zinc-200/60">
-                              {typeObj?.label || 'Asset'}
+                            <span className="text-[10px] text-zinc-400 shrink-0">
+                              • {typeObj?.label || 'Asset'}
                             </span>
                           </div>
-                          <p className="text-[11px] text-zinc-400 mt-0.5">
-                            {txCount} {txCount === 1 ? 'Transaction' : 'Transactions'}
-                          </p>
                         </div>
-                      </div>
 
-                      {/* Right: Balance & Actions */}
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="text-right">
-                          <span className="block text-[10px] uppercase text-zinc-400 font-medium">
-                            Balance
-                          </span>
+                        {/* Right: Balance & Actions */}
+                        <div className="flex items-center gap-3 shrink-0 ml-2">
                           <span
                             className={`font-mono text-xs font-semibold ${
                               currentBalance >= 0 ? 'text-zinc-900' : 'text-rose-600'
@@ -589,42 +578,44 @@ export function AccountManagerModal({
                           >
                             {formatCurrency(currentBalance, currencySymbol)}
                           </span>
-                        </div>
 
-                        <div className="flex items-center gap-1 border-l border-zinc-100 pl-2">
-                          <button
-                            type="button"
-                            id={`btn-edit-account-${acc.id}`}
-                            onClick={() => {
-                              setEditingAccount(acc);
-                              setEditBalance(
-                                acc.initialBalance !== undefined
-                                  ? String(acc.initialBalance)
-                                  : '0'
-                              );
-                              setEditErrorMessage(null);
-                              setIsAdding(false);
-                            }}
-                            className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-[3px] transition-colors cursor-pointer"
-                            title="Edit account"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1 border-l border-zinc-100 pl-2">
+                            <button
+                              type="button"
+                              id={`btn-edit-account-${acc.id}`}
+                              onClick={() => {
+                                setEditingAccount(acc);
+                                setEditBalance(
+                                  acc.initialBalance !== undefined
+                                    ? String(acc.initialBalance)
+                                    : '0'
+                                );
+                                setEditErrorMessage(null);
+                                setIsAdding(false);
+                              }}
+                              className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] transition-colors cursor-pointer"
+                              title="Edit account"
+                              aria-label={`Edit ${acc.name}`}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
 
-                          <button
-                            type="button"
-                            id={`btn-delete-account-${acc.id}`}
-                            onClick={() => setAccountToDelete(acc)}
-                            className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-[3px] transition-colors cursor-pointer"
-                            title="Delete account"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            <button
+                              type="button"
+                              id={`btn-delete-account-${acc.id}`}
+                              onClick={() => setAccountToDelete(acc)}
+                              className="p-1 text-zinc-400 hover:text-rose-600 rounded-[3px] transition-colors cursor-pointer"
+                              title="Delete account"
+                              aria-label={`Delete ${acc.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
