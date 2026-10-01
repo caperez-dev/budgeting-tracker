@@ -360,6 +360,29 @@ export function TrackerView({
   const visibleTransactions = filtered.slice(0, visibleCount);
   const monthGroups = groupTransactions(visibleTransactions);
 
+  const txToDelete = useMemo(() => {
+    return deleteConfirmId ? transactions.find((t) => t.id === deleteConfirmId) : null;
+  }, [deleteConfirmId, transactions]);
+
+  const transferDeleteInfo = useMemo(() => {
+    if (!txToDelete || txToDelete.type !== 'transfer') return null;
+    const fromId = txToDelete.fromAccountId || txToDelete.accountId;
+    const matchedAccount = fromId
+      ? accounts.find((a) => a.id === fromId)
+      : (txToDelete.fromAccountName ? accounts.find((a) => a.name.toLowerCase() === txToDelete.fromAccountName?.toLowerCase()) : undefined);
+
+    const sourceAccountExists = Boolean(matchedAccount);
+    const sourceAccountName = matchedAccount
+      ? matchedAccount.name
+      : (txToDelete.fromAccountName || txToDelete.accountName || 'the previous account');
+
+    return {
+      sourceAccountExists,
+      sourceAccountName,
+      amountFormatted: formatCurrency(txToDelete.amount, currencySymbol),
+    };
+  }, [txToDelete, accounts, currencySymbol]);
+
   const handleDeleteClick = (id: string) => {
     setDeleteConfirmId(id);
   };
@@ -534,9 +557,27 @@ export function TrackerView({
           <div className="flex items-center gap-2 text-xs">
             <RotateCcw className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
             <span>
-              Deleted transaction "
-              <strong className="font-medium text-zinc-100">{pendingUndoTx.note || 'Untitled'}</strong>" (
-              {formatCurrency(pendingUndoTx.amount, currencySymbol)}).
+              {pendingUndoTx.type === 'transfer' ? (
+                (() => {
+                  const undoFromId = pendingUndoTx.fromAccountId || pendingUndoTx.accountId;
+                  const undoAcc = undoFromId
+                    ? accounts.find((a) => a.id === undoFromId)
+                    : (pendingUndoTx.fromAccountName ? accounts.find((a) => a.name.toLowerCase() === pendingUndoTx.fromAccountName?.toLowerCase()) : undefined);
+                  const destName = undoAcc ? undoAcc.name : 'Cash';
+                  return (
+                    <>
+                      Deleted transfer ({formatCurrency(pendingUndoTx.amount, currencySymbol)}) — amount transferred back to{' '}
+                      <strong className="font-medium text-zinc-100">{destName}</strong>.
+                    </>
+                  );
+                })()
+              ) : (
+                <>
+                  Deleted transaction &quot;
+                  <strong className="font-medium text-zinc-100">{pendingUndoTx.note || 'Untitled'}</strong>&quot; (
+                  {formatCurrency(pendingUndoTx.amount, currencySymbol)}).
+                </>
+              )}
             </span>
             <span className="text-[11px] text-zinc-400 font-mono">
               Auto-finalizing in {undoSecondsLeft}s
@@ -794,7 +835,7 @@ export function TrackerView({
                           </div>
 
                           {/* Chronological Row Entries */}
-                          <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-[4px] overflow-hidden bg-white">
+                          <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-[4px] overflow-x-auto bg-white">
                             {day.transactions.map((tx) => {
                               const isTransfer = tx.type === 'transfer';
                               const cat = tx.categoryId ? categoryMap.get(tx.categoryId) : undefined;
@@ -820,33 +861,29 @@ export function TrackerView({
                                 <div
                                   key={tx.id}
                                   id={`tx-row-${tx.id}`}
-                                  className="group flex flex-wrap items-center justify-between py-2 px-3 hover:bg-zinc-50/80 transition-colors text-xs"
+                                  className="group flex items-center py-2.5 px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-3 sm:gap-4 min-w-[620px]"
                                 >
-                                  {/* Left: Tag [OUT]/[IN]/[Transfer], Amount, Category/Accounts, Note */}
-                                  <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 min-w-[240px]">
-                                    {/* Tag Badge: clean in / out / transfer indicators */}
+                                  {/* Column 1: Clean IN / OUT / Transfer Indicator (No border or background) */}
+                                  <div className="w-8 shrink-0 flex items-center justify-start">
                                     {isTransfer ? (
-                                      <span
-                                        className="w-14 shrink-0 flex items-center justify-center text-center py-0.5 rounded-[3px] font-mono text-[11px] font-medium border bg-zinc-100 text-zinc-700 border-zinc-200/80"
-                                        title="Transfer"
-                                      >
-                                        transfer
-                                      </span>
+                                      <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500" title="Transfer" />
                                     ) : (
                                       <span
-                                        className={`w-14 shrink-0 flex items-center justify-center text-center py-0.5 rounded-[3px] font-mono text-[11px] font-medium border ${
+                                        className={`font-mono text-[11px] font-semibold tracking-tight ${
                                           tx.type === 'expense'
-                                            ? 'bg-rose-50 text-rose-700 border-rose-200/80'
-                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                                            ? 'text-rose-600'
+                                            : 'text-emerald-600'
                                         }`}
                                       >
-                                        {tx.type === 'expense' ? 'out' : 'in'}
+                                        {tx.type === 'expense' ? 'OUT' : 'IN'}
                                       </span>
                                     )}
+                                  </div>
 
-                                    {/* Amount: fixed width so all amounts align vertically */}
+                                  {/* Column 2: Amount (fixed width) */}
+                                  <div className="w-24 sm:w-28 shrink-0">
                                     <span
-                                      className={`font-mono text-sm font-semibold tabular-nums w-28 shrink-0 ${
+                                      className={`font-mono text-sm font-semibold tabular-nums ${
                                         isTransfer
                                           ? 'text-zinc-900'
                                           : tx.type === 'expense'
@@ -856,55 +893,61 @@ export function TrackerView({
                                     >
                                       {formatCurrency(tx.amount, currencySymbol)}
                                     </span>
+                                  </div>
 
-                                    {/* Transfer vs Regular Category & Account */}
+                                  {/* Column 3: Category Column (aligned) */}
+                                  <div className="w-32 sm:w-36 md:w-40 shrink-0 flex items-center min-w-0">
                                     {isTransfer ? (
-                                      <div className="inline-flex items-center gap-1.5 py-0.5 px-2 bg-zinc-50 border border-zinc-200/80 rounded-[4px] text-xs shadow-2xs whitespace-nowrap">
-                                        <span className="flex items-center gap-1 font-medium text-zinc-800">
-                                          <AccountIcon name={fromIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                          <span className="text-zinc-900">{fromName}</span>
-                                        </span>
-                                        <span className="text-zinc-400 text-xs font-normal select-none">→</span>
-                                        <span className="flex items-center gap-1 font-medium text-zinc-800">
-                                          <AccountIcon name={toIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                          <span className="text-zinc-900">{toName}</span>
-                                        </span>
-                                      </div>
+                                      <span className="flex items-center gap-1.5 text-zinc-400 font-medium text-xs">
+                                        <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                        <span>Transfer</span>
+                                      </span>
                                     ) : (
-                                      <>
-                                        {/* Category with Icon */}
-                                        <span className="flex items-center gap-1 text-zinc-700 font-medium whitespace-nowrap">
-                                          <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400" />
-                                          <span>{catName}</span>
-                                        </span>
-
-                                        {/* Account Badge if available */}
-                                        {accName && (
-                                          <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-600 bg-zinc-100/90 px-1.5 py-0.5 rounded-[3px] border border-zinc-200/60 whitespace-nowrap">
-                                            <AccountIcon name={accIcon} className="w-3 h-3 shrink-0 text-zinc-500" />
-                                            <span>{accName}</span>
-                                          </span>
-                                        )}
-                                      </>
-                                    )}
-
-                                    {/* Description / Note */}
-                                    {tx.note && (
-                                      <span className="text-zinc-500 truncate max-w-[200px] sm:max-w-[320px]">
-                                        {tx.note}
+                                      <span className="flex items-center gap-1.5 text-zinc-700 font-medium truncate text-xs">
+                                        <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                        <span className="truncate">{catName}</span>
                                       </span>
                                     )}
                                   </div>
 
+                                  {/* Column 4: Account Column (aligned, no wrappers) */}
+                                  <div className="w-40 sm:w-48 md:w-56 shrink-0 flex items-center min-w-0">
+                                    {isTransfer ? (
+                                      <div className="flex items-center gap-1 text-xs whitespace-nowrap truncate font-medium text-zinc-700">
+                                        <AccountIcon name={fromIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                        <span className="truncate max-w-[80px] sm:max-w-[95px]">{fromName}</span>
+                                        <ArrowRight className="w-3 h-3 text-zinc-400 shrink-0 mx-0.5" />
+                                        <AccountIcon name={toIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                        <span className="truncate max-w-[80px] sm:max-w-[95px]">{toName}</span>
+                                      </div>
+                                    ) : accName ? (
+                                      <span className="flex items-center gap-1.5 font-medium text-zinc-600 truncate text-xs">
+                                        <AccountIcon name={accIcon} className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+                                        <span className="truncate">{accName}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-zinc-300 text-xs">—</span>
+                                    )}
+                                  </div>
+
+                                  {/* Column 5: Description Column (aligned) */}
+                                  <div className="flex-1 min-w-[80px] truncate">
+                                    {tx.note ? (
+                                      <span className="text-zinc-500 truncate block text-xs" title={tx.note}>
+                                        {tx.note}
+                                      </span>
+                                    ) : (
+                                      <span className="text-zinc-300 text-xs select-none">—</span>
+                                    )}
+                                  </div>
+
                                   {/* Right: Subtle 12-hour timestamp and row actions */}
-                                  <div className="flex items-center gap-3">
-                                    {/* Subtle 12-hour timestamp next to entry per §5 */}
+                                  <div className="flex items-center gap-3 shrink-0 ml-auto">
                                     <span className="font-mono text-[11px] text-zinc-400 tabular-nums flex items-center gap-1">
                                       <Clock className="w-3 h-3 text-zinc-300" />
                                       {tx.time}
                                     </span>
 
-                                    {/* Actions */}
                                     <div className="flex items-center opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity gap-1">
                                       <button
                                         onClick={() =>
@@ -914,14 +957,14 @@ export function TrackerView({
                                             currency: tx.originalCurrency || tx.currency || selectedCurrency,
                                           })
                                         }
-                                        className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] hover:bg-zinc-200/60"
+                                        className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] hover:bg-zinc-200/60 cursor-pointer"
                                         title={isTransfer ? 'Edit transfer' : 'Edit transaction'}
                                       >
                                         <Edit3 className="w-3.5 h-3.5" />
                                       </button>
                                       <button
                                         onClick={() => handleDeleteClick(tx.id)}
-                                        className="p-1 text-zinc-400 hover:text-rose-600 rounded-[3px] hover:bg-rose-50"
+                                        className="p-1 text-zinc-400 hover:text-rose-600 rounded-[3px] hover:bg-rose-50 cursor-pointer"
                                         title={isTransfer ? 'Delete transfer' : 'Delete transaction'}
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -965,22 +1008,40 @@ export function TrackerView({
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3">
             <div className="flex items-center gap-2 text-rose-600">
-              <AlertCircle className="w-5 h-5" />
-              <h4 className="text-sm font-semibold text-zinc-900">Delete this transaction?</h4>
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <h4 className="text-sm font-semibold text-zinc-900">
+                {transferDeleteInfo ? 'Delete this transfer?' : 'Delete this transaction?'}
+              </h4>
             </div>
-            <p className="text-xs text-zinc-600">
-              Delete this transaction? This can be undone immediately from the notification banner.
-            </p>
+
+            {transferDeleteInfo ? (
+              transferDeleteInfo.sourceAccountExists ? (
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Deleting this transfer will transfer the amount ({transferDeleteInfo.amountFormatted}) back to the previous account (<strong className="font-semibold text-zinc-800">{transferDeleteInfo.sourceAccountName}</strong>).
+                </p>
+              ) : (
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  The previous account is no longer available. Deleting this transfer will automatically transfer the amount ({transferDeleteInfo.amountFormatted}) back to <strong className="font-semibold text-zinc-800">Cash</strong>.
+                </p>
+              )
+            ) : (
+              <p className="text-xs text-zinc-600 leading-relaxed">
+                Delete this transaction? This can be undone immediately from the notification banner.
+              </p>
+            )}
+
             <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
               <button
+                type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px]"
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={confirmDelete}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors"
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
               >
                 Confirm Delete
               </button>

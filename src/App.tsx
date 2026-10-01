@@ -1391,6 +1391,60 @@ export default function App() {
     setPendingUndoTx(txToDelete);
     setUndoSecondsLeft(6);
 
+    // If deleting a transfer whose source account no longer exists, add amount back to Cash
+    if (txToDelete.type === 'transfer') {
+      const fromId = txToDelete.fromAccountId || txToDelete.accountId;
+      const fromAccountExists = fromId
+        ? accounts.some((a) => a.id === fromId)
+        : (txToDelete.fromAccountName ? accounts.some((a) => a.name.toLowerCase() === txToDelete.fromAccountName?.toLowerCase()) : false);
+
+      if (!fromAccountExists) {
+        setAccounts((prevAccounts) => {
+          const cashAcc = prevAccounts.find(isCashAccount) || prevAccounts[0];
+          if (!cashAcc) return prevAccounts;
+
+          const cashCurr = cashAcc.originalCurrency || cashAcc.currency || settings.defaultCurrency || 'PHP';
+          const txCurr = txToDelete.originalCurrency || txToDelete.currency || settings.defaultCurrency || 'PHP';
+          const amtToAdd =
+            txCurr === cashCurr
+              ? txToDelete.amount
+              : roundToCurrency(convertCurrency(txToDelete.amount, txCurr, cashCurr, ratesMap));
+
+          const updated = prevAccounts.map((a) =>
+            a.id === cashAcc.id
+              ? {
+                  ...a,
+                  initialBalance: roundToCurrency((a.initialBalance || 0) + amtToAdd),
+                  originalInitialBalance: roundToCurrency(
+                    (a.originalInitialBalance !== undefined ? a.originalInitialBalance : (a.initialBalance || 0)) + amtToAdd
+                  ),
+                }
+              : a
+          );
+
+          if (currentUser?.id) {
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, currentUser.id),
+                JSON.stringify(updated)
+              );
+            } catch {}
+
+            fetch(`/api/db/accounts?userId=${encodeURIComponent(currentUser.id)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+              body: JSON.stringify({ userId: currentUser.id, accounts: updated }),
+            }).catch(() => {});
+          } else {
+            try {
+              localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(updated));
+            } catch {}
+          }
+          return updated;
+        });
+      }
+    }
+
     // Remove row from list
     setTransactions((prev) => prev.filter((t) => t.id !== id));
 
@@ -1417,6 +1471,60 @@ export default function App() {
   const handleUndoDelete = () => {
     if (undoTimerRef.current) clearInterval(undoTimerRef.current);
     if (pendingUndoTx) {
+      // If undoing a deleted transfer whose source account does not exist, revert the addition to Cash
+      if (pendingUndoTx.type === 'transfer') {
+        const fromId = pendingUndoTx.fromAccountId || pendingUndoTx.accountId;
+        const fromAccountExists = fromId
+          ? accounts.some((a) => a.id === fromId)
+          : (pendingUndoTx.fromAccountName ? accounts.some((a) => a.name.toLowerCase() === pendingUndoTx.fromAccountName?.toLowerCase()) : false);
+
+        if (!fromAccountExists) {
+          setAccounts((prevAccounts) => {
+            const cashAcc = prevAccounts.find(isCashAccount) || prevAccounts[0];
+            if (!cashAcc) return prevAccounts;
+
+            const cashCurr = cashAcc.originalCurrency || cashAcc.currency || settings.defaultCurrency || 'PHP';
+            const txCurr = pendingUndoTx.originalCurrency || pendingUndoTx.currency || settings.defaultCurrency || 'PHP';
+            const amtToSubtract =
+              txCurr === cashCurr
+                ? pendingUndoTx.amount
+                : roundToCurrency(convertCurrency(pendingUndoTx.amount, txCurr, cashCurr, ratesMap));
+
+            const updated = prevAccounts.map((a) =>
+              a.id === cashAcc.id
+                ? {
+                    ...a,
+                    initialBalance: roundToCurrency((a.initialBalance || 0) - amtToSubtract),
+                    originalInitialBalance: roundToCurrency(
+                      (a.originalInitialBalance !== undefined ? a.originalInitialBalance : (a.initialBalance || 0)) - amtToSubtract
+                    ),
+                  }
+                : a
+            );
+
+            if (currentUser?.id) {
+              try {
+                localStorage.setItem(
+                  getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, currentUser.id),
+                  JSON.stringify(updated)
+                );
+              } catch {}
+
+              fetch(`/api/db/accounts?userId=${encodeURIComponent(currentUser.id)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+                body: JSON.stringify({ userId: currentUser.id, accounts: updated }),
+              }).catch(() => {});
+            } else {
+              try {
+                localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(updated));
+              } catch {}
+            }
+            return updated;
+          });
+        }
+      }
+
       setTransactions((prev) => [pendingUndoTx, ...prev]);
       setPendingUndoTx(null);
     }
