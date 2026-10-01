@@ -400,6 +400,33 @@ export function TrackerView({
     setEditingTx(null);
   };
 
+  const availableFilterCategories = useMemo(() => {
+    if (filterType === 'expense') {
+      return categories.filter((c) => c.type === 'expense');
+    }
+    if (filterType === 'income') {
+      return categories.filter((c) => c.type === 'income');
+    }
+    return categories;
+  }, [categories, filterType]);
+
+  const handleFilterTypeChange = (type: 'all' | 'expense' | 'income' | 'transfer') => {
+    setFilterType(type);
+    if (type === 'transfer') {
+      setFilterCategory('all');
+    } else if (type === 'expense') {
+      const activeCat = categories.find((c) => c.id === filterCategory);
+      if (activeCat && activeCat.type !== 'expense') {
+        setFilterCategory('all');
+      }
+    } else if (type === 'income') {
+      const activeCat = categories.find((c) => c.id === filterCategory);
+      if (activeCat && activeCat.type !== 'income') {
+        setFilterCategory('all');
+      }
+    }
+  };
+
   const totalInFiltered = useMemo(() => {
     return filtered.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   }, [filtered]);
@@ -426,20 +453,20 @@ export function TrackerView({
           </div>
 
           {/* Type Filter */}
-          <div className="flex items-center h-8 bg-zinc-100 p-0.5 rounded-[4px] border border-zinc-200">
+          <div className="flex items-center h-8 bg-zinc-100 p-0.5 rounded-[4px] border border-zinc-200 shrink-0">
             <button
-              onClick={() => setFilterType('all')}
-              className={`h-full flex items-center px-2.5 text-xs font-medium rounded-[3px] transition-colors ${
+              onClick={() => handleFilterTypeChange('all')}
+              className={`h-full flex items-center justify-center px-2.5 text-xs font-medium rounded-[3px] transition-colors shrink-0 whitespace-nowrap ${
                 filterType === 'all'
-                  ? 'bg-white text-zinc-900 shadow-2xs'
+                  ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               All
             </button>
             <button
-              onClick={() => setFilterType('expense')}
-              className={`h-full flex items-center px-2.5 text-xs font-medium rounded-[3px] transition-colors ${
+              onClick={() => handleFilterTypeChange('expense')}
+              className={`h-full flex items-center justify-center px-2.5 text-xs font-medium rounded-[3px] transition-colors shrink-0 whitespace-nowrap ${
                 filterType === 'expense'
                   ? 'bg-white text-rose-600 shadow-2xs font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -448,8 +475,8 @@ export function TrackerView({
               Expenses
             </button>
             <button
-              onClick={() => setFilterType('income')}
-              className={`h-full flex items-center px-2.5 text-xs font-medium rounded-[3px] transition-colors ${
+              onClick={() => handleFilterTypeChange('income')}
+              className={`h-full flex items-center justify-center px-2.5 text-xs font-medium rounded-[3px] transition-colors shrink-0 whitespace-nowrap ${
                 filterType === 'income'
                   ? 'bg-white text-emerald-600 shadow-2xs font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -458,8 +485,8 @@ export function TrackerView({
               Income
             </button>
             <button
-              onClick={() => setFilterType('transfer')}
-              className={`h-full flex items-center px-2.5 text-xs font-medium rounded-[3px] transition-colors ${
+              onClick={() => handleFilterTypeChange('transfer')}
+              className={`h-full flex items-center justify-center px-2.5 text-xs font-medium rounded-[3px] transition-colors shrink-0 whitespace-nowrap ${
                 filterType === 'transfer'
                   ? 'bg-white text-blue-600 shadow-2xs font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -471,11 +498,11 @@ export function TrackerView({
 
           {/* Category Filter - custom styled matching CurrencySelect, hidden when viewing transfers */}
           {filterType !== 'transfer' && (
-            <div className="h-8 min-w-[160px]">
+            <div className="h-8 w-44 shrink-0">
               <CategorySelect
                 id="filter-category-select"
                 ariaLabel="Filter by category"
-                categories={categories}
+                categories={availableFilterCategories}
                 value={filterCategory}
                 onChange={setFilterCategory}
                 showAllOption={true}
