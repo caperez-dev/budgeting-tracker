@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Calendar,
+  ChevronDown,
 } from 'lucide-react';
 import { Category, Transaction } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
@@ -50,9 +50,57 @@ export function SummaryPanel({
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
   const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
 
+  // Popover state for selecting month or year directly on the cards
+  const [isMonthPopoverOpen, setIsMonthPopoverOpen] = useState(false);
+  const [isYearPopoverOpen, setIsYearPopoverOpen] = useState(false);
+  const monthPopoverRef = useRef<HTMLDivElement>(null);
+  const yearPopoverRef = useRef<HTMLDivElement>(null);
+  const monthCardRef = useRef<HTMLDivElement>(null);
+  const yearCardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isMonthPopoverOpen && !isYearPopoverOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        isMonthPopoverOpen &&
+        monthPopoverRef.current &&
+        !monthPopoverRef.current.contains(target) &&
+        monthCardRef.current &&
+        !monthCardRef.current.contains(target)
+      ) {
+        setIsMonthPopoverOpen(false);
+      }
+      if (
+        isYearPopoverOpen &&
+        yearPopoverRef.current &&
+        !yearPopoverRef.current.contains(target) &&
+        yearCardRef.current &&
+        !yearCardRef.current.contains(target)
+      ) {
+        setIsYearPopoverOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMonthPopoverOpen(false);
+        setIsYearPopoverOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMonthPopoverOpen, isYearPopoverOpen]);
+
   // Available years from transactions
   const availableYears = useMemo(() => {
-    const yearsSet = new Set<number>([currentYearNum, currentYearNum - 1, currentYearNum + 1]);
+    const yearsSet = new Set<number>();
+    for (let i = currentYearNum - 4; i <= currentYearNum + 1; i++) {
+      yearsSet.add(i);
+    }
     transactions.forEach((t) => {
       if (t.date) {
         const y = parseInt(t.date.slice(0, 4), 10);
@@ -61,26 +109,6 @@ export function SummaryPanel({
     });
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [transactions, currentYearNum]);
-
-  const handlePrevMonth = () => {
-    const mNum = parseInt(selectedMonth, 10);
-    if (mNum === 1) {
-      setSelectedYear((y) => y - 1);
-      setSelectedMonth('12');
-    } else {
-      setSelectedMonth(String(mNum - 1).padStart(2, '0'));
-    }
-  };
-
-  const handleNextMonth = () => {
-    const mNum = parseInt(selectedMonth, 10);
-    if (mNum === 12) {
-      setSelectedYear((y) => y + 1);
-      setSelectedMonth('01');
-    } else {
-      setSelectedMonth(String(mNum + 1).padStart(2, '0'));
-    }
-  };
 
   // Helper to test if a date is in this week (Week starts on Sunday)
   const isThisWeek = (dateStr: string) => {
@@ -123,23 +151,38 @@ export function SummaryPanel({
 
   const selectedMonthObj = MONTHS.find((m) => m.value === selectedMonth);
   const selectedMonthName = selectedMonthObj?.name || 'Month';
-  const selectedMonthLabel = `${selectedMonthObj?.short || 'Month'} ${selectedYear}`;
+  const selectedMonthShort = selectedMonthObj?.short || 'Month';
   const isCurrentMonthSelected = selectedYearMonth === currentYearMonth;
   const isCurrentYearSelected = selectedYear === currentYearNum;
+
+  // Descriptive card labels displaying what month and what year it is
+  const monthCardLabel = isCurrentMonthSelected
+    ? `This Month (${selectedMonthName})`
+    : `${selectedMonthName} ${selectedYear}`;
+  const monthCardSublabel = isCurrentMonthSelected
+    ? `${selectedMonthName} ${selectedYear}`
+    : `Selected Month`;
+
+  const yearCardLabel = isCurrentYearSelected
+    ? `This Year (${selectedYear})`
+    : `Year ${selectedYear}`;
+  const yearCardSublabel = isCurrentYearSelected
+    ? `Year ${selectedYear}`
+    : `Selected Year`;
 
   const expenseCards = [
     { id: 'today' as Period, label: 'Today', sublabel: todayStr, total: expenseToday },
     { id: 'week' as Period, label: 'This Week', sublabel: 'Current 7-day cycle', total: expenseThisWeek },
-    { id: 'month' as Period, label: isCurrentMonthSelected ? 'This Month' : selectedMonthLabel, sublabel: selectedMonthLabel, total: expenseSelectedMonth },
-    { id: 'year' as Period, label: isCurrentYearSelected ? 'This Year' : `Year ${selectedYear}`, sublabel: String(selectedYear), total: expenseSelectedYear },
+    { id: 'month' as Period, label: monthCardLabel, sublabel: monthCardSublabel, total: expenseSelectedMonth },
+    { id: 'year' as Period, label: yearCardLabel, sublabel: yearCardSublabel, total: expenseSelectedYear },
     { id: 'all' as Period, label: 'All-Time', sublabel: 'Cumulative expenses', total: expenseAllTime },
   ];
 
   const incomeCards = [
     { id: 'today' as Period, label: 'Today', sublabel: todayStr, total: incomeToday },
     { id: 'week' as Period, label: 'This Week', sublabel: 'Current 7-day cycle', total: incomeThisWeek },
-    { id: 'month' as Period, label: isCurrentMonthSelected ? 'This Month' : selectedMonthLabel, sublabel: selectedMonthLabel, total: incomeSelectedMonth },
-    { id: 'year' as Period, label: isCurrentYearSelected ? 'This Year' : `Year ${selectedYear}`, sublabel: String(selectedYear), total: incomeSelectedYear },
+    { id: 'month' as Period, label: monthCardLabel, sublabel: monthCardSublabel, total: incomeSelectedMonth },
+    { id: 'year' as Period, label: yearCardLabel, sublabel: yearCardSublabel, total: incomeSelectedYear },
     { id: 'all' as Period, label: 'All-Time', sublabel: 'Cumulative income', total: incomeAllTime },
   ];
 
@@ -237,176 +280,256 @@ export function SummaryPanel({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {(breakdownType === 'expense' ? expenseCards : incomeCards).map((card) => {
             const isSelected = selectedPeriod === card.id;
+            const isMonthCard = card.id === 'month';
+            const isYearCard = card.id === 'year';
+
+            const handleCardClick = () => {
+              if (isMonthCard) {
+                setSelectedPeriod('month');
+                setIsMonthPopoverOpen((prev) => !prev);
+                setIsYearPopoverOpen(false);
+              } else if (isYearCard) {
+                setSelectedPeriod('year');
+                setIsYearPopoverOpen((prev) => !prev);
+                setIsMonthPopoverOpen(false);
+              } else {
+                setSelectedPeriod(card.id);
+                setIsMonthPopoverOpen(false);
+                setIsYearPopoverOpen(false);
+              }
+            };
+
             return (
-              <button
+              <div
                 key={`${breakdownType}-${card.id}`}
-                type="button"
-                onClick={() => setSelectedPeriod(card.id)}
-                className={`text-left p-3.5 rounded-[5px] border transition-all cursor-pointer ${
-                  isSelected
-                    ? breakdownType === 'income'
-                      ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
-                      : 'bg-rose-50/40 border-rose-500 shadow-xs ring-1 ring-rose-500'
-                    : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
-                }`}
+                ref={isMonthCard ? monthCardRef : isYearCard ? yearCardRef : undefined}
+                className="relative"
               >
-                <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
-                  <span className="flex items-center gap-1">
-                    <span>{card.label}</span>
-                    {(card.id === 'month' || card.id === 'year') && (
-                      <Calendar className="w-3 h-3 text-zinc-400" />
-                    )}
-                  </span>
-                  {isSelected && (
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        breakdownType === 'income' ? 'bg-emerald-600' : 'bg-rose-600'
-                      }`}
-                    />
-                  )}
-                </div>
-                <div
-                  className={`text-base sm:text-lg font-bold font-mono tabular-nums ${
-                    breakdownType === 'income' ? 'text-emerald-700' : 'text-zinc-900'
+                <button
+                  type="button"
+                  id={`btn-summary-period-${card.id}`}
+                  onClick={handleCardClick}
+                  className={`w-full text-left p-3.5 rounded-[5px] border transition-all cursor-pointer ${
+                    isSelected
+                      ? breakdownType === 'income'
+                        ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
+                        : 'bg-rose-50/40 border-rose-500 shadow-xs ring-1 ring-rose-500'
+                      : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
                   }`}
                 >
-                  {formatCurrency(card.total, currencySymbol)}
-                </div>
-                <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
-                  {card.sublabel}
-                </div>
-              </button>
+                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                    <span className="flex items-center gap-1 min-w-0">
+                      <span className="truncate">{card.label}</span>
+                      {isMonthCard && (
+                        <ChevronDown
+                          className={`w-3 h-3 text-zinc-400 shrink-0 transition-transform ${
+                            isMonthPopoverOpen ? 'rotate-180 text-zinc-700' : ''
+                          }`}
+                        />
+                      )}
+                      {isYearCard && (
+                        <ChevronDown
+                          className={`w-3 h-3 text-zinc-400 shrink-0 transition-transform ${
+                            isYearPopoverOpen ? 'rotate-180 text-zinc-700' : ''
+                          }`}
+                        />
+                      )}
+                    </span>
+                    {isSelected && (
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          breakdownType === 'income' ? 'bg-emerald-600' : 'bg-rose-600'
+                        }`}
+                      />
+                    )}
+                  </div>
+                  <div
+                    className={`text-base sm:text-lg font-bold font-mono tabular-nums ${
+                      breakdownType === 'income' ? 'text-emerald-700' : 'text-zinc-900'
+                    }`}
+                  >
+                    {formatCurrency(card.total, currencySymbol)}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
+                    {card.sublabel}
+                  </div>
+                </button>
+
+                {/* Popover Month Selector directly on the Month panel */}
+                {isMonthCard && isMonthPopoverOpen && (
+                  <div
+                    ref={monthPopoverRef}
+                    className="absolute left-0 sm:right-0 sm:left-auto lg:left-0 lg:right-auto top-full mt-1.5 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3 w-64 animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-2rem)]"
+                  >
+                    {/* Year Navigation inside Month selector */}
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedYear((y) => y - 1);
+                        }}
+                        className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                        title="Previous year"
+                        aria-label="Previous year"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+
+                      <span className="text-xs font-bold text-zinc-900 font-mono">
+                        {selectedYear}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedYear((y) => y + 1);
+                        }}
+                        className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                        title="Next year"
+                        aria-label="Next year"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Months 3x4 Grid */}
+                    <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+                      {MONTHS.map((m) => {
+                        const isMonthActive = selectedMonth === m.value;
+                        const isCurrent = m.value === currentMonthStr && selectedYear === currentYearNum;
+                        return (
+                          <button
+                            key={m.value}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMonth(m.value);
+                              setIsMonthPopoverOpen(false);
+                            }}
+                            className={`py-1.5 text-xs rounded-[4px] font-medium transition-colors cursor-pointer ${
+                              isMonthActive
+                                ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                                : isCurrent
+                                ? 'border border-zinc-400 text-zinc-900 font-bold hover:bg-zinc-100'
+                                : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                            }`}
+                          >
+                            {m.short}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedYear(currentYearNum);
+                          setSelectedMonth(currentMonthStr);
+                          setIsMonthPopoverOpen(false);
+                        }}
+                        className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                      >
+                        This Month
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsMonthPopoverOpen(false);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Popover Year Selector directly on the Year panel */}
+                {isYearCard && isYearPopoverOpen && (
+                  <div
+                    ref={yearPopoverRef}
+                    className="absolute right-0 top-full mt-1.5 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3 w-56 animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-2rem)]"
+                  >
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                      <span className="text-xs font-bold text-zinc-900">
+                        Select Year
+                      </span>
+                      <span className="font-mono text-xs font-bold text-zinc-600">
+                        {selectedYear}
+                      </span>
+                    </div>
+
+                    {/* Available Years list */}
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {availableYears.map((yr) => {
+                        const isYearActive = selectedYear === yr;
+                        const isCurrent = yr === currentYearNum;
+                        return (
+                          <button
+                            key={yr}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedYear(yr);
+                              setIsYearPopoverOpen(false);
+                            }}
+                            className={`w-full py-1.5 px-2.5 text-xs rounded-[4px] font-mono flex items-center justify-between transition-colors cursor-pointer ${
+                              isYearActive
+                                ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                                : isCurrent
+                                ? 'border border-zinc-300 text-zinc-900 font-semibold hover:bg-zinc-100'
+                                : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                            }`}
+                          >
+                            <span>{yr}</span>
+                            {isCurrent && (
+                              <span className={`text-[10px] font-sans ${isYearActive ? 'text-zinc-300' : 'text-zinc-400'}`}>
+                                Current
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedYear(currentYearNum);
+                          setIsYearPopoverOpen(false);
+                        }}
+                        className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                      >
+                        This Year
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsYearPopoverOpen(false);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
-
-        {/* Month Selector Component */}
-        {selectedPeriod === 'month' && (
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-100 bg-zinc-50/70 p-3 rounded-[4px] border border-zinc-200/80 animate-fade-in">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Select Month:</span>
-              </span>
-              <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-[4px] p-0.5 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={handlePrevMonth}
-                  className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                  title="Previous month"
-                  aria-label="Previous month"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-zinc-900 px-2 py-1 rounded-[3px] focus:outline-none cursor-pointer"
-                  aria-label="Select month"
-                >
-                  {MONTHS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="bg-transparent text-xs font-semibold text-zinc-900 px-2 py-1 rounded-[3px] focus:outline-none cursor-pointer border-l border-zinc-200"
-                  aria-label="Select year for month"
-                >
-                  {availableYears.map((yr) => (
-                    <option key={yr} value={yr}>
-                      {yr}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={handleNextMonth}
-                  className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                  title="Next month"
-                  aria-label="Next month"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {!isCurrentMonthSelected && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedYear(currentYearNum);
-                  setSelectedMonth(currentMonthStr);
-                }}
-                className="text-xs text-zinc-600 hover:text-zinc-900 font-medium px-2.5 py-1 rounded-[3px] bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer"
-              >
-                Current Month
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Year Selector Component */}
-        {selectedPeriod === 'year' && (
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-100 bg-zinc-50/70 p-3 rounded-[4px] border border-zinc-200/80 animate-fade-in">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Select Year:</span>
-              </span>
-              <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-[4px] p-0.5 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => setSelectedYear((y) => y - 1)}
-                  className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                  title="Previous year"
-                  aria-label="Previous year"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="bg-transparent text-xs font-semibold text-zinc-900 px-3 py-1 rounded-[3px] focus:outline-none cursor-pointer"
-                  aria-label="Select year"
-                >
-                  {availableYears.map((yr) => (
-                    <option key={yr} value={yr}>
-                      {yr}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedYear((y) => y + 1)}
-                  className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                  title="Next year"
-                  aria-label="Next year"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {!isCurrentYearSelected && (
-              <button
-                type="button"
-                onClick={() => setSelectedYear(currentYearNum)}
-                className="text-xs text-zinc-600 hover:text-zinc-900 font-medium px-2.5 py-1 rounded-[3px] bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer"
-              >
-                Current Year
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 3. CATEGORY BREAKDOWN */}

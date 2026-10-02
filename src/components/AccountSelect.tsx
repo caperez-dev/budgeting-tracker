@@ -90,27 +90,33 @@ export function AccountSelect({
         aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className="w-full h-full min-h-[36px] bg-white border border-zinc-200 hover:border-zinc-300 text-xs px-2.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500 flex items-center justify-between gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`w-full h-full min-h-[36px] border text-xs px-2.5 rounded-[4px] flex items-center justify-between gap-1.5 transition-colors ${
+          disabled
+            ? 'bg-zinc-100/90 border-zinc-200 text-zinc-500 cursor-not-allowed select-none opacity-80'
+            : 'bg-white border-zinc-200 hover:border-zinc-300 text-zinc-900 focus:outline-none focus:border-zinc-500 cursor-pointer'
+        }`}
       >
         <div className="flex items-center gap-2 min-w-0">
           {selectedAccount ? (
             <>
               <AccountIcon name={selectedAccount.icon} className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
-              <span className="font-semibold text-zinc-900 tracking-tight truncate">
+              <span className={`font-semibold tracking-tight truncate ${disabled ? 'text-zinc-700' : 'text-zinc-900'}`}>
                 {selectedAccount.name}
               </span>
             </>
-          ) : (
+          ) : allowNone ? (
             <>
               <Wallet className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               <span className="text-zinc-500 truncate">{noneLabel}</span>
             </>
+          ) : (
+            <span className="text-zinc-400 truncate">Select account</span>
           )}
         </div>
         <ChevronDown
-          className={`w-3.5 h-3.5 text-zinc-400 shrink-0 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-zinc-600' : ''
-          }`}
+          className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${
+            disabled ? 'text-zinc-300' : 'text-zinc-400'
+          } ${isOpen ? 'rotate-180 text-zinc-600' : ''}`}
         />
       </button>
 

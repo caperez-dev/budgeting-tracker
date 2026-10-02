@@ -15,6 +15,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Layers,
   X,
 } from 'lucide-react';
@@ -22,8 +23,6 @@ import { Category, Currency, Transaction, Account } from '../types';
 import {
   formatCurrency,
   groupTransactions,
-  formatTimeTo24Hour,
-  format24HourTo12Hour,
   calculateTimestamp,
   getTodayDateString,
   getCurrent12HourTime,
@@ -32,6 +31,38 @@ import { CategoryIcon, AccountIcon } from './CategoryIcon';
 import { CurrencySelect } from './CurrencySelect';
 import { CategorySelect } from './CategorySelect';
 import { AccountSelect } from './AccountSelect';
+
+function formatFriendlyDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  const dt = new Date(y, m, d);
+  if (isNaN(dt.getTime())) return dateStr;
+  return dt.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function parseTimeComponents(timeStr?: string): { hour: number; minute: string; period: 'AM' | 'PM' } {
+  if (!timeStr) return { hour: 12, minute: '00', period: 'PM' };
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return { hour: 12, minute: '00', period: 'PM' };
+  let h = parseInt(match[1], 10);
+  if (h < 1 || h > 12) h = 12;
+  const m = match[2];
+  const p = ((match[3] || 'PM').toUpperCase() === 'AM' ? 'AM' : 'PM') as 'AM' | 'PM';
+  return { hour: h, minute: m, period: p };
+}
+
+function construct12HourTime(hour: number, minute: string, period: 'AM' | 'PM'): string {
+  return `${hour}:${minute.padStart(2, '0')} ${period}`;
+}
 
 interface TrackerViewProps {
   transactions: Transaction[];
@@ -203,10 +234,14 @@ export function TrackerView({
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   }, []);
 
-  // Edit Transaction In-Modal Calendar Popover State
+  // Edit Transaction In-Modal Calendar & Time Popover State
   const [isEditCalOpen, setIsEditCalOpen] = useState(false);
   const editCalRef = useRef<HTMLDivElement>(null);
   const editCalButtonRef = useRef<HTMLButtonElement>(null);
+
+  const [isEditTimeOpen, setIsEditTimeOpen] = useState(false);
+  const editTimeRef = useRef<HTMLDivElement>(null);
+  const editTimeButtonRef = useRef<HTMLButtonElement>(null);
 
   const [editCalYear, setEditCalYear] = useState<number>(() => new Date().getFullYear());
   const [editCalMonth, setEditCalMonth] = useState<number>(() => new Date().getMonth());
@@ -223,23 +258,36 @@ export function TrackerView({
       setEditCalMonth(new Date().getMonth());
     }
     setIsEditCalOpen(false);
+    setIsEditTimeOpen(false);
   }, [editingTx?.id]);
 
   useEffect(() => {
-    if (!isEditCalOpen) return;
+    if (!isEditCalOpen && !isEditTimeOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
       if (
+        isEditCalOpen &&
         editCalRef.current &&
-        !editCalRef.current.contains(e.target as Node) &&
+        !editCalRef.current.contains(target) &&
         editCalButtonRef.current &&
-        !editCalButtonRef.current.contains(e.target as Node)
+        !editCalButtonRef.current.contains(target)
       ) {
         setIsEditCalOpen(false);
+      }
+      if (
+        isEditTimeOpen &&
+        editTimeRef.current &&
+        !editTimeRef.current.contains(target) &&
+        editTimeButtonRef.current &&
+        !editTimeButtonRef.current.contains(target)
+      ) {
+        setIsEditTimeOpen(false);
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsEditCalOpen(false);
+        setIsEditTimeOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -248,7 +296,7 @@ export function TrackerView({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isEditCalOpen]);
+  }, [isEditCalOpen, isEditTimeOpen]);
 
   const editCalMonthTitle = useMemo(() => {
     const d = new Date(editCalYear, editCalMonth, 1);
@@ -394,13 +442,467 @@ export function TrackerView({
     }
   };
 
+  // Compute balances for all accounts to validate transfers accurately
+  const accountBalances = useMemo(() => {
+    const balances = new Map<string, number>();
+    accounts.forEach((acc) => {
+      balances.set(acc.id, acc.initialBalance || 0);
+    });
+
+    transactions.forEach((tx) => {
+      if (tx.type === 'transfer') {
+        const fromId = tx.fromAccountId || tx.accountId;
+        const toId = tx.toAccountId;
+        if (fromId && balances.has(fromId)) {
+          balances.set(fromId, (balances.get(fromId) ?? 0) - tx.amount);
+        }
+        if (toId && balances.has(toId)) {
+          balances.set(toId, (balances.get(toId) ?? 0) + tx.amount);
+        }
+      } else if (tx.accountId && balances.has(tx.accountId)) {
+        const current = balances.get(tx.accountId)!;
+        if (tx.type === 'income') {
+          balances.set(tx.accountId, current + tx.amount);
+        } else if (tx.type === 'expense') {
+          balances.set(tx.accountId, current - tx.amount);
+        }
+      }
+    });
+
+    return balances;
+  }, [accounts, transactions]);
+
+  const originalTx = useMemo(() => {
+    return editingTx ? transactions.find((t) => t.id === editingTx.id) : null;
+  }, [editingTx?.id, transactions]);
+
+  const existingTransferAmount = useMemo(() => {
+    if (!originalTx || originalTx.type !== 'transfer') return 0;
+    return originalTx.originalAmount !== undefined ? originalTx.originalAmount : originalTx.amount;
+  }, [originalTx]);
+
+  const transferSourceAccount = useMemo(() => {
+    if (!editingTx || editingTx.type !== 'transfer') return null;
+    const fromId =
+      editingTx.fromAccountId ||
+      editingTx.accountId ||
+      originalTx?.fromAccountId ||
+      originalTx?.accountId;
+    if (!fromId) return null;
+    return accounts.find((a) => a.id === fromId) || null;
+  }, [editingTx, originalTx, accounts]);
+
+  const transferSourceBalance = useMemo(() => {
+    if (!transferSourceAccount) return 0;
+    return accountBalances.get(transferSourceAccount.id) ?? (transferSourceAccount.initialBalance || 0);
+  }, [transferSourceAccount, accountBalances]);
+
+  const transferAccounts = useMemo(() => {
+    if (!editingTx || editingTx.type !== 'transfer') return accounts;
+    const list = [...accounts];
+    const fromId = editingTx.fromAccountId || editingTx.accountId;
+    if (fromId && !list.some((a) => a.id === fromId)) {
+      list.unshift({
+        id: fromId,
+        name: editingTx.fromAccountName || editingTx.accountName || 'Account 1',
+        type: 'other',
+        icon: editingTx.fromAccountIcon || editingTx.accountIcon || 'Wallet',
+        color: '#71717A',
+      });
+    }
+    const toId = editingTx.toAccountId;
+    if (toId && !list.some((a) => a.id === toId)) {
+      list.push({
+        id: toId,
+        name: editingTx.toAccountName || 'Account 2',
+        type: 'other',
+        icon: editingTx.toAccountIcon || 'Wallet',
+        color: '#71717A',
+      });
+    }
+    return list;
+  }, [accounts, editingTx]);
+
+  const transferAmountValidationError = useMemo(() => {
+    if (!editingTx || editingTx.type !== 'transfer') return null;
+    const newAmount =
+      typeof editingTx.amount === 'number'
+        ? editingTx.amount
+        : parseFloat(String(editingTx.amount)) || 0;
+
+    if (newAmount <= 0) {
+      return 'Please enter an amount greater than 0.';
+    }
+
+    const difference = newAmount - existingTransferAmount;
+    if (difference > 0.0001) {
+      if (!transferSourceAccount) {
+        return 'The previous account is no longer available to fund the additional amount.';
+      }
+      if (transferSourceBalance < difference - 0.0001) {
+        return `${transferSourceAccount.name} only has ${formatCurrency(
+          transferSourceBalance,
+          currencySymbol
+        )} available. You need ${formatCurrency(
+          difference,
+          currencySymbol
+        )} in its balance to increase this transfer to ${formatCurrency(newAmount, currencySymbol)}.`;
+      }
+    }
+
+    return null;
+  }, [
+    editingTx,
+    existingTransferAmount,
+    transferSourceAccount,
+    transferSourceBalance,
+    currencySymbol,
+  ]);
+
+  const renderDateTimeSelectors = () => {
+    if (!editingTx) return null;
+    return (
+      <div className="relative">
+        <div className="flex items-center justify-between mb-1.5 h-4 leading-4">
+          <label className="text-zinc-500 font-medium flex items-center gap-1.5">
+            <CalendarDays className="w-3.5 h-3.5 text-zinc-600" />
+            <span>Date & Time</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              const today = getTodayDateString();
+              const now = getCurrent12HourTime();
+              setEditingTx({
+                ...editingTx,
+                date: today,
+                time: now,
+                timestamp: calculateTimestamp(today, now),
+              });
+              setIsEditCalOpen(false);
+              setIsEditTimeOpen(false);
+            }}
+            className="text-[10px] text-zinc-500 hover:text-zinc-900 font-medium cursor-pointer transition-colors"
+            title="Set to today and current time"
+          >
+            Set to Now
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 items-start relative">
+          {/* Date Selector Trigger matching custom top calendar design */}
+          <div className="relative">
+            <button
+              ref={editCalButtonRef}
+              type="button"
+              onClick={() => {
+                setIsEditCalOpen((prev) => !prev);
+                setIsEditTimeOpen(false);
+              }}
+              aria-expanded={isEditCalOpen}
+              className={`w-full h-9 bg-white border rounded-[4px] px-2.5 flex items-center gap-2 text-xs transition-colors cursor-pointer ${
+                isEditCalOpen
+                  ? 'border-zinc-900 ring-1 ring-zinc-900 shadow-2xs'
+                  : 'border-zinc-200 hover:border-zinc-300'
+              }`}
+              title="Select date"
+              aria-label="Select date"
+            >
+              <CalendarDays className="w-4 h-4 text-zinc-500 shrink-0" />
+              <span className="font-mono text-xs font-semibold text-zinc-900 truncate">
+                {editingTx.date ? formatFriendlyDate(editingTx.date) : 'Select date'}
+              </span>
+            </button>
+
+            {/* In-Modal Popover Calendar - IDENTICAL design to the top calendar */}
+            {isEditCalOpen && (
+              <div
+                ref={editCalRef}
+                className="absolute left-0 top-full mt-2 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3.5 w-72 animate-in fade-in zoom-in-95 duration-100"
+              >
+                {/* Month Navigation inside calendar */}
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                  <button
+                    type="button"
+                    onClick={handleEditCalPrevMonth}
+                    className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                    title="Previous month"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <span className="text-xs font-bold text-zinc-900 tracking-wide">
+                    {editCalMonthTitle}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={handleEditCalNextMonth}
+                    className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                    title="Next month"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Days of Week Header */}
+                <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                    <span key={d} className="text-[10px] font-semibold text-zinc-400 py-0.5">
+                      {d}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Day Cells Grid */}
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {editCalGrid.map((item, idx) => {
+                    const isSelected = editingTx.date === item.dateStr;
+                    const isToday = item.dateStr === todayStr;
+                    const hasTx = datesWithTransactions.has(item.dateStr);
+
+                    if (!item.isCurrentMonth) {
+                      return (
+                        <div
+                          key={`edit-pad-${idx}`}
+                          className="h-8 flex items-center justify-center text-[11px] text-zinc-300 pointer-events-none select-none"
+                        >
+                          {item.day}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        key={`edit-day-${item.dateStr}`}
+                        type="button"
+                        onClick={() => {
+                          setEditingTx({
+                            ...editingTx,
+                            date: item.dateStr,
+                            timestamp: calculateTimestamp(item.dateStr, editingTx.time),
+                          });
+                          setIsEditCalOpen(false);
+                        }}
+                        className={`h-8 flex flex-col items-center justify-center rounded-[4px] text-xs transition-colors cursor-pointer relative ${
+                          isSelected
+                            ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                            : isToday
+                            ? 'text-zinc-900 font-bold border border-zinc-400 hover:bg-zinc-100'
+                            : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                        }`}
+                      >
+                        <span>{item.day}</span>
+                        {hasTx && (
+                          <span
+                            className={`w-1 h-1 rounded-full absolute bottom-1 ${
+                              isSelected ? 'bg-white' : 'bg-emerald-500'
+                            }`}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Calendar Footer */}
+                <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = getTodayDateString();
+                      setEditingTx({
+                        ...editingTx,
+                        date: today,
+                        timestamp: calculateTimestamp(today, editingTx.time),
+                      });
+                      setIsEditCalOpen(false);
+                    }}
+                    className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                  >
+                    Today
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsEditCalOpen(false)}
+                    className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Time Selector Trigger */}
+          <div className="relative">
+            <button
+              ref={editTimeButtonRef}
+              type="button"
+              onClick={() => {
+                setIsEditTimeOpen((prev) => !prev);
+                setIsEditCalOpen(false);
+              }}
+              aria-expanded={isEditTimeOpen}
+              className={`w-full h-9 bg-white border rounded-[4px] px-2.5 flex items-center gap-2 text-xs transition-colors cursor-pointer ${
+                isEditTimeOpen
+                  ? 'border-zinc-900 ring-1 ring-zinc-900 shadow-2xs'
+                  : 'border-zinc-200 hover:border-zinc-300'
+              }`}
+              title="Select time"
+              aria-label="Select time"
+            >
+              <Clock className="w-4 h-4 text-zinc-500 shrink-0" />
+              <span className="font-mono text-xs font-semibold text-zinc-900 truncate">
+                {editingTx.time || '12:00 PM'}
+              </span>
+            </button>
+
+            {/* In-Modal Popover Time Picker */}
+            {isEditTimeOpen && (
+              <div
+                ref={editTimeRef}
+                className="absolute right-0 top-full mt-2 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3 w-64 animate-in fade-in zoom-in-95 duration-100"
+              >
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                  <span className="text-xs font-bold text-zinc-900 tracking-wide">
+                    Select Time
+                  </span>
+                  <span className="font-mono font-bold text-xs text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-[3px]">
+                    {editingTx.time || '12:00 PM'}
+                  </span>
+                </div>
+
+                {(() => {
+                  const { hour: curH, minute: curM, period: curP } = parseTimeComponents(editingTx.time);
+                  const setTime = (h: number, m: string, p: 'AM' | 'PM') => {
+                    const newTime = construct12HourTime(h, m, p);
+                    setEditingTx({
+                      ...editingTx,
+                      time: newTime,
+                      timestamp: calculateTimestamp(editingTx.date, newTime),
+                    });
+                  };
+
+                  return (
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      {/* Hours Column */}
+                      <div>
+                        <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Hour</div>
+                        <div className="max-h-36 overflow-y-auto space-y-0.5 pr-0.5">
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => {
+                            const isSelected = curH === h;
+                            return (
+                              <button
+                                key={h}
+                                type="button"
+                                onClick={() => setTime(h, curM, curP)}
+                                className={`w-full py-1 text-xs rounded-[3px] transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-zinc-900 text-white font-bold'
+                                    : 'text-zinc-700 hover:bg-zinc-100'
+                                }`}
+                              >
+                                {h}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Minutes Column */}
+                      <div>
+                        <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Minute</div>
+                        <div className="max-h-36 overflow-y-auto space-y-0.5 pr-0.5">
+                          {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map((m) => {
+                            const isSelected = curM === m;
+                            return (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => setTime(curH, m, curP)}
+                                className={`w-full py-1 text-xs rounded-[3px] transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-zinc-900 text-white font-bold'
+                                    : 'text-zinc-700 hover:bg-zinc-100'
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Period Column */}
+                      <div>
+                        <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Period</div>
+                        <div className="space-y-1">
+                          {(['AM', 'PM'] as const).map((p) => {
+                            const isSelected = curP === p;
+                            return (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => setTime(curH, curM, p)}
+                                className={`w-full py-2 text-xs rounded-[3px] font-bold transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-zinc-900 text-white shadow-2xs'
+                                    : 'text-zinc-700 hover:bg-zinc-100 border border-zinc-200'
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Time Picker Footer */}
+                <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = getCurrent12HourTime();
+                      setEditingTx({
+                        ...editingTx,
+                        time: now,
+                        timestamp: calculateTimestamp(editingTx.date, now),
+                      });
+                    }}
+                    className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                  >
+                    Now
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsEditTimeOpen(false)}
+                    className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTx) return;
     if (editingTx.type === 'transfer') {
+      if (transferAmountValidationError) return;
       const fromId = editingTx.fromAccountId || editingTx.accountId;
       const toId = editingTx.toAccountId;
-      if (!fromId || !toId || fromId === toId || !editingTx.amount) return;
+      if (!fromId || !toId || fromId === toId || !editingTx.amount || editingTx.amount <= 0) return;
       const fromAcc = accounts.find((a) => a.id === fromId);
       const toAcc = accounts.find((a) => a.id === toId);
       onUpdateTransaction({
@@ -408,10 +910,10 @@ export function TrackerView({
         fromAccountId: fromId,
         toAccountId: toId,
         accountId: fromId,
-        fromAccountName: fromAcc?.name || 'Account 1',
-        toAccountName: toAcc?.name || 'Account 2',
-        fromAccountIcon: fromAcc?.icon || 'Wallet',
-        toAccountIcon: toAcc?.icon || 'Wallet',
+        fromAccountName: fromAcc?.name || editingTx.fromAccountName || 'Account 1',
+        toAccountName: toAcc?.name || editingTx.toAccountName || 'Account 2',
+        fromAccountIcon: fromAcc?.icon || editingTx.fromAccountIcon || 'Wallet',
+        toAccountIcon: toAcc?.icon || editingTx.toAccountIcon || 'Wallet',
         accountName: fromAcc?.name,
         accountIcon: fromAcc?.icon,
         note: (editingTx.note || '').trim(),
@@ -1070,7 +1572,7 @@ export function TrackerView({
             </div>
 
             {editingTx.type === 'transfer' ? (
-              /* Transfer Edit Form: Currency, Amount, Account 1, Account 2, Description ONLY */
+              /* Transfer Edit Form: Currency, Amount, From, To, Description ONLY */
               <div className="space-y-3 text-xs">
                 <div className="grid grid-cols-2 gap-2 items-start">
                   <div>
@@ -1109,62 +1611,75 @@ export function TrackerView({
                           }
                         }}
                         placeholder="Enter amount"
-                        className="w-full h-full bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono font-semibold tabular-nums text-sm text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal focus:outline-none focus:border-zinc-500"
+                        className={`w-full h-full bg-white border px-2.5 rounded-[4px] font-mono font-semibold tabular-nums text-sm text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal focus:outline-none ${
+                          transferAmountValidationError ? 'border-rose-400 focus:border-rose-500' : 'border-zinc-200 focus:border-zinc-500'
+                        }`}
                       />
                     </div>
                   </div>
                 </div>
 
-                {accounts.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
-                    <div>
-                      <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">From (Account 1)</label>
-                      <div className="relative h-9">
-                        <AccountSelect
-                          id="edit-transfer-from-account"
-                          ariaLabel="From account"
-                          accounts={accounts}
-                          value={editingTx.fromAccountId || editingTx.accountId || ''}
-                          onChange={(accId) => {
-                            const acc = accounts.find((a) => a.id === accId);
-                            setEditingTx({
-                              ...editingTx,
-                              fromAccountId: accId,
-                              accountId: accId,
-                              fromAccountName: acc?.name,
-                              fromAccountIcon: acc?.icon,
-                            });
-                          }}
-                          currencySymbol={currencySymbol}
-                          className="h-full"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">To (Account 2)</label>
-                      <div className="relative h-9">
-                        <AccountSelect
-                          id="edit-transfer-to-account"
-                          ariaLabel="To account"
-                          accounts={accounts}
-                          value={editingTx.toAccountId || ''}
-                          onChange={(accId) => {
-                            const acc = accounts.find((a) => a.id === accId);
-                            setEditingTx({
-                              ...editingTx,
-                              toAccountId: accId,
-                              toAccountName: acc?.name,
-                              toAccountIcon: acc?.icon,
-                            });
-                          }}
-                          currencySymbol={currencySymbol}
-                          className="h-full"
-                        />
-                      </div>
-                    </div>
+                {/* Balance validation helper & alert message */}
+                {transferSourceAccount && (
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500 px-0.5">
+                    <span>
+                      Original amount: <strong className="font-mono text-zinc-700">{formatCurrency(existingTransferAmount, currencySymbol)}</strong>
+                    </span>
+                    <span>
+                      {transferSourceAccount.name} balance:{' '}
+                      <strong className={`font-mono ${transferSourceBalance >= 0 ? 'text-zinc-700' : 'text-rose-600'}`}>
+                        {formatCurrency(transferSourceBalance, currencySymbol)}
+                      </strong>
+                    </span>
                   </div>
                 )}
+
+                {transferAmountValidationError && (
+                  <p className="text-xs text-rose-600 font-medium leading-snug">
+                    {transferAmountValidationError}
+                  </p>
+                )}
+
+                {/* Muted Non-Editable Accounts (No account option removed) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
+                  <div>
+                    <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">
+                      From
+                    </label>
+                    <div className="relative h-9">
+                      <AccountSelect
+                        id="edit-transfer-from-account"
+                        ariaLabel="From account (not editable)"
+                        accounts={transferAccounts}
+                        value={editingTx.fromAccountId || editingTx.accountId || ''}
+                        onChange={() => {}}
+                        allowNone={false}
+                        disabled={true}
+                        currencySymbol={currencySymbol}
+                        className="h-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-500 font-medium mb-1.5 h-4 leading-4">
+                      To
+                    </label>
+                    <div className="relative h-9">
+                      <AccountSelect
+                        id="edit-transfer-to-account"
+                        ariaLabel="To account (not editable)"
+                        accounts={transferAccounts}
+                        value={editingTx.toAccountId || ''}
+                        onChange={() => {}}
+                        allowNone={false}
+                        disabled={true}
+                        currencySymbol={currencySymbol}
+                        className="h-full"
+                      />
+                    </div>
+                  </div>
+                </div>
 
                 {(editingTx.fromAccountId || editingTx.accountId) &&
                   editingTx.toAccountId &&
@@ -1174,207 +1689,8 @@ export function TrackerView({
                     </p>
                   )}
 
-                {/* Date & Time Selector with Calendar Icon */}
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-1.5 h-4 leading-4">
-                    <label className="text-zinc-500 font-medium flex items-center gap-1.5">
-                      <CalendarDays className="w-3.5 h-3.5 text-zinc-600" />
-                      <span>Date & Time</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const today = getTodayDateString();
-                        const now = getCurrent12HourTime();
-                        setEditingTx({
-                          ...editingTx,
-                          date: today,
-                          time: now,
-                          timestamp: calculateTimestamp(today, now),
-                        });
-                      }}
-                      className="text-[10px] text-zinc-500 hover:text-zinc-900 font-medium cursor-pointer transition-colors"
-                      title="Set to today and current time"
-                    >
-                      Set to Now
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 items-start">
-                    {/* Date Selector with Calendar Icon */}
-                    <div className="relative h-9 flex items-center">
-                      <button
-                        ref={editCalButtonRef}
-                        type="button"
-                        onClick={() => setIsEditCalOpen((prev) => !prev)}
-                        aria-expanded={isEditCalOpen}
-                        className="absolute left-1.5 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer z-10 flex items-center justify-center"
-                        title="Open calendar to pick date"
-                        aria-label="Open calendar selector"
-                      >
-                        <CalendarDays className="w-4 h-4 text-zinc-600" />
-                      </button>
-
-                      <input
-                        type="date"
-                        required
-                        value={editingTx.date || ''}
-                        onClick={(e) => (e.target as any).showPicker?.()}
-                        onChange={(e) => {
-                          const newDate = e.target.value;
-                          setEditingTx({
-                            ...editingTx,
-                            date: newDate,
-                            timestamp: calculateTimestamp(newDate, editingTx.time),
-                          });
-                        }}
-                        className="w-full h-full bg-white border border-zinc-200 pl-8 pr-2.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500 cursor-pointer"
-                      />
-                    </div>
-
-                    {/* Time Selector with Clock Icon */}
-                    <div className="relative h-9 flex items-center">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          const input = e.currentTarget.parentElement?.querySelector('input[type="time"]') as HTMLInputElement | null;
-                          input?.showPicker?.();
-                          input?.focus();
-                        }}
-                        className="absolute left-1.5 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer z-10 flex items-center justify-center"
-                        title="Select time"
-                        aria-label="Select time"
-                      >
-                        <Clock className="w-4 h-4 text-zinc-600" />
-                      </button>
-
-                      <input
-                        type="time"
-                        required
-                        value={formatTimeTo24Hour(editingTx.time)}
-                        onClick={(e) => (e.target as any).showPicker?.()}
-                        onChange={(e) => {
-                          const time24 = e.target.value;
-                          const time12 = format24HourTo12Hour(time24);
-                          setEditingTx({
-                            ...editingTx,
-                            time: time12,
-                            timestamp: calculateTimestamp(editingTx.date, time12),
-                          });
-                        }}
-                        className="w-full h-full bg-white border border-zinc-200 pl-8 pr-2.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  {/* In-Modal Calendar Popover */}
-                  {isEditCalOpen && (
-                    <div
-                      ref={editCalRef}
-                      className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3 w-72 animate-in fade-in zoom-in-95 duration-100"
-                    >
-                      <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-100">
-                        <button
-                          type="button"
-                          onClick={handleEditCalPrevMonth}
-                          className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                          title="Previous month"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-
-                        <span className="text-xs font-bold text-zinc-900 tracking-wide">
-                          {editCalMonthTitle}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={handleEditCalNextMonth}
-                          className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                          title="Next month"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-7 gap-1 text-center mb-1">
-                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                          <span key={d} className="text-[10px] font-semibold text-zinc-400 py-0.5">
-                            {d}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="grid grid-cols-7 gap-1 text-center">
-                        {editCalGrid.map((item, idx) => {
-                          const isSelected = editingTx.date === item.dateStr;
-                          const isToday = item.dateStr === todayStr;
-
-                          if (!item.isCurrentMonth) {
-                            return (
-                              <div
-                                key={`edit-pad-${idx}`}
-                                className="h-7 flex items-center justify-center text-[10px] text-zinc-300 pointer-events-none select-none"
-                              >
-                                {item.day}
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <button
-                              key={`edit-day-${item.dateStr}`}
-                              type="button"
-                              onClick={() => {
-                                setEditingTx({
-                                  ...editingTx,
-                                  date: item.dateStr,
-                                  timestamp: calculateTimestamp(item.dateStr, editingTx.time),
-                                });
-                                setIsEditCalOpen(false);
-                              }}
-                              className={`h-7 flex items-center justify-center rounded-[3px] text-xs transition-colors cursor-pointer ${
-                                isSelected
-                                  ? 'bg-zinc-900 text-white font-bold shadow-xs'
-                                  : isToday
-                                  ? 'text-zinc-900 font-bold border border-zinc-400 hover:bg-zinc-100'
-                                  : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
-                              }`}
-                            >
-                              <span>{item.day}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const today = getTodayDateString();
-                            setEditingTx({
-                              ...editingTx,
-                              date: today,
-                              timestamp: calculateTimestamp(today, editingTx.time),
-                            });
-                            setIsEditCalOpen(false);
-                          }}
-                          className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
-                        >
-                          Today
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setIsEditCalOpen(false)}
-                          className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Custom Date & Time Selector */}
+                {renderDateTimeSelectors()}
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5 h-4 leading-4">
@@ -1482,207 +1798,8 @@ export function TrackerView({
                   )}
                 </div>
 
-                {/* Date & Time Selector with Calendar Icon */}
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-1.5 h-4 leading-4">
-                    <label className="text-zinc-500 font-medium flex items-center gap-1.5">
-                      <CalendarDays className="w-3.5 h-3.5 text-zinc-600" />
-                      <span>Date & Time</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const today = getTodayDateString();
-                        const now = getCurrent12HourTime();
-                        setEditingTx({
-                          ...editingTx,
-                          date: today,
-                          time: now,
-                          timestamp: calculateTimestamp(today, now),
-                        });
-                      }}
-                      className="text-[10px] text-zinc-500 hover:text-zinc-900 font-medium cursor-pointer transition-colors"
-                      title="Set to today and current time"
-                    >
-                      Set to Now
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 items-start">
-                    {/* Date Selector with Calendar Icon */}
-                    <div className="relative h-9 flex items-center">
-                      <button
-                        ref={editCalButtonRef}
-                        type="button"
-                        onClick={() => setIsEditCalOpen((prev) => !prev)}
-                        aria-expanded={isEditCalOpen}
-                        className="absolute left-1.5 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer z-10 flex items-center justify-center"
-                        title="Open calendar to pick date"
-                        aria-label="Open calendar selector"
-                      >
-                        <CalendarDays className="w-4 h-4 text-zinc-600" />
-                      </button>
-
-                      <input
-                        type="date"
-                        required
-                        value={editingTx.date || ''}
-                        onClick={(e) => (e.target as any).showPicker?.()}
-                        onChange={(e) => {
-                          const newDate = e.target.value;
-                          setEditingTx({
-                            ...editingTx,
-                            date: newDate,
-                            timestamp: calculateTimestamp(newDate, editingTx.time),
-                          });
-                        }}
-                        className="w-full h-full bg-white border border-zinc-200 pl-8 pr-2.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500 cursor-pointer"
-                      />
-                    </div>
-
-                    {/* Time Selector with Clock Icon */}
-                    <div className="relative h-9 flex items-center">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          const input = e.currentTarget.parentElement?.querySelector('input[type="time"]') as HTMLInputElement | null;
-                          input?.showPicker?.();
-                          input?.focus();
-                        }}
-                        className="absolute left-1.5 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer z-10 flex items-center justify-center"
-                        title="Select time"
-                        aria-label="Select time"
-                      >
-                        <Clock className="w-4 h-4 text-zinc-600" />
-                      </button>
-
-                      <input
-                        type="time"
-                        required
-                        value={formatTimeTo24Hour(editingTx.time)}
-                        onClick={(e) => (e.target as any).showPicker?.()}
-                        onChange={(e) => {
-                          const time24 = e.target.value;
-                          const time12 = format24HourTo12Hour(time24);
-                          setEditingTx({
-                            ...editingTx,
-                            time: time12,
-                            timestamp: calculateTimestamp(editingTx.date, time12),
-                          });
-                        }}
-                        className="w-full h-full bg-white border border-zinc-200 pl-8 pr-2.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  {/* In-Modal Calendar Popover */}
-                  {isEditCalOpen && (
-                    <div
-                      ref={editCalRef}
-                      className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3 w-72 animate-in fade-in zoom-in-95 duration-100"
-                    >
-                      <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-100">
-                        <button
-                          type="button"
-                          onClick={handleEditCalPrevMonth}
-                          className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                          title="Previous month"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-
-                        <span className="text-xs font-bold text-zinc-900 tracking-wide">
-                          {editCalMonthTitle}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={handleEditCalNextMonth}
-                          className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
-                          title="Next month"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-7 gap-1 text-center mb-1">
-                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                          <span key={d} className="text-[10px] font-semibold text-zinc-400 py-0.5">
-                            {d}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="grid grid-cols-7 gap-1 text-center">
-                        {editCalGrid.map((item, idx) => {
-                          const isSelected = editingTx.date === item.dateStr;
-                          const isToday = item.dateStr === todayStr;
-
-                          if (!item.isCurrentMonth) {
-                            return (
-                              <div
-                                key={`reg-edit-pad-${idx}`}
-                                className="h-7 flex items-center justify-center text-[10px] text-zinc-300 pointer-events-none select-none"
-                              >
-                                {item.day}
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <button
-                              key={`reg-edit-day-${item.dateStr}`}
-                              type="button"
-                              onClick={() => {
-                                setEditingTx({
-                                  ...editingTx,
-                                  date: item.dateStr,
-                                  timestamp: calculateTimestamp(item.dateStr, editingTx.time),
-                                });
-                                setIsEditCalOpen(false);
-                              }}
-                              className={`h-7 flex items-center justify-center rounded-[3px] text-xs transition-colors cursor-pointer ${
-                                isSelected
-                                  ? 'bg-zinc-900 text-white font-bold shadow-xs'
-                                  : isToday
-                                  ? 'text-zinc-900 font-bold border border-zinc-400 hover:bg-zinc-100'
-                                  : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
-                              }`}
-                            >
-                              <span>{item.day}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const today = getTodayDateString();
-                            setEditingTx({
-                              ...editingTx,
-                              date: today,
-                              timestamp: calculateTimestamp(today, editingTx.time),
-                            });
-                            setIsEditCalOpen(false);
-                          }}
-                          className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
-                        >
-                          Today
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setIsEditCalOpen(false)}
-                          className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Custom Date & Time Selector */}
+                {renderDateTimeSelectors()}
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5 h-4 leading-4">
@@ -1716,13 +1833,15 @@ export function TrackerView({
               <button
                 type="submit"
                 disabled={
-                  editingTx.type === 'transfer' &&
-                  (!editingTx.amount ||
-                    !editingTx.toAccountId ||
-                    !(editingTx.fromAccountId || editingTx.accountId) ||
-                    (editingTx.fromAccountId || editingTx.accountId) === editingTx.toAccountId)
+                  Boolean(transferAmountValidationError) ||
+                  (editingTx.type === 'transfer' &&
+                    (!editingTx.amount ||
+                      editingTx.amount <= 0 ||
+                      !editingTx.toAccountId ||
+                      !(editingTx.fromAccountId || editingTx.accountId) ||
+                      (editingTx.fromAccountId || editingTx.accountId) === editingTx.toAccountId))
                 }
-                className="px-3 py-1.5 bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-[3px]"
+                className="px-3 py-1.5 bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-[3px] cursor-pointer"
               >
                 Save Changes
               </button>
