@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Smartphone, Banknote, Landmark, CreditCard, PiggyBank, Coins, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Plus, Trash2, Edit2, Check, X, Smartphone, Banknote, Landmark, CreditCard, PiggyBank, Coins, AlertCircle, GripVertical } from 'lucide-react';
 import { Account, AccountType, Transaction } from '../types';
 import { AccountIcon } from './CategoryIcon';
 import { formatCurrency } from '../utils/formatters';
@@ -13,6 +13,7 @@ interface AccountManagerModalProps {
   onAddAccount: (account: Omit<Account, 'id'>) => void;
   onUpdateAccount: (account: Account) => void;
   onDeleteAccount: (id: string) => void;
+  onReorderAccounts?: (accounts: Account[]) => void;
   onClose: () => void;
 }
 
@@ -56,6 +57,7 @@ export function AccountManagerModal({
   onAddAccount,
   onUpdateAccount,
   onDeleteAccount,
+  onReorderAccounts,
   onClose,
 }: AccountManagerModalProps) {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -121,6 +123,147 @@ export function AccountManagerModal({
   const modifiableAccounts = useMemo(() => {
     return accounts.filter((acc) => !isCashAccount(acc));
   }, [accounts]);
+
+  // Reorderable accounts state
+  const [items, setItems] = useState<Account[]>(() =>
+    accounts.filter((acc) => !isCashAccount(acc))
+  );
+
+  useEffect(() => {
+    setItems(accounts.filter((acc) => !isCashAccount(acc)));
+  }, [accounts]);
+
+  // Drag-and-drop vertical-only reordering state
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragOffsetY, setDragOffsetY] = useState<number>(0);
+  const [currentHoverIndex, setCurrentHoverIndex] = useState<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<boolean>(false);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const startYRef = useRef<number>(0);
+  const minDeltaYRef = useRef<number>(0);
+  const maxDeltaYRef = useRef<number>(0);
+  const activeDragIndexRef = useRef<number | null>(null);
+  const currentHoverIndexRef = useRef<number | null>(null);
+  const rowHeightRef = useRef<number>(44);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>, index: number) => {
+    if (items.length <= 1) return;
+    if (e.button !== 0) return; // Only primary mouse button
+
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+
+    activeDragIndexRef.current = index;
+    currentHoverIndexRef.current = index;
+    startYRef.current = e.clientY;
+
+    if (rowRefs.current[index] && containerRef.current) {
+      const rowRect = rowRefs.current[index]!.getBoundingClientRect();
+      const contRect = containerRef.current.getBoundingClientRect();
+      // Strictly clamp within container wrapper boundaries so it never escapes vertically outside of the box
+      minDeltaYRef.current = contRect.top - rowRect.top;
+      maxDeltaYRef.current = contRect.bottom - rowRect.bottom;
+      rowHeightRef.current = rowRect.height || 44;
+    }
+
+    setDraggingIndex(index);
+    setCurrentHoverIndex(index);
+    setDragOffsetY(0);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (activeDragIndexRef.current === null || !containerRef.current) return;
+
+    const deltaY = e.clientY - startYRef.current;
+    // Strictly clamp within wrapper vertically so the account never goes out of the box
+    const clampedY = Math.max(minDeltaYRef.current, Math.min(maxDeltaYRef.current, deltaY));
+
+    setDragOffsetY(clampedY);
+
+    // Calculate hover index based on vertical row shifts
+    const rowH = rowHeightRef.current || 44;
+    const indexShift = Math.round(clampedY / rowH);
+    const targetIdx = Math.max(
+      0,
+      Math.min(items.length - 1, activeDragIndexRef.current + indexShift)
+    );
+
+    if (targetIdx !== currentHoverIndexRef.current) {
+      currentHoverIndexRef.current = targetIdx;
+      setCurrentHoverIndex(targetIdx);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (activeDragIndexRef.current === null) return;
+
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
+    const fromIdx = activeDragIndexRef.current;
+    const toIdx = currentHoverIndexRef.current;
+
+    activeDragIndexRef.current = null;
+    currentHoverIndexRef.current = null;
+    setDraggingIndex(null);
+    setDragOffsetY(0);
+    setCurrentHoverIndex(null);
+
+    if (toIdx !== null && toIdx !== fromIdx && toIdx >= 0 && toIdx < items.length) {
+      const reordered = [...items];
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      setItems(reordered);
+      onReorderAccounts?.(reordered);
+      setSaveStatus(true);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        setSaveStatus(false);
+      }, 2000);
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+    activeDragIndexRef.current = null;
+    currentHoverIndexRef.current = null;
+    setDraggingIndex(null);
+    setDragOffsetY(0);
+    setCurrentHoverIndex(null);
+  };
+
+  const getRowTransform = (index: number) => {
+    if (draggingIndex === null) return undefined;
+    if (index === draggingIndex) {
+      // Moves ONLY vertically, never horizontally
+      return `translate3d(0, ${dragOffsetY}px, 0)`;
+    }
+    const rowH = rowHeightRef.current || 44;
+    if (currentHoverIndex !== null) {
+      if (draggingIndex < currentHoverIndex) {
+        if (index > draggingIndex && index <= currentHoverIndex) {
+          return `translate3d(0, -${rowH}px, 0)`;
+        }
+      } else if (draggingIndex > currentHoverIndex) {
+        if (index >= currentHoverIndex && index < draggingIndex) {
+          return `translate3d(0, ${rowH}px, 0)`;
+        }
+      }
+    }
+    return undefined;
+  };
 
   const totalBalanceAllAccounts = useMemo(() => {
     let sum = 0;
@@ -528,13 +671,21 @@ export function AccountManagerModal({
           {/* List of Accounts (Hidden when adding or editing an account) */}
           {!isAdding && !editingAccount && (
             <div className="space-y-1.5">
-              <div className="flex items-center justify-end text-[11px] text-zinc-500 px-1">
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 px-1 shrink-0 h-4">
+                {saveStatus ? (
+                  <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 transition-opacity">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span>Saved</span>
+                  </span>
+                ) : (
+                  <span />
+                )}
                 <span className="font-mono text-[10px] text-zinc-400">
-                  {modifiableAccounts.length} {modifiableAccounts.length === 1 ? 'account' : 'accounts'}
+                  {items.length} {items.length === 1 ? 'account' : 'accounts'}
                 </span>
               </div>
 
-              {modifiableAccounts.length === 0 ? (
+              {items.length === 0 ? (
                 <div className="p-4 rounded-[4px] border border-dashed border-zinc-200 text-center bg-zinc-50/50">
                   <p className="text-xs text-zinc-600 font-medium">
                     No other accounts added yet.
@@ -544,19 +695,79 @@ export function AccountManagerModal({
                   </p>
                 </div>
               ) : (
-                <div className="border border-zinc-200 rounded-[4px] divide-y divide-zinc-100 bg-white overflow-hidden">
-                  {modifiableAccounts.map((acc) => {
+                <div
+                  ref={containerRef}
+                  className="border border-zinc-200 rounded-[4px] divide-y divide-zinc-100 bg-white relative overflow-hidden select-none"
+                >
+                  {items.map((acc, index) => {
                     const currentBalance = accountBalances.get(acc.id) ?? (acc.initialBalance || 0);
                     const typeObj = ACCOUNT_TYPES.find((t) => t.id === acc.type);
+                    const isDragging = draggingIndex === index;
+                    const transform = getRowTransform(index);
 
                     return (
                       <div
                         key={acc.id}
+                        ref={(el) => {
+                          rowRefs.current[index] = el;
+                        }}
                         id={`account-card-${acc.id}`}
-                        className="py-2.5 px-3 flex items-center justify-between text-xs bg-white hover:bg-zinc-50/70 transition-colors"
+                        style={{
+                          transform,
+                          zIndex: isDragging ? 30 : 10,
+                          transition: isDragging ? 'none' : 'transform 150ms ease-out',
+                        }}
+                        className={`py-2.5 px-3 flex items-center justify-between text-xs relative bg-white ${
+                          isDragging
+                            ? 'shadow-md ring-1 ring-zinc-300 rounded-[3px] bg-zinc-50/95'
+                            : 'hover:bg-zinc-50/70'
+                        }`}
                       >
-                        {/* Left: Icon & Info */}
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        {/* Left: Drag Handle, Icon & Info */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <button
+                            type="button"
+                            id={`btn-drag-handle-${acc.id}`}
+                            onPointerDown={(e) => handlePointerDown(e, index)}
+                            onPointerMove={handlePointerMove}
+                            onPointerUp={handlePointerUp}
+                            onPointerCancel={handlePointerCancel}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowDown' && index < items.length - 1) {
+                                e.preventDefault();
+                                const reordered = [...items];
+                                const [moved] = reordered.splice(index, 1);
+                                reordered.splice(index + 1, 0, moved);
+                                setItems(reordered);
+                                onReorderAccounts?.(reordered);
+                                setSaveStatus(true);
+                                if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                                saveTimerRef.current = setTimeout(() => {
+                                  setSaveStatus(false);
+                                }, 2000);
+                              } else if (e.key === 'ArrowUp' && index > 0) {
+                                e.preventDefault();
+                                const reordered = [...items];
+                                const [moved] = reordered.splice(index, 1);
+                                reordered.splice(index - 1, 0, moved);
+                                setItems(reordered);
+                                onReorderAccounts?.(reordered);
+                                setSaveStatus(true);
+                                if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                                saveTimerRef.current = setTimeout(() => {
+                                  setSaveStatus(false);
+                                }, 2000);
+                              }
+                            }}
+                            className={`p-1 -ml-1 text-zinc-400 hover:text-zinc-700 active:text-zinc-950 flex items-center justify-center rounded-[3px] hover:bg-zinc-100 transition-colors touch-none cursor-grab active:cursor-grabbing shrink-0 ${
+                              isDragging ? 'cursor-grabbing text-zinc-900 bg-zinc-100' : ''
+                            }`}
+                            title="Drag to reorder"
+                            aria-label={`Drag to reorder ${acc.name}`}
+                          >
+                            <GripVertical className="w-4 h-4 shrink-0" />
+                          </button>
+
                           <AccountIcon name={acc.icon} className="w-4 h-4 text-zinc-600 shrink-0" />
 
                           <div className="flex items-center gap-2 min-w-0">

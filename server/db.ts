@@ -108,6 +108,7 @@ const AccountSchema = new mongoose.Schema(
     currency: { type: String, default: 'PHP' },
     icon: { type: String, default: 'Wallet' },
     color: { type: String, default: 'bg-zinc-500' },
+    order: { type: Number, default: 0, index: true },
     isCustom: { type: Boolean, default: false },
   },
   { timestamps: true, strict: false }

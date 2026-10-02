@@ -1092,7 +1092,7 @@ app.get("/api/db/sync", async (req, res) => {
       await Promise.all([
         (TransactionModel as any).find(txQuery).sort({ date: -1 }).lean().exec(),
         (CategoryModel as any).find(catQuery).sort({ order: 1, _id: 1 }).lean().exec(),
-        (AccountModel as any).find(accQuery).lean().exec(),
+        (AccountModel as any).find(accQuery).sort({ order: 1, _id: 1 }).lean().exec(),
         (CurrencyModel as any).find({}).lean().exec(),
         (DebtModel as any).find(debtQuery).sort({ date: -1 }).lean().exec(),
         (GoalModel as any).find(goalQuery).lean().exec(),
@@ -1658,6 +1658,48 @@ app.post("/api/db/categories/reorder", async (req, res) => {
       return;
     } catch (err: any) {
       console.error("Error reordering categories:", err);
+      res.status(500).json({ error: err.message });
+      return;
+    }
+  }
+  res.json({ success: true });
+});
+
+// Account Reordering (Fast direct update)
+app.post("/api/db/accounts/reorder", async (req, res) => {
+  const userId = (req.body.userId as string) || (req.headers["x-user-id"] as string) || "";
+  const { accounts } = req.body;
+  if (!Array.isArray(accounts)) {
+    res.status(400).json({ error: "Invalid accounts list" });
+    return;
+  }
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      const bulkOps = accounts.map((acc: any, index: number) => {
+        const order = typeof acc.order === "number" ? acc.order : index;
+        return {
+          updateOne: {
+            filter: userId ? { id: acc.id, userId } : { id: acc.id },
+            update: {
+              $set: {
+                ...acc,
+                order,
+                ...(userId ? { userId } : {}),
+              },
+            },
+            upsert: true,
+          },
+        };
+      });
+
+      if (bulkOps.length > 0) {
+        await (AccountModel as any).bulkWrite(bulkOps);
+      }
+      res.json({ success: true });
+      return;
+    } catch (err: any) {
+      console.error("Error reordering accounts:", err);
       res.status(500).json({ error: err.message });
       return;
     }

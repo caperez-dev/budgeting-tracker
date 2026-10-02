@@ -26,6 +26,7 @@ export interface Account {
   type: AccountType;
   color: string;
   icon: string; // Lucide icon identifier
+  order?: number; // Custom display order for listings
   initialBalance?: number;
   currency?: string;
   originalInitialBalance?: number;

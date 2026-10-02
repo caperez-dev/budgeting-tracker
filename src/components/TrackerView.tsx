@@ -898,9 +898,8 @@ export function TrackerView({
                                   {/* Column 3: Category Column (aligned) */}
                                   <div className="w-32 sm:w-36 md:w-40 shrink-0 flex items-center min-w-0">
                                     {isTransfer ? (
-                                      <span className="flex items-center gap-1.5 text-zinc-400 font-medium text-xs">
-                                        <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                        <span>Transfer</span>
+                                      <span className="text-zinc-400 font-medium text-xs">
+                                        Transfer
                                       </span>
                                     ) : (
                                       <span className="flex items-center gap-1.5 text-zinc-700 font-medium truncate text-xs">

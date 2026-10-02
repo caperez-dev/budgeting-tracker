@@ -81,24 +81,41 @@ export const isCashAccount = (acc: { id?: string; type?: string; name?: string }
   );
 };
 
+export const sortAccountsByOrder = (accList: Account[]): Account[] => {
+  if (!Array.isArray(accList) || accList.length <= 1) return accList;
+  const cashAcc = accList.find(isCashAccount);
+  const otherAccs = accList.filter((a) => !isCashAccount(a));
+
+  otherAccs.sort((a, b) => {
+    const orderA = typeof a.order === 'number' ? a.order : 9999;
+    const orderB = typeof b.order === 'number' ? b.order : 9999;
+    return orderA - orderB;
+  });
+
+  return cashAcc ? [{ ...cashAcc, order: 0 }, ...otherAccs] : otherAccs;
+};
+
 export const ensureCashAccount = (accList: Account[]): Account[] => {
   if (!Array.isArray(accList) || accList.length === 0) {
     return DEFAULT_ACCOUNTS;
   }
   const hasCash = accList.some(isCashAccount);
-  if (hasCash) {
-    return accList;
-  }
-  const cashAccount: Account = {
-    id: 'cash',
-    name: 'Cash',
-    type: 'cash',
-    color: '#16A34A',
-    icon: 'Banknote',
-    isDefault: accList.every((a) => !a.isDefault),
-    initialBalance: 0,
-  };
-  return [cashAccount, ...accList];
+  const listWithCash = hasCash
+    ? accList
+    : [
+        {
+          id: 'cash',
+          name: 'Cash',
+          type: 'cash' as const,
+          color: '#16A34A',
+          icon: 'Banknote',
+          order: 0,
+          isDefault: accList.every((a) => !a.isDefault),
+          initialBalance: 0,
+        },
+        ...accList,
+      ];
+  return sortAccountsByOrder(listWithCash);
 };
 
 const STORAGE_KEYS = {
@@ -1797,6 +1814,45 @@ export default function App() {
     }).catch(() => {});
   };
 
+  const handleReorderAccounts = (reorderedModifiableAccounts: Account[]) => {
+    if (!reorderedModifiableAccounts || reorderedModifiableAccounts.length === 0) return;
+    const cashAcc = accounts.find(isCashAccount);
+    const combined = cashAcc ? [cashAcc, ...reorderedModifiableAccounts] : [...reorderedModifiableAccounts];
+
+    const updated = combined.map((acc, idx) => ({
+      ...acc,
+      order: idx,
+    }));
+
+    setAccounts(updated);
+
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, currentUser.id),
+          JSON.stringify(updated)
+        );
+      } catch {}
+
+      // Automatically and immediately save to backend
+      fetch('/api/db/accounts/reorder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          accounts: updated,
+        }),
+      }).catch(() => {});
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(updated));
+      } catch {}
+    }
+  };
+
   const handleTransfer = ({
     fromAccountId,
     toAccountId,
@@ -2335,6 +2391,7 @@ export default function App() {
           onAddAccount={handleAddAccount}
           onUpdateAccount={handleUpdateAccount}
           onDeleteAccount={handleDeleteAccount}
+          onReorderAccounts={handleReorderAccounts}
           onClose={() => setShowAccountsModal(false)}
         />
       )}
