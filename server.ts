@@ -27,6 +27,53 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
+function stripTrailingSlash(url: string): string {
+  return (url || "").replace(/\/$/, "");
+}
+
+function isLocalDevOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
+
+function getRequestOrigin(req: express.Request): string {
+  const protoHeader = req.headers["x-forwarded-proto"];
+  const hostHeader = req.headers["x-forwarded-host"] || req.headers.host;
+  const protocol = String(Array.isArray(protoHeader) ? protoHeader[0] : protoHeader || req.protocol || "http")
+    .split(",")[0]
+    .trim();
+  const host = String(Array.isArray(hostHeader) ? hostHeader[0] : hostHeader || "")
+    .split(",")[0]
+    .trim();
+  if (!host) return "";
+  return `${protocol}://${host}`;
+}
+
+/**
+ * Production keeps using APP_URL / the browser origin (already working on Vercel).
+ * Localhost ignores APP_URL so a production URL in .env cannot break OAuth token exchange.
+ */
+function getOAuthRedirectOrigin(req: express.Request, requestedOrigin?: string): string {
+  const requestOrigin = stripTrailingSlash(getRequestOrigin(req));
+  const candidate = stripTrailingSlash((requestedOrigin || "").trim());
+  const appUrl = stripTrailingSlash(process.env.APP_URL || "");
+
+  if (isLocalDevOrigin(requestOrigin) || isLocalDevOrigin(candidate)) {
+    if (isLocalDevOrigin(candidate)) return candidate;
+    return requestOrigin;
+  }
+
+  if (requestedOrigin !== undefined) {
+    return candidate || appUrl || requestOrigin;
+  }
+
+  return appUrl || requestOrigin;
+}
+
 // Health Check Endpoints for Cloud Run / uptime monitoring
 app.get("/api/health", (_req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString() });
@@ -45,7 +92,7 @@ async function sendVerificationPinEmail(toEmail: string, pin: string, nickname?:
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || "587", 10);
   const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const pass = (process.env.SMTP_PASS || "").replace(/\s+/g, "");
 
   const htmlContent = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 36px 24px; color: #18181b; background-color: #fafafa;">
@@ -469,7 +516,7 @@ async function sendPasswordResetEmail(toEmail: string, resetUrl: string, nicknam
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || "587", 10);
   const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const pass = (process.env.SMTP_PASS || "").replace(/\s+/g, "");
 
   const htmlContent = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #18181b;">
@@ -825,8 +872,10 @@ app.get("/api/auth/google/url", (req, res) => {
     return;
   }
 
-  const origin = (req.query.origin as string) || process.env.APP_URL || "https://ais-dev-zbjzs6iojh24oqwmlfkoug-54185673300.asia-southeast1.run.app";
-  const redirectUri = `${origin.replace(/\/$/, '')}/auth/callback`;
+  const origin =
+    getOAuthRedirectOrigin(req, req.query.origin as string) ||
+    "https://ais-dev-zbjzs6iojh24oqwmlfkoug-54185673300.asia-southeast1.run.app";
+  const redirectUri = `${origin}/auth/callback`;
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -875,10 +924,8 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
   }
 
   try {
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    const origin = process.env.APP_URL || `${protocol}://${host}`;
-    const redirectUri = `${origin.replace(/\/$/, '')}/auth/callback`;
+    const origin = getOAuthRedirectOrigin(req);
+    const redirectUri = `${origin}/auth/callback`;
 
     // Exchange code for tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
