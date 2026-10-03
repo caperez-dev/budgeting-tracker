@@ -133,6 +133,25 @@ export function AccountManagerModal({
     setItems(accounts.filter((acc) => !isCashAccount(acc)));
   }, [accounts]);
 
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (accountToDelete) {
+          setAccountToDelete(null);
+        } else if (isAdding) {
+          setIsAdding(false);
+        } else if (editingAccount) {
+          setEditingAccount(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [accountToDelete, isAdding, editingAccount, onClose]);
+
   // Drag-and-drop vertical-only reordering state
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOffsetY, setDragOffsetY] = useState<number>(0);
@@ -339,11 +358,23 @@ export function AccountManagerModal({
   return (
     <div
       id="modal-accounts-backdrop"
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <div
         id="modal-accounts"
-        className="bg-white rounded-[6px] border border-zinc-200 shadow-xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-[6px] border border-zinc-200 shadow-xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 cursor-default"
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
@@ -846,8 +877,18 @@ export function AccountManagerModal({
 
       {/* Delete Account Confirmation Modal */}
       {accountToDelete && (
-        <div className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4">
+        <div
+          className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setAccountToDelete(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
               <h4 className="text-sm font-semibold text-zinc-900">Delete Account</h4>
               <button

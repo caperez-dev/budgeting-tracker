@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
+  Calendar,
 } from 'lucide-react';
 import { Category, Transaction } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
@@ -55,8 +55,8 @@ export function SummaryPanel({
   const [isYearPopoverOpen, setIsYearPopoverOpen] = useState(false);
   const monthPopoverRef = useRef<HTMLDivElement>(null);
   const yearPopoverRef = useRef<HTMLDivElement>(null);
-  const monthCardRef = useRef<HTMLDivElement>(null);
-  const yearCardRef = useRef<HTMLDivElement>(null);
+  const monthCalBtnRef = useRef<HTMLButtonElement>(null);
+  const yearCalBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!isMonthPopoverOpen && !isYearPopoverOpen) return;
@@ -66,8 +66,8 @@ export function SummaryPanel({
         isMonthPopoverOpen &&
         monthPopoverRef.current &&
         !monthPopoverRef.current.contains(target) &&
-        monthCardRef.current &&
-        !monthCardRef.current.contains(target)
+        monthCalBtnRef.current &&
+        !monthCalBtnRef.current.contains(target)
       ) {
         setIsMonthPopoverOpen(false);
       }
@@ -75,8 +75,8 @@ export function SummaryPanel({
         isYearPopoverOpen &&
         yearPopoverRef.current &&
         !yearPopoverRef.current.contains(target) &&
-        yearCardRef.current &&
-        !yearCardRef.current.contains(target)
+        yearCalBtnRef.current &&
+        !yearCalBtnRef.current.contains(target)
       ) {
         setIsYearPopoverOpen(false);
       }
@@ -284,32 +284,28 @@ export function SummaryPanel({
             const isYearCard = card.id === 'year';
 
             const handleCardClick = () => {
-              if (isMonthCard) {
-                setSelectedPeriod('month');
-                setIsMonthPopoverOpen((prev) => !prev);
-                setIsYearPopoverOpen(false);
-              } else if (isYearCard) {
-                setSelectedPeriod('year');
-                setIsYearPopoverOpen((prev) => !prev);
-                setIsMonthPopoverOpen(false);
-              } else {
-                setSelectedPeriod(card.id);
-                setIsMonthPopoverOpen(false);
-                setIsYearPopoverOpen(false);
-              }
+              setSelectedPeriod(card.id);
+              setIsMonthPopoverOpen(false);
+              setIsYearPopoverOpen(false);
             };
 
             return (
               <div
                 key={`${breakdownType}-${card.id}`}
-                ref={isMonthCard ? monthCardRef : isYearCard ? yearCardRef : undefined}
                 className="relative"
               >
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   id={`btn-summary-period-${card.id}`}
                   onClick={handleCardClick}
-                  className={`w-full text-left p-3.5 rounded-[5px] border transition-all cursor-pointer ${
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleCardClick();
+                    }
+                  }}
+                  className={`w-full text-left p-3.5 rounded-[5px] border transition-all cursor-pointer select-none ${
                     isSelected
                       ? breakdownType === 'income'
                         ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
@@ -318,30 +314,62 @@ export function SummaryPanel({
                   }`}
                 >
                   <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
-                    <span className="flex items-center gap-1 min-w-0">
-                      <span className="truncate">{card.label}</span>
+                    <span className="truncate pr-1">{card.label}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {isMonthCard && (
-                        <ChevronDown
-                          className={`w-3 h-3 text-zinc-400 shrink-0 transition-transform ${
-                            isMonthPopoverOpen ? 'rotate-180 text-zinc-700' : ''
+                        <button
+                          ref={monthCalBtnRef}
+                          type="button"
+                          id="btn-summary-month-calendar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPeriod('month');
+                            setIsMonthPopoverOpen((prev) => !prev);
+                            setIsYearPopoverOpen(false);
+                          }}
+                          title="Select month"
+                          aria-label="Select month"
+                          aria-expanded={isMonthPopoverOpen}
+                          className={`p-1 sm:p-1.5 rounded-[4px] border transition-colors cursor-pointer flex items-center justify-center ${
+                            isMonthPopoverOpen
+                              ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
+                              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 border-zinc-200 shadow-2xs'
                           }`}
-                        />
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                        </button>
                       )}
                       {isYearCard && (
-                        <ChevronDown
-                          className={`w-3 h-3 text-zinc-400 shrink-0 transition-transform ${
-                            isYearPopoverOpen ? 'rotate-180 text-zinc-700' : ''
+                        <button
+                          ref={yearCalBtnRef}
+                          type="button"
+                          id="btn-summary-year-calendar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPeriod('year');
+                            setIsYearPopoverOpen((prev) => !prev);
+                            setIsMonthPopoverOpen(false);
+                          }}
+                          title="Select year"
+                          aria-label="Select year"
+                          aria-expanded={isYearPopoverOpen}
+                          className={`p-1 sm:p-1.5 rounded-[4px] border transition-colors cursor-pointer flex items-center justify-center ${
+                            isYearPopoverOpen
+                              ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
+                              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 border-zinc-200 shadow-2xs'
+                          }`}
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {isSelected && (
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            breakdownType === 'income' ? 'bg-emerald-600' : 'bg-rose-600'
                           }`}
                         />
                       )}
-                    </span>
-                    {isSelected && (
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                          breakdownType === 'income' ? 'bg-emerald-600' : 'bg-rose-600'
-                        }`}
-                      />
-                    )}
+                    </div>
                   </div>
                   <div
                     className={`text-base sm:text-lg font-bold font-mono tabular-nums ${
@@ -353,7 +381,7 @@ export function SummaryPanel({
                   <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
                     {card.sublabel}
                   </div>
-                </button>
+                </div>
 
                 {/* Popover Month Selector directly on the Month panel */}
                 {isMonthCard && isMonthPopoverOpen && (

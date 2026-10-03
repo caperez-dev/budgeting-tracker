@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ArrowLeftRight,
   Tags,
+  Settings,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { UserProfile, DBStatus, AuthUser } from '../types';
@@ -21,7 +22,7 @@ const MONTH_NAMES = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-export type ActiveTab = 'tracker' | 'summary' | 'debts' | 'goals' | 'ai';
+export type ActiveTab = 'tracker' | 'summary' | 'debts' | 'goals' | 'ai' | 'settings';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -45,12 +46,6 @@ interface HeaderProps {
   expenseCount: number;
   incomeCount: number;
   debtCount?: number;
-  overallExpenseCount?: number;
-  overallIncomeCount?: number;
-  overallDebtCount?: number;
-  monthlyExpenseCount?: number;
-  monthlyIncomeCount?: number;
-  monthlyDebtCount?: number;
   dbStatus?: DBStatus;
   onSyncWithDB?: () => Promise<void>;
   isSyncing?: boolean;
@@ -85,12 +80,6 @@ export function Header({
   expenseCount,
   incomeCount,
   debtCount,
-  overallExpenseCount,
-  overallIncomeCount,
-  overallDebtCount,
-  monthlyExpenseCount,
-  monthlyIncomeCount,
-  monthlyDebtCount,
   dbStatus,
   onSyncWithDB,
   isSyncing,
@@ -329,13 +318,6 @@ export function Header({
             expenseCount={expenseCount}
             incomeCount={incomeCount}
             debtCount={debtCount}
-            overallExpenseCount={overallExpenseCount}
-            overallIncomeCount={overallIncomeCount}
-            overallDebtCount={overallDebtCount}
-            monthlyExpenseCount={monthlyExpenseCount}
-            monthlyIncomeCount={monthlyIncomeCount}
-            monthlyDebtCount={monthlyDebtCount}
-            selectedMonthYearLabel={selectedMonthYearLabel}
             totalExpense={totalExpense}
             totalIncome={totalIncome}
             totalDebt={debtsYouOweTotal}
@@ -429,6 +411,18 @@ export function Header({
               <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
               <span>AI Advisor</span>
             </button>
+
+            {activeTab === 'settings' && (
+              <button
+                id="tab-settings"
+                onClick={() => setActiveTab('settings')}
+                title="Settings"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold"
+              >
+                <Settings className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                <span>Settings</span>
+              </button>
+            )}
           </nav>
 
           {/* Secondary Utilities: Accounts, Currencies, Categories, Donate */}

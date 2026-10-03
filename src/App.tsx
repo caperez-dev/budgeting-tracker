@@ -36,7 +36,7 @@ import { CurrencyManagerModal } from './components/CurrencyManagerModal';
 import { AccountManagerModal } from './components/AccountManagerModal';
 import { TransferModal } from './components/TransferModal';
 import { DonateModal } from './components/DonateModal';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsPage } from './components/SettingsPage';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { buildBudgetPdfDoc, exportPdfSaveAs } from './utils/pdfExport';
 import { getCurrent12HourTime, getTodayDateString, consolidateTransactions } from './utils/formatters';
@@ -499,7 +499,6 @@ export default function App() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
   const [showDonateModal, setShowDonateModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -1318,31 +1317,6 @@ export default function App() {
   const incomeCount = displayTransactions.filter((t) => t.type === 'income').length;
   const debtCount = displayDebts.filter((d) => !d.settled).length;
 
-  const overallExpenseCount = expenseCount;
-  const overallIncomeCount = incomeCount;
-  const overallDebtCount = debtCount;
-
-  const monthlyExpenseCount = useMemo(() => {
-    return monthlyTransactions.filter((t) => t.type === 'expense').length;
-  }, [monthlyTransactions]);
-
-  const monthlyIncomeCount = useMemo(() => {
-    return monthlyTransactions.filter((t) => t.type === 'income').length;
-  }, [monthlyTransactions]);
-
-  const monthlyDebtCount = useMemo(() => {
-    return displayDebts.filter((d) => {
-      if (d.settled) return false;
-      if (d.dueDate && d.dueDate.startsWith(selectedYearMonth)) return true;
-      try {
-        const createdDate = new Date(d.createdAt).toISOString().slice(0, 7);
-        return createdDate === selectedYearMonth;
-      } catch {
-        return false;
-      }
-    }).length;
-  }, [displayDebts, selectedYearMonth]);
-
   // Current Savings = Total Income minus Total Expenses as mandated by §7
   const currentSavings = totalIncome - totalExpense;
 
@@ -2145,6 +2119,7 @@ export default function App() {
     nickname: string;
     email: string;
     password?: string;
+    currentPassword?: string;
     avatarUrl?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -2160,6 +2135,7 @@ export default function App() {
             nickname: data.nickname,
             email: data.email,
             password: data.password,
+            currentPassword: data.currentPassword,
             avatarUrl: data.avatarUrl,
           }),
         });
@@ -2167,8 +2143,11 @@ export default function App() {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const json = await res.json();
-          if (!res.ok && !json.success && json.error) {
-            console.warn('Online sync during profile update:', json.error);
+          if (!res.ok || json.success === false) {
+            return {
+              success: false,
+              error: json.error || 'Failed to update account settings.',
+            };
           }
         }
       } catch {
@@ -2250,21 +2229,15 @@ export default function App() {
         userProfile={userProfile}
         onUpdateProfile={setUserProfile}
         isProfileLoading={isProfileLoading}
-        expenseCount={overallExpenseCount}
-        incomeCount={overallIncomeCount}
-        debtCount={overallDebtCount}
-        overallExpenseCount={overallExpenseCount}
-        overallIncomeCount={overallIncomeCount}
-        overallDebtCount={overallDebtCount}
-        monthlyExpenseCount={monthlyExpenseCount}
-        monthlyIncomeCount={monthlyIncomeCount}
-        monthlyDebtCount={monthlyDebtCount}
+        expenseCount={monthlyTransactions.filter((t) => t.type === 'expense').length}
+        incomeCount={monthlyTransactions.filter((t) => t.type === 'income').length}
+        debtCount={debtCount}
         dbStatus={dbStatus}
         onSyncWithDB={handleSyncWithDB}
         isSyncing={isSyncing}
         lastSyncedTime={lastSyncedTime}
         currentUser={currentUser}
-        onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenSettings={() => setActiveTab('settings')}
         onLogout={() => setShowLogoutConfirm(true)}
         onOpenDonate={() => setShowDonateModal(true)}
         onOpenAccounts={() => setShowAccountsModal(true)}
@@ -2358,6 +2331,15 @@ export default function App() {
             totalExpenses={totalExpense}
             netDebt={netDebt}
             currencySymbol={currencySymbol}
+          />
+        )}
+
+        {activeTab === 'settings' && (
+          <SettingsPage
+            currentUser={currentUser}
+            profile={userProfile}
+            onBack={() => setActiveTab('tracker')}
+            onSave={handleUpdateAccountSettings}
           />
         )}
       </main>
@@ -2473,16 +2455,6 @@ export default function App() {
             setSettings((prev) => ({ ...prev, donateInfo: info }))
           }
           onClose={() => setShowDonateModal(false)}
-        />
-      )}
-
-      {/* Account Settings Modal */}
-      {showSettingsModal && (
-        <SettingsModal
-          currentUser={currentUser}
-          profile={userProfile}
-          onClose={() => setShowSettingsModal(false)}
-          onSave={handleUpdateAccountSettings}
         />
       )}
 

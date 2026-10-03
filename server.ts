@@ -755,7 +755,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
 // Update user profile credentials (username, email, password, profile picture)
 app.post("/api/user/update-profile", async (req, res) => {
   const userId = req.body.userId || (req.headers["x-user-id"] as string);
-  const { email, nickname, password, avatarUrl } = req.body;
+  const { email, nickname, password, currentPassword, avatarUrl } = req.body;
 
   if (!userId) {
     res.status(400).json({ success: false, error: "Active account session required" });
@@ -800,11 +800,18 @@ app.post("/api/user/update-profile", async (req, res) => {
       }
 
       if (user) {
-        if (cleanEmail) user.email = cleanEmail;
-        if (cleanNickname) user.nickname = cleanNickname;
         if (password && password.trim().length >= 6) {
+          if (user.password && currentPassword !== undefined && currentPassword.trim() !== user.password) {
+            res.status(400).json({
+              success: false,
+              error: "The current password you entered is incorrect.",
+            });
+            return;
+          }
           user.password = password.trim();
         }
+        if (cleanEmail) user.email = cleanEmail;
+        if (cleanNickname) user.nickname = cleanNickname;
         if (avatarUrl !== undefined) {
           user.avatarUrl = avatarUrl;
         }
