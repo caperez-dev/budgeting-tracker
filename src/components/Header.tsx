@@ -6,7 +6,6 @@ import {
   Scale,
   Target,
   Sparkles,
-  HeartHandshake,
   Coins,
   ChevronLeft,
   ChevronRight,
@@ -46,6 +45,12 @@ interface HeaderProps {
   expenseCount: number;
   incomeCount: number;
   debtCount?: number;
+  overallExpenseCount?: number;
+  overallIncomeCount?: number;
+  overallDebtCount?: number;
+  monthlyExpenseCount?: number;
+  monthlyIncomeCount?: number;
+  monthlyDebtCount?: number;
   dbStatus?: DBStatus;
   onSyncWithDB?: () => Promise<void>;
   isSyncing?: boolean;
@@ -80,6 +85,12 @@ export function Header({
   expenseCount,
   incomeCount,
   debtCount,
+  overallExpenseCount,
+  overallIncomeCount,
+  overallDebtCount,
+  monthlyExpenseCount,
+  monthlyIncomeCount,
+  monthlyDebtCount,
   dbStatus,
   onSyncWithDB,
   isSyncing,
@@ -149,26 +160,22 @@ export function Header({
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-zinc-200">
-      {/* Top Banner: Global Financial Status & Branding */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3 relative">
-        {/* Logo & Brand */}
-        <div className="flex items-center gap-2.5">
+      {/* Top Banner: Global Financial Status & Branding (One-liner layout on mobile) */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 relative">
+        {/* Logo & Brand (Title hidden on mobile portrait view for a clean one-liner) */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           <div className="w-8 h-8 rounded-[4px] bg-zinc-900 text-white flex items-center justify-center shadow-xs">
             <Wallet className="w-4 h-4 text-zinc-100" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold tracking-tight text-zinc-900">
-                Budget Tracker
-              </h1>
-            </div>
-          </div>
+          <h1 className="hidden sm:block text-base font-semibold tracking-tight text-zinc-900">
+            Budget Tracker
+          </h1>
         </div>
 
         {/* Centered Month & Year Component with Previous and Next Buttons */}
         <div
           id="header-month-year-navigator"
-          className="flex items-center justify-center gap-1 sm:absolute sm:left-1/2 sm:-translate-x-1/2 order-3 sm:order-none w-full sm:w-auto relative"
+          className="flex items-center justify-center gap-0.5 sm:gap-1 absolute left-1/2 -translate-x-1/2 shrink-0"
         >
           <button
             id="btn-prev-month"
@@ -322,6 +329,13 @@ export function Header({
             expenseCount={expenseCount}
             incomeCount={incomeCount}
             debtCount={debtCount}
+            overallExpenseCount={overallExpenseCount}
+            overallIncomeCount={overallIncomeCount}
+            overallDebtCount={overallDebtCount}
+            monthlyExpenseCount={monthlyExpenseCount}
+            monthlyIncomeCount={monthlyIncomeCount}
+            monthlyDebtCount={monthlyDebtCount}
+            selectedMonthYearLabel={selectedMonthYearLabel}
             totalExpense={totalExpense}
             totalIncome={totalIncome}
             totalDebt={debtsYouOweTotal}
@@ -333,6 +347,7 @@ export function Header({
             currentUser={currentUser}
             onOpenSettings={onOpenSettings}
             onLogout={onLogout}
+            onOpenDonate={onOpenDonate}
           />
         </div>
       </div>
@@ -460,17 +475,6 @@ export function Header({
             >
               <Tags className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
               <span>Categories</span>
-            </button>
-
-            <button
-              id="btn-donate"
-              onClick={onOpenDonate}
-              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
-              title="Support the app developer"
-              aria-label="Donate"
-            >
-              <HeartHandshake className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-              <span>Donate</span>
             </button>
           </div>
         </div>

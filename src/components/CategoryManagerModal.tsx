@@ -40,6 +40,7 @@ export function CategoryManagerModal({
   initialType = 'expense',
 }: CategoryManagerModalProps) {
   const [activeTab, setActiveTab] = useState<TransactionType>(initialType);
+  const [categoryType, setCategoryType] = useState<TransactionType>(initialType);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
 
@@ -48,6 +49,25 @@ export function CategoryManagerModal({
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [icon, setIcon] = useState('Tag');
   const [isAdding, setIsAdding] = useState(false);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (categoryToDelete) {
+          setCategoryToDelete(null);
+        } else if (isAdding) {
+          setIsAdding(false);
+        } else if (editingCat) {
+          setEditingCat(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [categoryToDelete, isAdding, editingCat, onClose]);
 
   // Reorderable items state for activeTab
   const [items, setItems] = useState<Category[]>(() =>
@@ -196,11 +216,12 @@ export function CategoryManagerModal({
 
     onAddCategory({
       name: name.trim(),
-      type: activeTab,
+      type: categoryType,
       color,
       icon,
     });
 
+    setActiveTab(categoryType);
     setName('');
     setColor(PRESET_COLORS[0]);
     setIcon('Tag');
@@ -215,80 +236,94 @@ export function CategoryManagerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-lg w-full shadow-lg space-y-4 max-h-[90vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-lg w-full shadow-lg space-y-4 max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-100 shrink-0">
           <div>
-            <h3 className="text-sm font-semibold text-zinc-900">Category</h3>
+            <h3 className="text-sm font-semibold text-zinc-900">
+              {isAdding ? 'Add Category' : editingCat ? 'Edit Category' : 'Category'}
+            </h3>
             <p className="text-xs text-zinc-500">
-              Customize categories, icons, and accent colors used in transaction rows.
+              {isAdding
+                ? 'Create a new category for your transactions.'
+                : editingCat
+                ? 'Update this category details.'
+                : 'Customize categories, icons, and accent colors used in transaction rows.'}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 p-1 rounded"
+            className="text-zinc-400 hover:text-zinc-600 p-1 rounded cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Type Filter */}
-        <div className="flex items-center justify-between gap-2 shrink-0">
-          <div className="grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 w-44 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('expense');
-                setIsAdding(false);
-                setEditingCat(null);
-              }}
-              className={`py-1 rounded-[3px] transition-colors ${
-                activeTab === 'expense'
-                  ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
-                  : 'text-zinc-500'
-              }`}
-            >
-              Expenses
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('income');
-                setIsAdding(false);
-                setEditingCat(null);
-              }}
-              className={`py-1 rounded-[3px] transition-colors ${
-                activeTab === 'income'
-                  ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
-                  : 'text-zinc-500'
-              }`}
-            >
-              Income
-            </button>
-          </div>
+        {/* Type Filter (Hidden when adding or editing category) */}
+        {!isAdding && !editingCat && (
+          <div className="flex items-center justify-between gap-2 shrink-0">
+            <div className="grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 w-44 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('expense');
+                  setEditingCat(null);
+                }}
+                className={`py-1 rounded-[3px] transition-colors cursor-pointer ${
+                  activeTab === 'expense'
+                    ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                Expenses
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('income');
+                  setEditingCat(null);
+                }}
+                className={`py-1 rounded-[3px] transition-colors cursor-pointer ${
+                  activeTab === 'income'
+                    ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                Income
+              </button>
+            </div>
 
-          {!isAdding && !editingCat && (
             <button
-              onClick={() => setIsAdding(true)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-[4px] hover:bg-zinc-800 transition-colors"
+              onClick={() => {
+                setIsAdding(true);
+                setCategoryType(activeTab);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-[4px] hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Category</span>
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Adding New Category Form */}
+        {/* Adding New Category Form (Clean layout without grayish background wrapper) */}
         {isAdding && (
           <form
             onSubmit={handleCreate}
-            className="p-3 bg-zinc-50 border border-zinc-200 rounded-[4px] space-y-3 shrink-0 text-xs"
+            className="space-y-3.5 shrink-0 text-xs pt-1"
           >
-            <div className="font-semibold text-zinc-900 text-xs">
-              New {activeTab === 'expense' ? 'Expense' : 'Income'} Category
-            </div>
-
+            {/* Field 1: Name */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-zinc-500 font-medium">Name</label>
@@ -307,7 +342,36 @@ export function CategoryManagerModal({
               />
             </div>
 
-            {/* Accent Color */}
+            {/* Field 2: Type Toggle (Expenses / Income) */}
+            <div>
+              <label className="block text-zinc-500 font-medium mb-1">Type</label>
+              <div className="grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 w-full text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setCategoryType('expense')}
+                  className={`py-1.5 rounded-[3px] transition-colors cursor-pointer text-center ${
+                    categoryType === 'expense'
+                      ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                      : 'text-zinc-500 hover:text-zinc-800'
+                  }`}
+                >
+                  Expenses
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategoryType('income')}
+                  className={`py-1.5 rounded-[3px] transition-colors cursor-pointer text-center ${
+                    categoryType === 'income'
+                      ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                      : 'text-zinc-500 hover:text-zinc-800'
+                  }`}
+                >
+                  Income
+                </button>
+              </div>
+            </div>
+
+            {/* Field 3: Accent Color */}
             <div>
               <label className="block text-zinc-500 font-medium mb-1">
                 Accent Color
@@ -318,7 +382,7 @@ export function CategoryManagerModal({
                     key={c}
                     type="button"
                     onClick={() => setColor(c)}
-                    className={`w-6 h-6 rounded-[3px] transition-transform ${
+                    className={`w-6 h-6 rounded-[3px] transition-transform cursor-pointer ${
                       color === c ? 'ring-2 ring-zinc-900 ring-offset-1 scale-110' : ''
                     }`}
                     style={{ backgroundColor: c }}
@@ -334,7 +398,7 @@ export function CategoryManagerModal({
               </div>
             </div>
 
-            {/* Icon Picker */}
+            {/* Field 4: Select Icon */}
             <div>
               <label className="block text-zinc-500 font-medium mb-1">Select Icon</label>
               <div className="grid grid-cols-8 gap-1 p-1 bg-white border border-zinc-200 rounded-[4px] max-h-24 overflow-y-auto">
@@ -343,7 +407,7 @@ export function CategoryManagerModal({
                     key={ic}
                     type="button"
                     onClick={() => setIcon(ic)}
-                    className={`p-1.5 rounded flex items-center justify-center transition-colors ${
+                    className={`p-1.5 rounded flex items-center justify-center transition-colors cursor-pointer ${
                       icon === ic
                         ? 'bg-zinc-900 text-white'
                         : 'text-zinc-600 hover:bg-zinc-100'
@@ -356,17 +420,17 @@ export function CategoryManagerModal({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200">
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="px-2.5 py-1 text-zinc-600 hover:text-zinc-800"
+                className="px-3 py-1.5 text-zinc-600 hover:text-zinc-800 rounded-[3px] border border-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer text-xs"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-3 py-1 bg-zinc-900 text-white font-medium rounded-[3px]"
+                className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded-[3px] transition-colors cursor-pointer text-xs"
               >
                 Save Category
               </button>
@@ -374,14 +438,12 @@ export function CategoryManagerModal({
           </form>
         )}
 
-        {/* Editing Category Form */}
+        {/* Editing Category Form (Clean layout without grayish background wrapper) */}
         {editingCat && (
           <form
             onSubmit={handleSaveEdit}
-            className="p-3 bg-zinc-50 border border-zinc-200 rounded-[4px] space-y-3 shrink-0 text-xs"
+            className="space-y-3.5 shrink-0 text-xs pt-1"
           >
-            <div className="font-semibold text-zinc-900 text-xs">Edit Category</div>
-
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-zinc-500 font-medium">Name</label>
@@ -411,7 +473,7 @@ export function CategoryManagerModal({
                     key={c}
                     type="button"
                     onClick={() => setEditingCat({ ...editingCat, color: c })}
-                    className={`w-6 h-6 rounded-[3px] transition-transform ${
+                    className={`w-6 h-6 rounded-[3px] transition-transform cursor-pointer ${
                       editingCat.color === c
                         ? 'ring-2 ring-zinc-900 ring-offset-1 scale-110'
                         : ''
@@ -436,7 +498,7 @@ export function CategoryManagerModal({
                     key={ic}
                     type="button"
                     onClick={() => setEditingCat({ ...editingCat, icon: ic })}
-                    className={`p-1.5 rounded flex items-center justify-center transition-colors ${
+                    className={`p-1.5 rounded flex items-center justify-center transition-colors cursor-pointer ${
                       editingCat.icon === ic
                         ? 'bg-zinc-900 text-white'
                         : 'text-zinc-600 hover:bg-zinc-100'
@@ -448,17 +510,17 @@ export function CategoryManagerModal({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200">
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
               <button
                 type="button"
                 onClick={() => setEditingCat(null)}
-                className="px-2.5 py-1 text-zinc-600 hover:text-zinc-800"
+                className="px-3 py-1.5 text-zinc-600 hover:text-zinc-800 rounded-[3px] border border-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer text-xs"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-3 py-1 bg-zinc-900 text-white font-medium rounded-[3px]"
+                className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded-[3px] transition-colors cursor-pointer text-xs"
               >
                 Update
               </button>
@@ -589,21 +651,33 @@ export function CategoryManagerModal({
           </div>
         )}
 
-        {/* Footer */}
-        <div className="pt-2 border-t border-zinc-100 flex justify-end shrink-0">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
-          >
-            Close
-          </button>
-        </div>
+        {/* Footer (hidden when adding or editing category) */}
+        {!isAdding && !editingCat && (
+          <div className="pt-2 border-t border-zinc-100 flex justify-end shrink-0">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Delete Category Confirmation Modal */}
       {categoryToDelete && (
-        <div className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4">
+        <div
+          className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setCategoryToDelete(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
               <h4 className="text-sm font-semibold text-zinc-900">Delete Category</h4>
               <button

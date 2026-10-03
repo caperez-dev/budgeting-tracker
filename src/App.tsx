@@ -1318,6 +1318,31 @@ export default function App() {
   const incomeCount = displayTransactions.filter((t) => t.type === 'income').length;
   const debtCount = displayDebts.filter((d) => !d.settled).length;
 
+  const overallExpenseCount = expenseCount;
+  const overallIncomeCount = incomeCount;
+  const overallDebtCount = debtCount;
+
+  const monthlyExpenseCount = useMemo(() => {
+    return monthlyTransactions.filter((t) => t.type === 'expense').length;
+  }, [monthlyTransactions]);
+
+  const monthlyIncomeCount = useMemo(() => {
+    return monthlyTransactions.filter((t) => t.type === 'income').length;
+  }, [monthlyTransactions]);
+
+  const monthlyDebtCount = useMemo(() => {
+    return displayDebts.filter((d) => {
+      if (d.settled) return false;
+      if (d.dueDate && d.dueDate.startsWith(selectedYearMonth)) return true;
+      try {
+        const createdDate = new Date(d.createdAt).toISOString().slice(0, 7);
+        return createdDate === selectedYearMonth;
+      } catch {
+        return false;
+      }
+    }).length;
+  }, [displayDebts, selectedYearMonth]);
+
   // Current Savings = Total Income minus Total Expenses as mandated by §7
   const currentSavings = totalIncome - totalExpense;
 
@@ -2225,9 +2250,15 @@ export default function App() {
         userProfile={userProfile}
         onUpdateProfile={setUserProfile}
         isProfileLoading={isProfileLoading}
-        expenseCount={monthlyTransactions.filter((t) => t.type === 'expense').length}
-        incomeCount={monthlyTransactions.filter((t) => t.type === 'income').length}
-        debtCount={debtCount}
+        expenseCount={overallExpenseCount}
+        incomeCount={overallIncomeCount}
+        debtCount={overallDebtCount}
+        overallExpenseCount={overallExpenseCount}
+        overallIncomeCount={overallIncomeCount}
+        overallDebtCount={overallDebtCount}
+        monthlyExpenseCount={monthlyExpenseCount}
+        monthlyIncomeCount={monthlyIncomeCount}
+        monthlyDebtCount={monthlyDebtCount}
         dbStatus={dbStatus}
         onSyncWithDB={handleSyncWithDB}
         isSyncing={isSyncing}

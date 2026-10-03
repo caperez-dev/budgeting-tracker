@@ -566,9 +566,8 @@ export function TrackerView({
     return (
       <div className="relative">
         <div className="flex items-center justify-between mb-1.5 h-4 leading-4">
-          <label className="text-zinc-500 font-medium flex items-center gap-1.5">
-            <CalendarDays className="w-3.5 h-3.5 text-zinc-600" />
-            <span>Date & Time</span>
+          <label className="text-zinc-500 font-medium">
+            Date & Time
           </label>
           <button
             type="button"
@@ -1367,14 +1366,30 @@ export function TrackerView({
                                   id={`tx-row-${tx.id}`}
                                   className="group flex items-center py-2.5 px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-2.5 sm:gap-4 min-w-0 sm:min-w-[580px]"
                                 >
-                                  {/* Column 1: Clean Arrow / Transfer Indicator (Arrow Up for Income, Arrow Down for Expenses/Fees) */}
-                                  <div className="w-5 sm:w-6 shrink-0 flex items-center justify-center">
+                                  {/* Column 1: Responsive IN/OUT Indicator (Arrows on Mobile, Text on Normal View) */}
+                                  <div className="w-5 sm:w-8 shrink-0 flex items-center justify-center sm:justify-start">
                                     {isTransfer ? (
                                       <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" title="Transfer" />
-                                    ) : tx.type === 'income' ? (
-                                      <ArrowUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="Income" />
                                     ) : (
-                                      <ArrowDown className="w-3.5 h-3.5 text-rose-600 shrink-0" title="Expense" />
+                                      <>
+                                        {/* Mobile view: Arrow Up for Income, Arrow Down for Expense/Fees */}
+                                        <span className="sm:hidden flex items-center justify-center">
+                                          {tx.type === 'income' ? (
+                                            <ArrowUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="Income" />
+                                          ) : (
+                                            <ArrowDown className="w-3.5 h-3.5 text-rose-600 shrink-0" title="Expense" />
+                                          )}
+                                        </span>
+
+                                        {/* Normal view: Text IN and OUT */}
+                                        <span
+                                          className={`hidden sm:inline font-mono text-[11px] font-semibold tracking-tight ${
+                                            tx.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'
+                                          }`}
+                                        >
+                                          {tx.type === 'expense' ? 'OUT' : 'IN'}
+                                        </span>
+                                      </>
                                     )}
                                   </div>
 
