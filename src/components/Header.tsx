@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeftRight,
+  Tags,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { UserProfile, DBStatus, AuthUser } from '../types';
@@ -340,43 +341,46 @@ export function Header({
       <div className="bg-zinc-50/80 border-t border-zinc-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 overflow-x-auto">
           {/* Main Navigation Tabs */}
-          <nav className="flex space-x-1 py-1.5" aria-label="Tabs">
+          <nav className="flex space-x-1 py-1.5 shrink-0" aria-label="Tabs">
             <button
               id="tab-tracker"
               onClick={() => setActiveTab('tracker')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap ${
+              title="Tracker"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === 'tracker'
                   ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
             >
-              <ReceiptText className="w-3.5 h-3.5" />
+              <ReceiptText className="w-3.5 h-3.5 shrink-0" />
               <span>Tracker</span>
             </button>
 
             <button
               id="tab-summary"
               onClick={() => setActiveTab('summary')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap ${
+              title="Summary"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === 'summary'
                   ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
             >
-              <BarChart3 className="w-3.5 h-3.5" />
+              <BarChart3 className="w-3.5 h-3.5 shrink-0" />
               <span>Summary</span>
             </button>
 
             <button
               id="tab-debts"
               onClick={() => setActiveTab('debts')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap ${
+              title="Debts"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === 'debts'
                   ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
             >
-              <Scale className="w-3.5 h-3.5" />
+              <Scale className="w-3.5 h-3.5 shrink-0" />
               <span>Debts</span>
               {hasActiveDebts && (
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
@@ -386,80 +390,87 @@ export function Header({
             <button
               id="tab-goals"
               onClick={() => setActiveTab('goals')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap ${
+              title="Purchase Goals"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === 'goals'
-                  ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200'
+                  ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
             >
-              <Target className="w-3.5 h-3.5" />
-              <span>Purchase Goals</span>
+              <Target className="w-3.5 h-3.5 shrink-0" />
+              <span>Goals</span>
             </button>
 
             <button
               id="tab-ai"
               onClick={() => setActiveTab('ai')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap ${
+              title="AI Advisor"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === 'ai'
-                  ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200'
+                  ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
               <span>AI Advisor</span>
             </button>
           </nav>
 
           {/* Secondary Utilities: Accounts, Currencies, Categories, Donate */}
-          <div className="flex items-center gap-1.5 py-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 py-1.5 shrink-0">
             <button
               id="btn-manage-accounts"
               onClick={onOpenAccounts}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
               title="Manage accounts and assets (Cash, E-Wallet, etc.)"
+              aria-label="Manage accounts"
             >
-              <Wallet className="w-3 h-3 text-zinc-500" />
-              <span className="hidden sm:inline">Accounts</span>
+              <Wallet className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span>Accounts</span>
             </button>
 
             <button
               id="btn-transfer"
               onClick={onOpenTransfer}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
               title="Transfer balance between accounts"
+              aria-label="Transfer balance"
             >
-              <ArrowLeftRight className="w-3 h-3 text-zinc-500" />
-              <span className="hidden sm:inline">Transfer</span>
+              <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span>Transfer</span>
             </button>
 
             <button
               id="btn-manage-currencies"
               onClick={onOpenCurrencies}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
               title="Manage currencies and exchange rates"
+              aria-label="Manage currencies"
             >
-              <Coins className="w-3 h-3 text-zinc-500" />
-              <span className="hidden sm:inline">Currencies</span>
+              <Coins className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span>Currencies</span>
             </button>
 
             <button
               id="btn-manage-categories"
               onClick={onOpenCategories}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
               title="Add, edit, or customize categories, icons, and accent colors"
+              aria-label="Manage categories"
             >
-              <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block"></span>
-              <span className="hidden sm:inline">Categories</span>
+              <Tags className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span>Categories</span>
             </button>
 
             <button
               id="btn-donate"
               onClick={onOpenDonate}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
               title="Support the app developer"
+              aria-label="Donate"
             >
-              <HeartHandshake className="w-3 h-3 text-rose-500" />
-              <span className="hidden sm:inline">Donate</span>
+              <HeartHandshake className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>Donate</span>
             </button>
           </div>
         </div>

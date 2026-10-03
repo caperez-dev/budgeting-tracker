@@ -8,6 +8,8 @@ import {
   ArrowUpRight,
   ArrowLeftRight,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
   RotateCcw,
   RotateCw,
   AlertCircle,
@@ -1363,27 +1365,21 @@ export function TrackerView({
                                 <div
                                   key={tx.id}
                                   id={`tx-row-${tx.id}`}
-                                  className="group flex items-center py-2.5 px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-3 sm:gap-4 min-w-[620px]"
+                                  className="group flex items-center py-2.5 px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-2.5 sm:gap-4 min-w-0 sm:min-w-[580px]"
                                 >
-                                  {/* Column 1: Clean IN / OUT / Transfer Indicator (No border or background) */}
-                                  <div className="w-8 shrink-0 flex items-center justify-start">
+                                  {/* Column 1: Clean Arrow / Transfer Indicator (Arrow Up for Income, Arrow Down for Expenses/Fees) */}
+                                  <div className="w-5 sm:w-6 shrink-0 flex items-center justify-center">
                                     {isTransfer ? (
-                                      <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500" title="Transfer" />
+                                      <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" title="Transfer" />
+                                    ) : tx.type === 'income' ? (
+                                      <ArrowUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="Income" />
                                     ) : (
-                                      <span
-                                        className={`font-mono text-[11px] font-semibold tracking-tight ${
-                                          tx.type === 'expense'
-                                            ? 'text-rose-600'
-                                            : 'text-emerald-600'
-                                        }`}
-                                      >
-                                        {tx.type === 'expense' ? 'OUT' : 'IN'}
-                                      </span>
+                                      <ArrowDown className="w-3.5 h-3.5 text-rose-600 shrink-0" title="Expense" />
                                     )}
                                   </div>
 
                                   {/* Column 2: Amount (fixed width) */}
-                                  <div className="w-24 sm:w-28 shrink-0">
+                                  <div className="w-20 sm:w-28 shrink-0">
                                     <span
                                       className={`font-mono text-sm font-semibold tabular-nums ${
                                         isTransfer
@@ -1398,7 +1394,7 @@ export function TrackerView({
                                   </div>
 
                                   {/* Column 3: Category Column (aligned) */}
-                                  <div className="w-32 sm:w-36 md:w-40 shrink-0 flex items-center min-w-0">
+                                  <div className="w-28 sm:w-36 md:w-40 shrink-0 flex items-center min-w-0">
                                     {isTransfer ? (
                                       <span className="text-zinc-400 font-medium text-xs">
                                         Transfer
@@ -1412,7 +1408,7 @@ export function TrackerView({
                                   </div>
 
                                   {/* Column 4: Account Column (aligned, no wrappers) */}
-                                  <div className="w-40 sm:w-48 md:w-56 shrink-0 flex items-center min-w-0">
+                                  <div className="w-32 sm:w-48 md:w-56 shrink-0 flex items-center min-w-0">
                                     {isTransfer ? (
                                       <div className="flex items-center gap-1 text-xs whitespace-nowrap truncate font-medium text-zinc-700">
                                         <AccountIcon name={fromIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
@@ -1431,8 +1427,8 @@ export function TrackerView({
                                     )}
                                   </div>
 
-                                  {/* Column 5: Description Column (aligned) */}
-                                  <div className="flex-1 min-w-[80px] truncate">
+                                  {/* Column 5: Description Column (aligned, hidden on mobile view) */}
+                                  <div className="hidden sm:block flex-1 min-w-[80px] truncate">
                                     {tx.note ? (
                                       <span className="text-zinc-500 truncate block text-xs" title={tx.note}>
                                         {tx.note}
