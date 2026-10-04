@@ -330,10 +330,10 @@ export function SummaryPanel({
                           title="Select month"
                           aria-label="Select month"
                           aria-expanded={isMonthPopoverOpen}
-                          className={`p-1 sm:p-1.5 rounded-[4px] border transition-colors cursor-pointer flex items-center justify-center ${
+                          className={`p-1 transition-colors cursor-pointer flex items-center justify-center ${
                             isMonthPopoverOpen
-                              ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
-                              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 border-zinc-200 shadow-2xs'
+                              ? 'text-zinc-900'
+                              : 'text-zinc-400 hover:text-zinc-700'
                           }`}
                         >
                           <Calendar className="w-3.5 h-3.5" />
@@ -353,10 +353,10 @@ export function SummaryPanel({
                           title="Select year"
                           aria-label="Select year"
                           aria-expanded={isYearPopoverOpen}
-                          className={`p-1 sm:p-1.5 rounded-[4px] border transition-colors cursor-pointer flex items-center justify-center ${
+                          className={`p-1 transition-colors cursor-pointer flex items-center justify-center ${
                             isYearPopoverOpen
-                              ? 'bg-zinc-900 text-white border-zinc-900 shadow-2xs'
-                              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 border-zinc-200 shadow-2xs'
+                              ? 'text-zinc-900'
+                              : 'text-zinc-400 hover:text-zinc-700'
                           }`}
                         >
                           <Calendar className="w-3.5 h-3.5" />

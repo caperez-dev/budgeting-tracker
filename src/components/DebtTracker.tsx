@@ -1,9 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Scale,
-  Plus,
-  ArrowUpRight,
-  ArrowDownLeft,
   CheckCircle2,
   Clock,
   Trash2,
@@ -11,7 +7,6 @@ import {
   Calendar,
   User,
   Coins,
-  ShieldCheck,
 } from 'lucide-react';
 import { Currency, Debt } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
@@ -116,8 +111,7 @@ export function DebtTracker({
       <div className="bg-white border border-zinc-200 rounded-[5px] p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-zinc-100">
           <div>
-            <h2 className="text-base font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-              <Scale className="w-4 h-4 text-zinc-700" />
+            <h2 className="text-base font-semibold text-zinc-900 tracking-tight">
               Debt & Liabilities Tracker
             </h2>
             <p className="text-xs text-zinc-500">
@@ -128,31 +122,28 @@ export function DebtTracker({
           <button
             onClick={() => setShowAddModal(true)}
             id="btn-add-debt"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors shadow-xs"
+            className="flex items-center justify-center px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors shadow-xs"
           >
-            <Plus className="w-3.5 h-3.5" />
             <span>Add Debt Record</span>
           </button>
         </div>
 
-        {/* 2 Metric Summary Boxes (Debts You Owe & Debts Owed to You) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Debts You Owe */}
-          <div className="p-3.5 bg-zinc-50/80 border border-zinc-200 rounded-[4px]">
-            <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
-              <span>Debts You Owe</span>
-              <ArrowDownLeft className="w-3.5 h-3.5 text-rose-500" />
+        {/* 2 Metric Summary (Money You Owe & Money Owed to You) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Money You Owe */}
+          <div>
+            <div className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+              Money You Owe
             </div>
             <div className="text-lg font-bold font-mono text-rose-700 tabular-nums">
               {formatCurrency(totalYouOweUnsettled, currencySymbol)}
             </div>
           </div>
 
-          {/* Debts Owed to You */}
-          <div className="p-3.5 bg-zinc-50/80 border border-zinc-200 rounded-[4px]">
-            <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
-              <span>Debts Owed to You</span>
-              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+          {/* Money Owed to You */}
+          <div>
+            <div className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+              Money Owed to You
             </div>
             <div className="text-lg font-bold font-mono text-emerald-700 tabular-nums">
               {formatCurrency(totalOwedToYouUnsettled, currencySymbol)}
@@ -161,15 +152,15 @@ export function DebtTracker({
         </div>
       </div>
 
-      {/* Two Independent Lists: Debts You Owe & Debts Owed to You as specified in §7 */}
+      {/* Two Independent Lists: Payables & Receivables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* List 1: Debts you owe (to others) */}
+        {/* List 1: Payables */}
         <div className="bg-white border border-zinc-200 rounded-[5px] p-4 shadow-xs space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-500"></span>
               <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider">
-                Debts You Owe (Payables)
+                Payables
               </h3>
             </div>
             <span className="text-xs font-mono font-semibold text-rose-700 tabular-nums">
@@ -179,8 +170,7 @@ export function DebtTracker({
 
           {debtsYouOwe.length === 0 ? (
             <div className="py-8 text-center text-zinc-400 text-xs">
-              <ShieldCheck className="w-6 h-6 mx-auto text-emerald-400 mb-1" />
-              You have no recorded debts owed to others.
+              You have no recorded payables.
             </div>
           ) : (
             <div className="divide-y divide-zinc-100">
@@ -237,13 +227,13 @@ export function DebtTracker({
           )}
         </div>
 
-        {/* List 2: Debts owed to you (by others) */}
+        {/* List 2: Receivables */}
         <div className="bg-white border border-zinc-200 rounded-[5px] p-4 shadow-xs space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider">
-                Debts Owed to You (Receivables)
+                Receivables
               </h3>
             </div>
             <span className="text-xs font-mono font-semibold text-emerald-700 tabular-nums">
@@ -253,7 +243,7 @@ export function DebtTracker({
 
           {debtsOwedToYou.length === 0 ? (
             <div className="py-8 text-center text-zinc-400 text-xs">
-              No recorded debts owed to you.
+              You have no recorded receivables.
             </div>
           ) : (
             <div className="divide-y divide-zinc-100">

@@ -1231,23 +1231,48 @@ async function generateContentWithFallback(
   }
 ) {
   if (!ai) throw new Error("Gemini client not initialized");
-  const models = ["gemini-3.8-flash", "gemini-3.5-flash"];
+  const models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
   let lastError: any;
+
   for (const model of models) {
-    try {
-      const response = await Promise.race([
-        ai.models.generateContent({
-          ...params,
-          model,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Gemini request timeout on ${model}`)), 20000)
-        ),
-      ]);
-      return response;
-    } catch (err: any) {
-      console.warn(`Gemini model ${model} failed, attempting next model:`, err?.status || err?.message || err);
-      lastError = err;
+    // Retry transient errors (503, 429, timeout) with exponential backoff
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await Promise.race([
+          ai.models.generateContent({
+            ...params,
+            model,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout on ${model}`)), 20000)
+          ),
+        ]);
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        const status =
+          err?.status ||
+          err?.statusCode ||
+          (typeof err?.message === "string" && err.message.includes("503") ? 503 : 0);
+        const isTransient =
+          status === 503 ||
+          status === 429 ||
+          status === 500 ||
+          status === 502 ||
+          status === 504 ||
+          (err?.message &&
+            (err.message.includes("503") ||
+              err.message.includes("429") ||
+              err.message.includes("timeout") ||
+              err.message.includes("overloaded") ||
+              err.message.includes("Service Unavailable")));
+
+        if (isTransient && attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 800 * Math.pow(2, attempt)));
+          continue;
+        }
+        break;
+      }
     }
   }
   throw lastError;
@@ -1981,8 +2006,8 @@ Extract:
       const parsed = JSON.parse(response.text?.trim() || "{}");
       res.json({ success: true, transaction: parsed, source: "gemini" });
       return;
-    } catch (err) {
-      console.warn("Gemini parse failed, falling back to heuristic parser:", err);
+    } catch (_err) {
+      // Fallback gracefully to heuristic parser without logging error
     }
   }
 
@@ -2075,8 +2100,8 @@ Provide the output in JSON format with an array of insights, where each has:
       const parsed = JSON.parse(response.text?.trim() || "{}");
       res.json({ success: true, data: parsed });
       return;
-    } catch (err) {
-      console.warn("Gemini insights failed, falling back:", err);
+    } catch (_err) {
+      // Fallback gracefully to calculation-based financial insights
     }
   }
 
@@ -2176,8 +2201,8 @@ Guidelines:
         reply: response.text || "I have analyzed your tracker data. Feel free to ask any question about your spending.",
       });
       return;
-    } catch (err) {
-      console.warn("Gemini chat failed:", err);
+    } catch (_err) {
+      // Fallback gracefully to financial assistant guidance
     }
   }
 

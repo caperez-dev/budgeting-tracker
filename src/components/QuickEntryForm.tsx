@@ -440,13 +440,12 @@ export function QuickEntryForm({
             type="submit"
             id="btn-save-transaction"
             disabled={!isAmountFilled}
-            className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-[4px] transition-colors shadow-xs ${
+            className={`flex items-center justify-center px-4 py-1.5 text-xs font-semibold rounded-[4px] transition-colors shadow-xs ${
               !isAmountFilled
                 ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-200 shadow-none'
                 : 'bg-zinc-900 hover:bg-zinc-800 text-white cursor-pointer'
             }`}
           >
-            <Check className="w-3.5 h-3.5" />
             <span>Save Transaction</span>
           </button>
         </div>

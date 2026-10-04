@@ -1,7 +1,5 @@
 import React, { useState, useRef } from 'react';
 import {
-  Target,
-  Plus,
   Calendar,
   Sparkles,
   CheckCircle2,
@@ -198,31 +196,20 @@ export function GoalsView({
       {/* Top Banner */}
       <div className="bg-white border border-zinc-200 rounded-[5px] p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-            <Target className="w-4 h-4 text-zinc-700" />
+          <h2 className="text-base font-semibold text-zinc-900 tracking-tight">
             Purchase & Savings Goals
           </h2>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Track planned purchases against your available savings pool or earmarked target funds.
+            Track planned purchases and target savings funds.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider block">
-              Current Savings Pool
-            </span>
-            <span className="font-mono text-sm font-bold text-zinc-900 tabular-nums">
-              {formatCurrency(currentSavings, currencySymbol)}
-            </span>
-          </div>
-
           <button
             onClick={() => setShowAddModal(true)}
             id="btn-add-goal"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors shadow-xs"
+            className="flex items-center justify-center px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors shadow-xs"
           >
-            <Plus className="w-3.5 h-3.5" />
             <span>Create Goal</span>
           </button>
         </div>
@@ -231,7 +218,6 @@ export function GoalsView({
       {/* Goals Grid */}
       {goals.length === 0 ? (
         <div className="bg-white border border-zinc-200 rounded-[5px] p-12 text-center text-zinc-500">
-          <Target className="w-8 h-8 mx-auto text-zinc-300 mb-2" />
           <p className="text-sm font-medium text-zinc-700">No purchase goals defined yet</p>
           <p className="text-xs text-zinc-400 mt-1">
             Set up an item you are saving for with a target purchase date.

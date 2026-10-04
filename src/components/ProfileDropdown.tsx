@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { UserProfile, DBStatus, AuthUser } from '../types';
 import { validateUsername } from '../utils/usernameValidation';
+import { CurrencyFlag } from './CurrencyFlag';
 
 interface ProfileDropdownProps {
   profile: UserProfile;
@@ -377,10 +378,12 @@ export function ProfileDropdown({
                 <Coins className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-800 transition-transform group-hover:scale-110" />
                 <span>Currencies</span>
               </div>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-zinc-100 group-hover:bg-zinc-200/80 text-zinc-800 font-mono text-[11px] font-semibold transition-colors border border-zinc-200/60">
-                <span className="text-sm leading-none" role="img" aria-label={currentCurrencyCode || 'Currency'}>
-                  {currentCurrencyFlag || '🌐'}
-                </span>
+              <div className="flex items-center gap-1.5 text-zinc-600 font-mono text-[11px] font-semibold">
+                <CurrencyFlag
+                  code={currentCurrencyCode || 'PHP'}
+                  flag={currentCurrencyFlag}
+                  size="md"
+                />
                 <span>{currentCurrencyCode || 'PHP'}</span>
               </div>
             </button>

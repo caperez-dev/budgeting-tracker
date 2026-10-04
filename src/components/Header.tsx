@@ -4,7 +4,7 @@ import {
   ReceiptText,
   BarChart3,
   Scale,
-  Target,
+  Flag,
   Sparkles,
   ChevronLeft,
   ChevronRight,
@@ -416,7 +416,7 @@ export function Header({
                   : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
             >
-              <Target className="w-3.5 h-3.5 shrink-0" />
+              <Flag className="w-3.5 h-3.5 shrink-0" />
               <span>Goals</span>
             </button>
 

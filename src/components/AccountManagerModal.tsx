@@ -435,9 +435,9 @@ export function AccountManagerModal({
             <form
               id="form-add-account"
               onSubmit={handleCreate}
-              className="p-4 bg-zinc-50 border border-zinc-200 rounded-[5px] space-y-3.5 animate-in fade-in duration-150"
+              className="space-y-4 animate-in fade-in duration-150"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-1 border-b border-zinc-100">
                 <h3 className="text-xs font-semibold text-zinc-900">New Account</h3>
                 <span className="text-[11px] text-zinc-400">Fill details below</span>
               </div>
@@ -538,22 +538,8 @@ export function AccountManagerModal({
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAdding(false)}
-                  className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[4px] cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  id="btn-save-new-account"
-                  type="submit"
-                  className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors cursor-pointer"
-                >
-                  Save Account
-                </button>
-              </div>
+              {/* Hidden submit button to support Enter key submission inside input fields */}
+              <button type="submit" className="hidden" tabIndex={-1} aria-hidden="true" />
             </form>
           )}
 
@@ -864,14 +850,39 @@ export function AccountManagerModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3 bg-white border-t border-zinc-100 flex items-center justify-end shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 text-xs text-zinc-700 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
-          >
-            Done
-          </button>
+        <div className="px-5 py-3 bg-white border-t border-zinc-100 flex items-center justify-end gap-2 shrink-0">
+          {isAdding ? (
+            <>
+              <button
+                type="button"
+                id="btn-cancel-add-account"
+                onClick={() => {
+                  setIsAdding(false);
+                  setErrorMessage(null);
+                }}
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[4px] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-save-new-account"
+                type="submit"
+                form="form-add-account"
+                className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors cursor-pointer"
+              >
+                Save Account
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              id="btn-done-accounts"
+              onClick={onClose}
+              className="px-4 py-1.5 text-xs text-zinc-700 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
+            >
+              Done
+            </button>
+          )}
         </div>
       </div>
 

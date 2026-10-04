@@ -171,18 +171,13 @@ export function TransferModal({
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 bg-zinc-50/50">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-[4px] bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-700">
-              <ArrowLeftRight className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <h2 id="transfer-modal-title" className="text-sm font-semibold text-zinc-900 tracking-tight">
-                Transfer Balance
-              </h2>
-              <p className="text-[11px] text-zinc-500">
-                Move money from one account to another
-              </p>
-            </div>
+          <div>
+            <h2 id="transfer-modal-title" className="text-sm font-semibold text-zinc-900 tracking-tight">
+              Transfer Balance
+            </h2>
+            <p className="text-[11px] text-zinc-500">
+              Move money from one account to another
+            </p>
           </div>
           <button
             type="button"
@@ -477,13 +472,12 @@ export function TransferModal({
                 type="submit"
                 id="btn-submit-transfer"
                 disabled={isSubmitDisabled}
-                className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-[4px] transition-all shadow-2xs ${
+                className={`flex items-center justify-center px-4 py-1.5 text-xs font-medium rounded-[4px] transition-all shadow-2xs ${
                   isSubmitDisabled
                     ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-200'
                     : 'bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-900 cursor-pointer'
                 }`}
               >
-                <ArrowLeftRight className="w-3.5 h-3.5" />
                 <span>
                   {isValidAmount && !isInsufficient
                     ? `Transfer ${formatCurrency(parsedAmount, currencySymbol)}`
