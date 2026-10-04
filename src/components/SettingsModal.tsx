@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   X,
   User,
@@ -14,6 +14,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
+import { maskEmailAddress } from './SettingsPage';
 
 interface SettingsModalProps {
   currentUser: AuthUser | null;
@@ -33,8 +34,14 @@ export function SettingsModal({
   onClose,
   onSave,
 }: SettingsModalProps) {
+  const existingEmail = (currentUser?.email || profile.email || '').trim();
+  const maskedEmailPlaceholder = useMemo(() => {
+    if (!existingEmail) return 'use***@ex***.com';
+    return maskEmailAddress(existingEmail);
+  }, [existingEmail]);
+
   const [nickname, setNickname] = useState(profile.nickname || currentUser?.nickname || '');
-  const [email, setEmail] = useState(currentUser?.email || profile.email || '');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string>(profile.avatarUrl || currentUser?.avatarUrl || '');
   const [showPassword, setShowPassword] = useState(false);
@@ -125,13 +132,14 @@ export function SettingsModal({
       return;
     }
 
-    if (!trimmedEmail) {
+    const emailToSave = trimmedEmail || existingEmail.toLowerCase();
+    if (!emailToSave) {
       setErrorMessage('Email address cannot be empty.');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
+    if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
@@ -146,13 +154,14 @@ export function SettingsModal({
     try {
       const result = await onSave({
         nickname: trimmedNickname,
-        email: trimmedEmail,
+        email: emailToSave,
         password: trimmedPassword || undefined,
         avatarUrl,
       });
 
       if (result.success) {
         setSuccessMessage('Account details updated successfully.');
+        setEmail('');
         setPassword('');
         setTimeout(() => {
           onClose();
@@ -335,11 +344,13 @@ export function SettingsModal({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your.email@example.com"
-                required
+                placeholder={maskedEmailPlaceholder}
                 className="w-full pl-8 pr-3 py-1.5 text-xs text-zinc-900 bg-white border border-zinc-200 rounded-[4px] focus:outline-hidden focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500"
               />
             </div>
+            <p className="text-[11px] text-zinc-400 mt-1">
+              Leave blank to keep your current email address.
+            </p>
           </div>
 
           {/* Password Input */}

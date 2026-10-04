@@ -11,7 +11,6 @@ import {
   ChevronRight,
   ArrowLeftRight,
   Tags,
-  Settings,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { UserProfile, DBStatus, AuthUser } from '../types';
@@ -411,18 +410,6 @@ export function Header({
               <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
               <span>AI Advisor</span>
             </button>
-
-            {activeTab === 'settings' && (
-              <button
-                id="tab-settings"
-                onClick={() => setActiveTab('settings')}
-                title="Settings"
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold"
-              >
-                <Settings className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
-                <span>Settings</span>
-              </button>
-            )}
           </nav>
 
           {/* Secondary Utilities: Accounts, Currencies, Categories, Donate */}

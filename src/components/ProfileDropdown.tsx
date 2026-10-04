@@ -10,6 +10,7 @@ import {
   HeartHandshake,
 } from 'lucide-react';
 import { UserProfile, DBStatus, AuthUser } from '../types';
+import { validateUsername } from '../utils/usernameValidation';
 
 interface ProfileDropdownProps {
   profile: UserProfile;
@@ -118,11 +119,13 @@ export function ProfileDropdown({
   const handleSaveNickname = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = tempNickname.trim();
-    if (trimmed) {
-      onUpdateProfile({ ...profile, nickname: trimmed });
-    } else {
+    const validation = validateUsername(trimmed);
+    if (!validation.isValid) {
       setTempNickname(profile.nickname);
+      setIsEditingNickname(false);
+      return;
     }
+    onUpdateProfile({ ...profile, nickname: trimmed });
     setIsEditingNickname(false);
   };
 
@@ -206,7 +209,7 @@ export function ProfileDropdown({
                         type="text"
                         value={tempNickname}
                         onChange={(e) => setTempNickname(e.target.value)}
-                        maxLength={25}
+                        maxLength={30}
                         autoFocus
                         placeholder="Enter nickname"
                         className="w-full bg-zinc-50 border border-zinc-300 rounded-[3px] px-2 py-0.5 text-xs font-semibold text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"

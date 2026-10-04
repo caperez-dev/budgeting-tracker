@@ -19,6 +19,7 @@ import {
   Inbox,
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
+import { validateUsername } from '../utils/usernameValidation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -376,12 +377,9 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
     if (mode === 'register') {
       const cleanNickname = nickname.trim();
-      if (!cleanNickname) {
-        setErrorMessage('Please choose a username.');
-        return;
-      }
-      if (cleanNickname.length > 20) {
-        setErrorMessage('Username cannot be longer than 20 characters.');
+      const usernameValidation = validateUsername(cleanNickname);
+      if (!usernameValidation.isValid) {
+        setErrorMessage(usernameValidation.error || 'Please choose a valid username.');
         return;
       }
       if (cleanEmail.length > 64) {
@@ -600,9 +598,9 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                           id="auth-nickname"
                           type="text"
                           required
-                          maxLength={20}
+                          maxLength={30}
                           value={nickname}
-                          onChange={(e) => setNickname(e.target.value.slice(0, 20))}
+                          onChange={(e) => setNickname(e.target.value.slice(0, 30))}
                           placeholder="e.g. carlosperez"
                           className="ps-10"
                         />

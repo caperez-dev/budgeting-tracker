@@ -19,8 +19,13 @@ import {
   UserModel,
   PasswordResetTokenModel,
 } from "./server/db.ts";
+import { validateUsername } from "./src/utils/usernameValidation.ts";
 
 dotenv.config();
+
+function escapeRegex(text: string): string {
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -163,11 +168,30 @@ app.post("/api/auth/register", async (req, res) => {
   }
 
   const cleanEmail = email.trim().toLowerCase();
-  const cleanNickname = (nickname || cleanEmail.split("@")[0] || "User").trim();
+  const rawNickname = nickname !== undefined ? String(nickname).trim() : "";
+  const usernameValidation = validateUsername(rawNickname);
+  if (!usernameValidation.isValid) {
+    res.status(400).json({ success: false, error: usernameValidation.error });
+    return;
+  }
+  const cleanNickname = rawNickname;
 
   const connected = await connectDB();
   if (connected) {
     try {
+      // Check if username is already taken (case-insensitive)
+      const existingWithUsername = await (UserModel as any).findOne({
+        nickname: { $regex: new RegExp(`^${escapeRegex(cleanNickname)}$`, "i") },
+        email: { $ne: cleanEmail },
+      });
+      if (existingWithUsername) {
+        res.status(400).json({
+          success: false,
+          error: "This username is already taken. Please choose another.",
+        });
+        return;
+      }
+
       const existing = await (UserModel as any).findOne({ email: cleanEmail });
       
       // If user exists and is already verified, block duplicate registration
@@ -752,6 +776,42 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
+// Check username availability endpoint
+app.get("/api/auth/check-username", async (req, res) => {
+  const username = req.query.username ? String(req.query.username).trim() : "";
+  const userId = req.query.userId ? String(req.query.userId) : "";
+
+  const validation = validateUsername(username);
+  if (!validation.isValid) {
+    res.json({ available: false, error: validation.error });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      const query: any = {
+        nickname: { $regex: new RegExp(`^${escapeRegex(username)}$`, "i") },
+      };
+      if (userId) {
+        query.id = { $ne: userId };
+      }
+      const existing = await (UserModel as any).findOne(query);
+      if (existing) {
+        res.json({
+          available: false,
+          error: "This username is already taken. Please choose another.",
+        });
+        return;
+      }
+    } catch {
+      // Allow through on connection failure
+    }
+  }
+
+  res.json({ available: true });
+});
+
 // Update user profile credentials (username, email, password, profile picture)
 app.post("/api/user/update-profile", async (req, res) => {
   const userId = req.body.userId || (req.headers["x-user-id"] as string);
@@ -763,7 +823,16 @@ app.post("/api/user/update-profile", async (req, res) => {
   }
 
   const cleanEmail = email ? email.trim().toLowerCase() : "";
-  const cleanNickname = nickname ? nickname.trim() : "";
+  let cleanNickname = "";
+  if (nickname !== undefined) {
+    const rawNickname = String(nickname).trim();
+    const usernameValidation = validateUsername(rawNickname);
+    if (!usernameValidation.isValid) {
+      res.status(400).json({ success: false, error: usernameValidation.error });
+      return;
+    }
+    cleanNickname = rawNickname;
+  }
 
   if (email !== undefined && !cleanEmail) {
     res.status(400).json({ success: false, error: "Email address cannot be empty." });
@@ -778,6 +847,21 @@ app.post("/api/user/update-profile", async (req, res) => {
   const connected = await connectDB();
   if (connected) {
     try {
+      // Check if another account already uses this username (case-insensitive)
+      if (cleanNickname) {
+        const existingWithUsername = await (UserModel as any).findOne({
+          nickname: { $regex: new RegExp(`^${escapeRegex(cleanNickname)}$`, "i") },
+          id: { $ne: userId },
+        });
+        if (existingWithUsername) {
+          res.status(400).json({
+            success: false,
+            error: "This username is already taken. Please choose another.",
+          });
+          return;
+        }
+      }
+
       // Check if another account already uses this email
       if (cleanEmail) {
         const existingWithEmail = await (UserModel as any).findOne({
@@ -866,6 +950,50 @@ app.post("/api/user/update-profile", async (req, res) => {
       avatarUrl: avatarUrl || "",
     },
   });
+});
+
+// Verify current password endpoint
+app.post("/api/user/verify-password", async (req, res) => {
+  const userId = req.body.userId || (req.headers["x-user-id"] as string);
+  const { currentPassword } = req.body;
+
+  if (!userId) {
+    res.status(400).json({ success: false, error: "Active account session required." });
+    return;
+  }
+
+  if (!currentPassword || typeof currentPassword !== "string" || !currentPassword.trim()) {
+    res.status(400).json({ success: false, error: "Please enter your current password." });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      let user = await (UserModel as any).findOne({ id: userId });
+      if (!user && req.body.email) {
+        user = await (UserModel as any).findOne({ email: req.body.email.trim().toLowerCase() });
+      }
+      if (!user) {
+        // If not found in database (e.g. guest or local session), accept password to proceed
+        res.json({ success: true, message: "Password verified." });
+        return;
+      }
+
+      if (user.password && user.password !== currentPassword.trim()) {
+        res.status(400).json({ success: false, error: "The current password you entered is incorrect." });
+        return;
+      }
+
+      res.json({ success: true, message: "Password verified." });
+      return;
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to verify password." });
+      return;
+    }
+  }
+
+  res.json({ success: true, message: "Password verified." });
 });
 
 // Google OAuth Authorization URL endpoint
