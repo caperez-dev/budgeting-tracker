@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, ArrowRight, ArrowLeftRight, AlertCircle, CheckCircle2, Wallet } from 'lucide-react';
+import { X, ArrowLeftRight, AlertCircle, CheckCircle2, Wallet } from 'lucide-react';
 import { Account, Transaction } from '../types';
 import { AccountSelect } from './AccountSelect';
 import { formatCurrency } from '../utils/formatters';
@@ -130,16 +130,6 @@ export function TransferModal({
     setToAccountId(fromAccountId);
   };
 
-  const handleAmountPreset = (percentage: number) => {
-    if (fromBalance > 0) {
-      const calculated = Math.min(
-        Math.floor(fromBalance * percentage * 100) / 100,
-        9999999999.99
-      );
-      setAmount(calculated > 0 ? calculated.toString() : '');
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitDisabled) return;
@@ -164,13 +154,18 @@ export function TransferModal({
       aria-modal="true"
       aria-labelledby="transfer-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <div
         id="transfer-modal-card"
         className="w-full max-w-lg bg-white border border-zinc-200 rounded-[6px] shadow-xl overflow-hidden flex flex-col"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 bg-zinc-50/50">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 bg-white">
           <div>
             <h2 id="transfer-modal-title" className="text-sm font-semibold text-zinc-900 tracking-tight">
               Transfer Balance
@@ -248,15 +243,26 @@ export function TransferModal({
                     currencySymbol={currencySymbol}
                     alignDropdown="left"
                   />
-                  <div className="flex items-center justify-between text-[11px] px-0.5">
-                    <span className="text-zinc-500">Available:</span>
-                    <span
-                      className={`font-mono font-semibold truncate ${
-                        fromBalance > 0 ? 'text-zinc-900' : 'text-rose-600'
-                      }`}
-                    >
-                      {formatCurrency(fromBalance, currencySymbol)}
-                    </span>
+                  <div className="flex items-start justify-between text-[11px] px-0.5 min-h-[32px]">
+                    <span className="text-zinc-500 pt-0.5">Available:</span>
+                    {isValidAmount && !isInsufficient && !isSameAccount ? (
+                      <div className="text-right font-mono">
+                        <span className="text-zinc-400 line-through text-[11px] block">
+                          {formatCurrency(fromBalance, currencySymbol)}
+                        </span>
+                        <span className="font-semibold text-zinc-900 text-xs block">
+                          {formatCurrency(fromBalance - parsedAmount, currencySymbol)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span
+                        className={`font-mono font-semibold truncate ${
+                          fromBalance > 0 ? 'text-zinc-900' : 'text-rose-600'
+                        }`}
+                      >
+                        {formatCurrency(fromBalance, currencySymbol)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -292,11 +298,22 @@ export function TransferModal({
                     currencySymbol={currencySymbol}
                     alignDropdown="right"
                   />
-                  <div className="flex items-center justify-between text-[11px] px-0.5">
-                    <span className="text-zinc-500">Current:</span>
-                    <span className="font-mono font-semibold text-zinc-900 truncate">
-                      {formatCurrency(toBalance, currencySymbol)}
-                    </span>
+                  <div className="flex items-start justify-between text-[11px] px-0.5 min-h-[32px]">
+                    <span className="text-zinc-500 pt-0.5">Current:</span>
+                    {isValidAmount && !isInsufficient && !isSameAccount ? (
+                      <div className="text-right font-mono">
+                        <span className="text-zinc-400 line-through text-[11px] block">
+                          {formatCurrency(toBalance, currencySymbol)}
+                        </span>
+                        <span className="font-semibold text-emerald-700 text-xs block">
+                          {formatCurrency(toBalance + parsedAmount, currencySymbol)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-mono font-semibold text-zinc-900 truncate">
+                        {formatCurrency(toBalance, currencySymbol)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -320,36 +337,9 @@ export function TransferModal({
 
             {/* Amount Field */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="transfer-amount-input" className="text-xs font-medium text-zinc-700">
-                  Amount
-                </label>
-                {fromBalance > 0 && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleAmountPreset(0.25)}
-                      className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors cursor-pointer"
-                    >
-                      25%
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAmountPreset(0.5)}
-                      className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors cursor-pointer"
-                    >
-                      50%
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAmountPreset(1)}
-                      className="text-[10px] px-1.5 py-0.5 rounded-[3px] bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-medium transition-colors cursor-pointer"
-                    >
-                      Max
-                    </button>
-                  </div>
-                )}
-              </div>
+              <label htmlFor="transfer-amount-input" className="block text-xs font-medium text-zinc-700">
+                Amount
+              </label>
 
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-500 font-semibold select-none">
@@ -422,41 +412,6 @@ export function TransferModal({
                 className="w-full h-9 px-3 bg-white border border-zinc-200 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500 transition-colors"
               />
             </div>
-
-            {/* Balance Preview Card */}
-            {isValidAmount && !isInsufficient && !isSameAccount && fromAccount && toAccount && (
-              <div className="p-3 bg-zinc-50 border border-zinc-200/80 rounded-[4px] space-y-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block">
-                  New Balances Preview
-                </span>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-white p-2 rounded-[3px] border border-zinc-200">
-                    <span className="text-[11px] text-zinc-500 block truncate">{fromAccount.name}</span>
-                    <div className="flex items-center gap-1 mt-0.5 font-mono">
-                      <span className="text-zinc-400 line-through text-[11px]">
-                        {formatCurrency(fromBalance, currencySymbol)}
-                      </span>
-                      <ArrowRight className="w-3 h-3 text-zinc-400" />
-                      <span className="font-semibold text-zinc-900 text-xs">
-                        {formatCurrency(fromBalance - parsedAmount, currencySymbol)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="bg-white p-2 rounded-[3px] border border-zinc-200">
-                    <span className="text-[11px] text-zinc-500 block truncate">{toAccount.name}</span>
-                    <div className="flex items-center gap-1 mt-0.5 font-mono">
-                      <span className="text-zinc-400 line-through text-[11px]">
-                        {formatCurrency(toBalance, currencySymbol)}
-                      </span>
-                      <ArrowRight className="w-3 h-3 text-zinc-400" />
-                      <span className="font-semibold text-emerald-700 text-xs">
-                        {formatCurrency(toBalance + parsedAmount, currencySymbol)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Modal Footer / Buttons */}
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100">

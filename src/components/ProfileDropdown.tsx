@@ -2,16 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   User,
   ChevronDown,
-  Edit2,
-  Check,
-  X,
   LogOut,
   Settings,
   HeartHandshake,
   Coins,
 } from 'lucide-react';
 import { UserProfile, DBStatus, AuthUser } from '../types';
-import { validateUsername } from '../utils/usernameValidation';
 import { CurrencyFlag } from './CurrencyFlag';
 
 interface ProfileDropdownProps {
@@ -73,45 +69,24 @@ export function ProfileDropdown({
   onOpenCurrencies,
 }: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isEditingNickname, setIsEditingNickname] = useState(false);
-  const [tempNickname, setTempNickname] = useState(profile.nickname);
-  const [statScope, setStatScope] = useState<'overall' | 'month'>('overall');
 
-  const displayedExpenseCount =
-    statScope === 'overall'
-      ? (overallExpenseCount ?? expenseCount)
-      : (monthlyExpenseCount ?? expenseCount);
-
-  const displayedIncomeCount =
-    statScope === 'overall'
-      ? (overallIncomeCount ?? incomeCount)
-      : (monthlyIncomeCount ?? incomeCount);
-
-  const displayedDebtCount =
-    statScope === 'overall'
-      ? (overallDebtCount ?? debtCount)
-      : (monthlyDebtCount ?? debtCount);
+  const allTimeExpenseCount = overallExpenseCount ?? expenseCount;
+  const allTimeIncomeCount = overallIncomeCount ?? incomeCount;
+  const allTimeDebtCount = overallDebtCount ?? debtCount;
 
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Sync temp nickname if prop changes
-  useEffect(() => {
-    setTempNickname(profile.nickname);
-  }, [profile.nickname]);
 
   // Handle outside click to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setIsEditingNickname(false);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsOpen(false);
-        setIsEditingNickname(false);
       }
     };
 
@@ -124,19 +99,6 @@ export function ProfileDropdown({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
-
-  const handleSaveNickname = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = tempNickname.trim();
-    const validation = validateUsername(trimmed);
-    if (!validation.isValid) {
-      setTempNickname(profile.nickname);
-      setIsEditingNickname(false);
-      return;
-    }
-    onUpdateProfile({ ...profile, nickname: trimmed });
-    setIsEditingNickname(false);
-  };
 
   const isEmailLoading = isLoading || (!currentUser?.email && !profile.email);
   const activeEmail = currentUser?.email || profile.email || '';
@@ -212,52 +174,9 @@ export function ProfileDropdown({
                 </div>
               ) : (
                 <>
-                  {isEditingNickname ? (
-                    <form onSubmit={handleSaveNickname} className="flex items-center gap-1">
-                      <input
-                        type="text"
-                        value={tempNickname}
-                        onChange={(e) => setTempNickname(e.target.value)}
-                        maxLength={30}
-                        autoFocus
-                        placeholder="Enter nickname"
-                        className="w-full bg-zinc-50 border border-zinc-300 rounded-[3px] px-2 py-0.5 text-xs font-semibold text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                      />
-                      <button
-                        type="submit"
-                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                        title="Save"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTempNickname(profile.nickname);
-                          setIsEditingNickname(false);
-                        }}
-                        className="p-1 text-zinc-400 hover:bg-zinc-100 rounded"
-                        title="Cancel"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </form>
-                  ) : (
-                    <div className="flex items-center gap-1.5 group">
-                      <h4 className="font-bold text-sm text-zinc-900 truncate">
-                        {activeNickname}
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingNickname(true)}
-                        className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors"
-                        title="Edit nickname"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-
+                  <h4 className="font-bold text-sm text-zinc-900 truncate">
+                    {activeNickname}
+                  </h4>
                   <p className="text-[11px] text-zinc-500 font-mono mt-0.5 truncate">
                     {activeEmail || 'Personal Account'}
                   </p>
@@ -269,94 +188,37 @@ export function ProfileDropdown({
           {/* Divider */}
           <div className="border-t border-zinc-100" />
 
-          {/* Financial Counters Header with Scope Toggle (Overall vs This Month) */}
-          <div className="flex items-center justify-between pt-0.5">
-            <span className="text-[11px] font-semibold text-zinc-700 tracking-tight">
-              Activity {statScope === 'month' ? `(${selectedMonthYearLabel || 'This Month'})` : '(All Time)'}
-            </span>
-            <div
-              id="profile-stat-scope-toggle"
-              className="flex items-center bg-zinc-100 p-0.5 rounded-[4px] border border-zinc-200"
-            >
-              <button
-                type="button"
-                id="btn-profile-stat-overall"
-                onClick={() => setStatScope('overall')}
-                className={`px-2 py-0.5 text-[10px] font-medium rounded-[3px] transition-colors cursor-pointer ${
-                  statScope === 'overall'
-                    ? 'bg-white text-zinc-900 font-semibold shadow-2xs'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                Overall
-              </button>
-              <button
-                type="button"
-                id="btn-profile-stat-month"
-                onClick={() => setStatScope('month')}
-                className={`px-2 py-0.5 text-[10px] font-medium rounded-[3px] transition-colors cursor-pointer ${
-                  statScope === 'month'
-                    ? 'bg-white text-zinc-900 font-semibold shadow-2xs'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                This Month
-              </button>
-            </div>
-          </div>
-
-          {/* Financial Counters: Expense, Income, Debt (Clickable components toggle between Overall and This Month) */}
-          <div
-            className="grid grid-cols-3 gap-1.5 py-1 text-center"
-            title="Click to toggle between Overall and This Month"
-          >
-            {/* Expense: counter on top, word expense at the bottom */}
-            <button
-              type="button"
-              id="profile-stat-expense"
-              onClick={() => setStatScope((prev) => (prev === 'overall' ? 'month' : 'overall'))}
-              className="flex flex-col items-center justify-center p-2 rounded-[5px] hover:bg-zinc-50 border border-transparent hover:border-zinc-200 transition-colors cursor-pointer group"
-              title="Click to toggle between Overall and This Month"
-            >
-              <span className="font-mono text-sm font-semibold text-zinc-900 tabular-nums group-hover:text-rose-600 transition-colors">
-                {displayedExpenseCount}
+          {/* Financial Counters: Expense, Income, Debt (All-time) */}
+          <div className="grid grid-cols-3 py-1 text-center">
+            {/* Expense */}
+            <div className="flex flex-col items-center justify-center">
+              <span className="font-mono text-sm font-semibold text-zinc-900 tabular-nums">
+                {allTimeExpenseCount}
               </span>
               <span className="text-[11px] text-zinc-500 font-medium lowercase mt-0.5">
                 expenses
               </span>
-            </button>
+            </div>
 
-            {/* Income: counter on top, word income at the bottom */}
-            <button
-              type="button"
-              id="profile-stat-income"
-              onClick={() => setStatScope((prev) => (prev === 'overall' ? 'month' : 'overall'))}
-              className="flex flex-col items-center justify-center p-2 rounded-[5px] hover:bg-zinc-50 border border-transparent hover:border-zinc-200 transition-colors cursor-pointer group"
-              title="Click to toggle between Overall and This Month"
-            >
-              <span className="font-mono text-sm font-semibold text-zinc-900 tabular-nums group-hover:text-emerald-600 transition-colors">
-                {displayedIncomeCount}
+            {/* Income */}
+            <div className="flex flex-col items-center justify-center">
+              <span className="font-mono text-sm font-semibold text-zinc-900 tabular-nums">
+                {allTimeIncomeCount}
               </span>
               <span className="text-[11px] text-zinc-500 font-medium lowercase mt-0.5">
                 income
               </span>
-            </button>
+            </div>
 
-            {/* Debt: counter on top, word debt at the bottom */}
-            <button
-              type="button"
-              id="profile-stat-debt"
-              onClick={() => setStatScope((prev) => (prev === 'overall' ? 'month' : 'overall'))}
-              className="flex flex-col items-center justify-center p-2 rounded-[5px] hover:bg-zinc-50 border border-transparent hover:border-zinc-200 transition-colors cursor-pointer group"
-              title="Click to toggle between Overall and This Month"
-            >
-              <span className="font-mono text-sm font-semibold text-zinc-900 tabular-nums group-hover:text-amber-600 transition-colors">
-                {displayedDebtCount}
+            {/* Debt */}
+            <div className="flex flex-col items-center justify-center">
+              <span className="font-mono text-sm font-semibold text-zinc-900 tabular-nums">
+                {allTimeDebtCount}
               </span>
               <span className="text-[11px] text-zinc-500 font-medium lowercase mt-0.5">
                 debts
               </span>
-            </button>
+            </div>
           </div>
 
           {/* Divider */}

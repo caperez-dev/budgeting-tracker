@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Smartphone, Banknote, Landmark, CreditCard, PiggyBank, Coins, AlertCircle, GripVertical } from 'lucide-react';
+import { Trash2, Edit2, Check, X, Smartphone, Banknote, Landmark, CreditCard, PiggyBank, Coins, AlertCircle, GripVertical } from 'lucide-react';
 import { Account, AccountType, Transaction } from '../types';
 import { AccountIcon } from './CategoryIcon';
 import { formatCurrency } from '../utils/formatters';
@@ -395,38 +395,39 @@ export function AccountManagerModal({
           </button>
         </div>
 
-        {/* Top Summary Bar */}
-        <div className="px-5 py-3 bg-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-zinc-600">Total in Accounts:</span>
-            <span
-              className={`font-mono text-sm font-semibold ${
-                totalBalanceAllAccounts >= 0 ? 'text-zinc-900' : 'text-rose-600'
-              }`}
-            >
-              {formatCurrency(totalBalanceAllAccounts, currencySymbol)}
-            </span>
+        {/* Top Summary Bar (Hidden when editing an account) */}
+        {!editingAccount && (
+          <div className="px-5 py-3 bg-white flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-zinc-600">Total in Accounts:</span>
+              <span
+                className={`font-mono text-sm font-semibold ${
+                  totalBalanceAllAccounts >= 0 ? 'text-zinc-900' : 'text-rose-600'
+                }`}
+              >
+                {formatCurrency(totalBalanceAllAccounts, currencySymbol)}
+              </span>
+            </div>
+            {!isAdding && (
+              <button
+                id="btn-show-add-account"
+                type="button"
+                onClick={() => {
+                  setName('GCash');
+                  setType('ewallet');
+                  setIcon('bank-gcash');
+                  setInitialBalance('0');
+                  setErrorMessage(null);
+                  setIsAdding(true);
+                  setEditingAccount(null);
+                }}
+                className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
+              >
+                <span>Add Account</span>
+              </button>
+            )}
           </div>
-          {!isAdding && (
-            <button
-              id="btn-show-add-account"
-              type="button"
-              onClick={() => {
-                setName('GCash');
-                setType('ewallet');
-                setIcon('bank-gcash');
-                setInitialBalance('0');
-                setErrorMessage(null);
-                setIsAdding(true);
-                setEditingAccount(null);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Account</span>
-            </button>
-          )}
-        </div>
+        )}
 
         {/* Scrollable Content */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
@@ -543,26 +544,13 @@ export function AccountManagerModal({
             </form>
           )}
 
-          {/* Edit Account Modal Row */}
+          {/* Edit Account Form */}
           {editingAccount && (
             <form
               id="form-edit-account"
               onSubmit={handleSaveEdit}
-              className="p-4 bg-zinc-50 border border-indigo-200 rounded-[5px] space-y-3 animate-in fade-in duration-150"
+              className="space-y-4 animate-in fade-in duration-150"
             >
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-zinc-900">
-                  Edit Account: {editingAccount.name}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setEditingAccount(null)}
-                  className="text-zinc-400 hover:text-zinc-600 p-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[11px] font-medium text-zinc-700">
@@ -667,21 +655,8 @@ export function AccountManagerModal({
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200">
-                <button
-                  type="button"
-                  onClick={() => setEditingAccount(null)}
-                  className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[4px]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors"
-                >
-                  Save Changes
-                </button>
-              </div>
+              {/* Hidden submit button to support Enter key submission inside input fields */}
+              <button type="submit" className="hidden" tabIndex={-1} aria-hidden="true" />
             </form>
           )}
 
@@ -871,6 +846,28 @@ export function AccountManagerModal({
                 className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors cursor-pointer"
               >
                 Save Account
+              </button>
+            </>
+          ) : editingAccount ? (
+            <>
+              <button
+                type="button"
+                id="btn-cancel-edit-account"
+                onClick={() => {
+                  setEditingAccount(null);
+                  setEditErrorMessage(null);
+                }}
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[4px] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-save-edit-account"
+                type="submit"
+                form="form-edit-account"
+                className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors cursor-pointer"
+              >
+                Save Changes
               </button>
             </>
           ) : (

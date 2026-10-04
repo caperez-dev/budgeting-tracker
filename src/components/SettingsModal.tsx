@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
 import { maskEmailAddress } from './SettingsPage';
+import { PhotoCropModal } from './PhotoCropModal';
 
 interface SettingsModalProps {
   currentUser: AuthUser | null;
@@ -48,6 +49,12 @@ export function SettingsModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Photo crop modal state
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [isSavingCroppedPhoto, setIsSavingCroppedPhoto] = useState(false);
+  const [isRemovingPhotoPending, setIsRemovingPhotoPending] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,33 +96,74 @@ export function SettingsModal({
       reader.readAsDataURL(file);
     });
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setErrorMessage('Please select an image file (JPG, PNG, etc.).');
+        setErrorMessage('Please select an image file (JPG or PNG).');
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setErrorMessage('Please choose a photo smaller than 5MB.');
+        setErrorMessage('Please choose a photo up to 5 MB.');
         return;
       }
       setErrorMessage(null);
-      try {
-        const compressedDataUrl = await compressImage(file);
-        setAvatarUrl(compressedDataUrl);
-      } catch (err: any) {
-        setErrorMessage(err?.message || 'Failed to process the selected photo.');
-      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setCropImageSrc(reader.result);
+          setIsCropModalOpen(true);
+        }
+      };
+      reader.onerror = () => {
+        setErrorMessage('Failed to process the selected photo.');
+      };
+      reader.readAsDataURL(file);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const handleRemovePhoto = () => {
-    setAvatarUrl('');
-    setErrorMessage(null);
+  const handleSaveCroppedPhoto = async (croppedDataUrl: string) => {
+    setIsSavingCroppedPhoto(true);
+    try {
+      const result = await onSave({
+        nickname: nickname.trim() || profile.nickname || 'User',
+        email: email.trim().toLowerCase() || existingEmail.toLowerCase(),
+        avatarUrl: croppedDataUrl,
+      });
+      if (result.success) {
+        setAvatarUrl(croppedDataUrl);
+        setIsCropModalOpen(false);
+        setCropImageSrc(null);
+        setIsRemovingPhotoPending(false);
+      } else {
+        setErrorMessage(result.error || 'Failed to save cropped photo.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to save cropped photo.');
+    } finally {
+      setIsSavingCroppedPhoto(false);
+    }
+  };
+
+  const handleSaveRemovePhoto = async () => {
+    try {
+      const result = await onSave({
+        nickname: nickname.trim() || profile.nickname || 'User',
+        email: email.trim().toLowerCase() || existingEmail.toLowerCase(),
+        avatarUrl: '',
+      });
+      if (result.success) {
+        setAvatarUrl('');
+        setIsRemovingPhotoPending(false);
+      } else {
+        setErrorMessage(result.error || 'Failed to remove photo.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to remove photo.');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -283,20 +331,40 @@ export function SettingsModal({
                     <span>Upload photo</span>
                   </button>
 
-                  {avatarUrl && (
+                  {avatarUrl && !isRemovingPhotoPending && (
                     <button
                       type="button"
                       id="btn-remove-photo"
-                      onClick={handleRemovePhoto}
+                      onClick={() => setIsRemovingPhotoPending(true)}
                       className="px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-[4px] transition-colors cursor-pointer flex items-center gap-1"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-red-500" />
                       <span>Remove</span>
                     </button>
                   )}
+
+                  {isRemovingPhotoPending && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsRemovingPhotoPending(false)}
+                        className="px-2 py-1 text-xs font-medium text-zinc-500 hover:text-zinc-800 rounded transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        id="btn-save-remove-photo"
+                        onClick={handleSaveRemovePhoto}
+                        className="px-2.5 py-1 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-[4px] transition-colors shadow-2xs cursor-pointer"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <p className="text-[11px] text-zinc-400">
-                  Recommended size: JPG or PNG, up to 5MB.
+                  JPG and PNG up to 5 MB
                 </p>
                 <input
                   ref={fileInputRef}
@@ -417,6 +485,18 @@ export function SettingsModal({
           </div>
         </form>
       </div>
+
+      {/* Photo Crop Modal */}
+      <PhotoCropModal
+        isOpen={isCropModalOpen}
+        imageSrc={cropImageSrc}
+        onClose={() => {
+          setIsCropModalOpen(false);
+          setCropImageSrc(null);
+        }}
+        onSave={handleSaveCroppedPhoto}
+        isSaving={isSavingCroppedPhoto}
+      />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
 import { validateUsername } from '../utils/usernameValidation';
+import { PhotoCropModal } from './PhotoCropModal';
 
 /**
  * Masks an email for placeholder display:
@@ -96,6 +97,15 @@ export function SettingsPage({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string>(profile.avatarUrl || currentUser?.avatarUrl || '');
 
+  // Photo crop modal state
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [isSavingCroppedPhoto, setIsSavingCroppedPhoto] = useState(false);
+
+  // Photo removal pending state
+  const [isRemovingPhotoPending, setIsRemovingPhotoPending] = useState(false);
+  const [isSavingPhotoRemoval, setIsSavingPhotoRemoval] = useState(false);
+
   // Field-level validation error states
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null);
@@ -164,44 +174,87 @@ export function SettingsPage({
       reader.readAsDataURL(file);
     });
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setErrorMessage('Please select a valid image file (JPG, PNG, WebP).');
+        setErrorMessage('Please select a valid image file (JPG or PNG).');
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setErrorMessage('Please select a photo smaller than 5MB.');
+        setErrorMessage('Please choose a photo up to 5 MB.');
         return;
       }
       setErrorMessage(null);
-      try {
-        const compressedDataUrl = await compressImage(file);
-        setAvatarUrl(compressedDataUrl);
-        // Persist photo immediately
-        await onSave({
-          nickname: nickname.trim() || profile.nickname || 'User',
-          email: activeEmail,
-          avatarUrl: compressedDataUrl,
-        });
-      } catch (err: any) {
-        setErrorMessage(err?.message || 'Failed to process the selected photo.');
-      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setCropImageSrc(reader.result);
+          setIsCropModalOpen(true);
+        }
+      };
+      reader.onerror = () => {
+        setErrorMessage('Failed to read selected image.');
+      };
+      reader.readAsDataURL(file);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const handleRemovePhoto = async () => {
-    setAvatarUrl('');
+  const handleSaveCroppedPhoto = async (croppedDataUrl: string) => {
+    setIsSavingCroppedPhoto(true);
     setErrorMessage(null);
-    await onSave({
-      nickname: nickname.trim() || profile.nickname || 'User',
-      email: activeEmail,
-      avatarUrl: '',
-    });
+    try {
+      const result = await onSave({
+        nickname: nickname.trim() || profile.nickname || 'User',
+        email: activeEmail,
+        avatarUrl: croppedDataUrl,
+      });
+      if (result.success) {
+        setAvatarUrl(croppedDataUrl);
+        setIsCropModalOpen(false);
+        setCropImageSrc(null);
+        setIsRemovingPhotoPending(false);
+      } else {
+        setErrorMessage(result.error || 'Failed to save cropped photo.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to save cropped photo.');
+    } finally {
+      setIsSavingCroppedPhoto(false);
+    }
+  };
+
+  const handleStartRemovePhoto = () => {
+    setIsRemovingPhotoPending(true);
+  };
+
+  const handleCancelRemovePhoto = () => {
+    setIsRemovingPhotoPending(false);
+  };
+
+  const handleSaveRemovePhoto = async () => {
+    setIsSavingPhotoRemoval(true);
+    setErrorMessage(null);
+    try {
+      const result = await onSave({
+        nickname: nickname.trim() || profile.nickname || 'User',
+        email: activeEmail,
+        avatarUrl: '',
+      });
+      if (result.success) {
+        setAvatarUrl('');
+        setIsRemovingPhotoPending(false);
+      } else {
+        setErrorMessage(result.error || 'Failed to remove photo.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to remove photo.');
+    } finally {
+      setIsSavingPhotoRemoval(false);
+    }
   };
 
   const handleCancelNickname = () => {
@@ -501,19 +554,55 @@ export function SettingsPage({
                   Hover over the photo to change it.
                 </p>
                 <p className="text-[11px] text-zinc-400">
-                  Recommended: Square JPG, PNG, or WebP up to 5MB.
+                  JPG and PNG up to 5 MB
                 </p>
 
-                {avatarUrl && (
+                {avatarUrl && !isRemovingPhotoPending && (
                   <button
                     type="button"
                     id="btn-remove-photo"
-                    onClick={handleRemovePhoto}
+                    onClick={handleStartRemovePhoto}
                     className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 hover:text-rose-700 transition-colors cursor-pointer mt-1"
                   >
                     <Trash2 className="w-3 h-3 text-rose-500" />
                     <span>Remove photo</span>
                   </button>
+                )}
+
+                {isRemovingPhotoPending && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      type="button"
+                      id="btn-remove-photo"
+                      disabled
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-500"
+                    >
+                      <Trash2 className="w-3 h-3 text-rose-500" />
+                      <span>Remove photo</span>
+                    </button>
+                    <button
+                      type="button"
+                      id="btn-cancel-remove-photo"
+                      onClick={handleCancelRemovePhoto}
+                      disabled={isSavingPhotoRemoval}
+                      className="px-2 py-0.5 text-[11px] font-medium text-zinc-500 hover:text-zinc-800 rounded transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      id="btn-save-remove-photo"
+                      onClick={handleSaveRemovePhoto}
+                      disabled={isSavingPhotoRemoval}
+                      className="px-2.5 py-0.5 text-[11px] font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                    >
+                      {isSavingPhotoRemoval ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <span>Save</span>
+                      )}
+                    </button>
+                  </div>
                 )}
 
                 <input
@@ -1122,6 +1211,18 @@ export function SettingsPage({
           )}
         </div>
       </div>
+
+      {/* Photo Crop Modal */}
+      <PhotoCropModal
+        isOpen={isCropModalOpen}
+        imageSrc={cropImageSrc}
+        onClose={() => {
+          setIsCropModalOpen(false);
+          setCropImageSrc(null);
+        }}
+        onSave={handleSaveCroppedPhoto}
+        isSaving={isSavingCroppedPhoto}
+      />
     </div>
   );
 }

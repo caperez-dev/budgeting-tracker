@@ -303,7 +303,14 @@ export function DebtTracker({
 
       {/* Add Debt Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAddModal(false);
+            }
+          }}
+        >
           <form
             onSubmit={handleSubmit}
             className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4"
@@ -457,7 +464,14 @@ export function DebtTracker({
 
       {/* Delete Debt Confirmation Modal */}
       {debtToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDebtToDelete(null);
+            }
+          }}
+        >
           <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
               <h4 className="text-sm font-semibold text-zinc-900">Delete Debt Entry</h4>

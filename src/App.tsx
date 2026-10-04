@@ -2462,7 +2462,14 @@ export default function App() {
 
       {/* Logout Confirmation Modal - matching the delete transaction modal design */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowLogoutConfirm(false);
+            }
+          }}
+        >
           <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 animate-fade-in">
             <div className="flex items-center gap-2 text-rose-600">
               <AlertCircle className="w-5 h-5" />

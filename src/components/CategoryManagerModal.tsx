@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Palette, GripVertical } from 'lucide-react';
+import { Trash2, Edit2, Check, X, Palette, GripVertical } from 'lucide-react';
 import { Category, TransactionType } from '../types';
 import { CategoryIcon, ICON_MAP } from './CategoryIcon';
 
@@ -315,9 +315,8 @@ export function CategoryManagerModal({
                 setIsAdding(true);
                 setCategoryType(activeTab);
               }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-[4px] hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-[4px] hover:bg-zinc-800 transition-colors cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
               <span>Add Category</span>
             </button>
           </div>
