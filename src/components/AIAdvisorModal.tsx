@@ -140,7 +140,7 @@ export function AIAdvisorModal({
   const fetchInsights = async () => {
     setIsLoadingInsights(true);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
       const res = await fetch('/api/ai/insights', {
@@ -187,7 +187,7 @@ export function AIAdvisorModal({
     setIsSendingMessage(true);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
       const res = await fetch('/api/ai/chat', {

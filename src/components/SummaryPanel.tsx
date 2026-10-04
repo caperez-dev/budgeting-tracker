@@ -292,7 +292,7 @@ export function SummaryPanel({
             return (
               <div
                 key={`${breakdownType}-${card.id}`}
-                className="relative"
+                className="relative h-full"
               >
                 <div
                   role="button"
@@ -305,7 +305,7 @@ export function SummaryPanel({
                       handleCardClick();
                     }
                   }}
-                  className={`w-full text-left p-3.5 rounded-[5px] border transition-all cursor-pointer select-none ${
+                  className={`w-full h-full flex flex-col justify-between p-3.5 rounded-[5px] border transition-all cursor-pointer select-none ${
                     isSelected
                       ? breakdownType === 'income'
                         ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
@@ -313,9 +313,9 @@ export function SummaryPanel({
                       : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                  <div className="flex items-center justify-between min-h-[26px] text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-2">
                     <span className="truncate pr-1">{card.label}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 min-h-[24px]">
                       {isMonthCard && (
                         <button
                           ref={monthCalBtnRef}
@@ -362,13 +362,6 @@ export function SummaryPanel({
                           <Calendar className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {isSelected && (
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                            breakdownType === 'income' ? 'bg-emerald-600' : 'bg-rose-600'
-                          }`}
-                        />
-                      )}
                     </div>
                   </div>
                   <div
@@ -377,9 +370,6 @@ export function SummaryPanel({
                     }`}
                   >
                     {formatCurrency(card.total, currencySymbol)}
-                  </div>
-                  <div className="text-[10px] text-zinc-400 font-mono mt-1 truncate">
-                    {card.sublabel}
                   </div>
                 </div>
 
@@ -572,16 +562,6 @@ export function SummaryPanel({
               <span className="text-zinc-500 font-normal">({periodLabels[selectedPeriod]})</span>
             </h3>
           </div>
-        </div>
-
-        {/* Total Metric Header */}
-        <div className="flex items-center justify-between text-xs mb-3 font-mono">
-          <span className="text-zinc-500">
-            Total {breakdownType === 'income' ? 'Earned' : 'Spent'} ({periodLabels[selectedPeriod]}):
-          </span>
-          <span className={`text-sm font-bold ${breakdownType === 'income' ? 'text-emerald-700' : 'text-zinc-900'}`}>
-            {formatCurrency(activePeriodTotal, currencySymbol)}
-          </span>
         </div>
 
         {/* Stacked Progress Bar */}

@@ -2219,6 +2219,8 @@ export default function App() {
         debtsYouOweTotal={totalYouOweUnsettled}
         debtsOwedToYouTotal={totalOwedToYouUnsettled}
         currencySymbol={currencySymbol}
+        currentCurrencyCode={currentCurrencyObj?.code || 'PHP'}
+        currentCurrencyFlag={currentCurrencyObj?.flag || getCurrencyFlag(currentCurrencyObj?.code || 'PHP')}
         selectedMonthYearLabel={selectedMonthYearLabel}
         selectedYearMonth={selectedYearMonth}
         onSelectYearMonth={handleSelectYearMonth}

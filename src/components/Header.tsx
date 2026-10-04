@@ -6,7 +6,6 @@ import {
   Scale,
   Target,
   Sparkles,
-  Coins,
   ChevronLeft,
   ChevronRight,
   ArrowLeftRight,
@@ -32,6 +31,8 @@ interface HeaderProps {
   debtsYouOweTotal: number;
   debtsOwedToYouTotal: number;
   currencySymbol: string;
+  currentCurrencyCode?: string;
+  currentCurrencyFlag?: string;
   selectedMonthYearLabel: string;
   selectedYearMonth?: string;
   onSelectYearMonth?: (yearMonth: string) => void;
@@ -68,6 +69,8 @@ export function Header({
   debtsYouOweTotal,
   debtsOwedToYouTotal,
   currencySymbol,
+  currentCurrencyCode,
+  currentCurrencyFlag,
   selectedMonthYearLabel,
   selectedDate,
   onSelectDate,
@@ -145,6 +148,15 @@ export function Header({
       year: 'numeric',
     }).format(d);
   }, [headerYear, headerMonth]);
+
+  const specificMonthName = useMemo(() => {
+    const d = new Date(headerYear, headerMonth - 1, 1);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+    }).format(d);
+  }, [headerYear, headerMonth]);
+
+  const savingsHoverMessage = `Month of ${specificMonthName}`;
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-zinc-200">
@@ -294,8 +306,8 @@ export function Header({
           {/* Current Savings (Hidden on mobile view) */}
           <div
             id="current-savings-display"
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-[4px]"
-            title={`Savings for ${selectedMonthYearLabel}`}
+            className="relative group hidden sm:flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-[4px] cursor-default"
+            title={savingsHoverMessage}
           >
             <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
               Savings:
@@ -307,6 +319,14 @@ export function Header({
             >
               {formatCurrency(currentSavings, currencySymbol)}
             </span>
+
+            {/* Hover Tooltip */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-30 drop-shadow-md">
+              <div className="w-1.5 h-1.5 bg-zinc-900 rotate-45 -mb-0.5 border-l border-t border-zinc-800" />
+              <div className="bg-zinc-900 text-white text-[11px] font-medium px-2.5 py-1 rounded-[4px] whitespace-nowrap shadow-md">
+                {savingsHoverMessage}
+              </div>
+            </div>
           </div>
 
           {/* Profile Dropdown */}
@@ -321,6 +341,9 @@ export function Header({
             totalIncome={totalIncome}
             totalDebt={debtsYouOweTotal}
             currencySymbol={currencySymbol}
+            currentCurrencyCode={currentCurrencyCode}
+            currentCurrencyFlag={currentCurrencyFlag}
+            onOpenCurrencies={onOpenCurrencies}
             dbStatus={dbStatus}
             onSyncWithDB={onSyncWithDB}
             isSyncing={isSyncing}
@@ -412,7 +435,7 @@ export function Header({
             </button>
           </nav>
 
-          {/* Secondary Utilities: Accounts, Currencies, Categories, Donate */}
+          {/* Secondary Utilities: Accounts, Transfer, Categories */}
           <div className="flex items-center gap-1 sm:gap-1.5 py-1.5 shrink-0">
             <button
               id="btn-manage-accounts"
@@ -434,17 +457,6 @@ export function Header({
             >
               <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
               <span>Transfer</span>
-            </button>
-
-            <button
-              id="btn-manage-currencies"
-              onClick={onOpenCurrencies}
-              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
-              title="Manage currencies and exchange rates"
-              aria-label="Manage currencies"
-            >
-              <Coins className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-              <span>Currencies</span>
             </button>
 
             <button

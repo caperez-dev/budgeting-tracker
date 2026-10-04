@@ -144,6 +144,8 @@ export function QuickEntryForm({
     }
   };
 
+  const isAmountFilled = Boolean(amount && amount.trim().length > 0);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
@@ -437,7 +439,12 @@ export function QuickEntryForm({
           <button
             type="submit"
             id="btn-save-transaction"
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors shadow-xs"
+            disabled={!isAmountFilled}
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-[4px] transition-colors shadow-xs ${
+              !isAmountFilled
+                ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-200 shadow-none'
+                : 'bg-zinc-900 hover:bg-zinc-800 text-white cursor-pointer'
+            }`}
           >
             <Check className="w-3.5 h-3.5" />
             <span>Save Transaction</span>

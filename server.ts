@@ -1223,6 +1223,36 @@ function getGeminiClient() {
   }
 }
 
+async function generateContentWithFallback(
+  ai: ReturnType<typeof getGeminiClient>,
+  params: {
+    contents: any;
+    config?: any;
+  }
+) {
+  if (!ai) throw new Error("Gemini client not initialized");
+  const models = ["gemini-3.8-flash", "gemini-3.5-flash"];
+  let lastError: any;
+  for (const model of models) {
+    try {
+      const response = await Promise.race([
+        ai.models.generateContent({
+          ...params,
+          model,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Gemini request timeout on ${model}`)), 20000)
+        ),
+      ]);
+      return response;
+    } catch (err: any) {
+      console.warn(`Gemini model ${model} failed, attempting next model:`, err?.status || err?.message || err);
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
 // Health check endpoint
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -1929,8 +1959,7 @@ Extract:
 5. date: YYYY-MM-DD (defaults to today if not specified)
 6. time: 12-hour format e.g. "2:30 PM" or "8:15 AM" (defaults to current approximate time if not specified)`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+      const response = await generateContentWithFallback(ai, {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -2016,40 +2045,32 @@ Provide the output in JSON format with an array of insights, where each has:
 - message: string (direct, practical feedback)
 - actionableStep: string (one specific step the user can take)`;
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Gemini request timeout")), 5000)
-      );
-
-      const response = await Promise.race([
-        ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                summary: { type: Type.STRING },
-                insights: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING },
-                      type: { type: Type.STRING },
-                      message: { type: Type.STRING },
-                      actionableStep: { type: Type.STRING },
-                    },
-                    required: ["title", "type", "message", "actionableStep"],
+      const response = await generateContentWithFallback(ai, {
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              summary: { type: Type.STRING },
+              insights: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    message: { type: Type.STRING },
+                    actionableStep: { type: Type.STRING },
                   },
+                  required: ["title", "type", "message", "actionableStep"],
                 },
               },
-              required: ["insights"],
             },
+            required: ["insights"],
           },
-        }),
-        timeoutPromise,
-      ]);
+        },
+      });
 
       const parsed = JSON.parse(response.text?.trim() || "{}");
       res.json({ success: true, data: parsed });
@@ -2137,26 +2158,18 @@ Guidelines:
 3. Keep answers under 3-4 paragraphs or formatted with short markdown bullets.
 4. Encourage steady saving habits, responsible debt clearing, and realistic goal dates.`;
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Gemini chat timeout")), 5000)
-      );
-
-      const response = await Promise.race([
-        ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: [
-            ...(Array.isArray(history) ? history.map((h: any) => ({
-              role: h.role === "user" ? "user" : "model",
-              parts: [{ text: h.text }],
-            })) : []),
-            { role: "user", parts: [{ text: message }] },
-          ],
-          config: {
-            systemInstruction,
-          },
-        }),
-        timeoutPromise,
-      ]);
+      const response = await generateContentWithFallback(ai, {
+        contents: [
+          ...(Array.isArray(history) ? history.map((h: any) => ({
+            role: h.role === "user" ? "user" : "model",
+            parts: [{ text: h.text }],
+          })) : []),
+          { role: "user", parts: [{ text: message }] },
+        ],
+        config: {
+          systemInstruction,
+        },
+      });
 
       res.json({
         success: true,

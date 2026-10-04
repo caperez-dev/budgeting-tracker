@@ -8,6 +8,7 @@ import {
   LogOut,
   Settings,
   HeartHandshake,
+  Coins,
 } from 'lucide-react';
 import { UserProfile, DBStatus, AuthUser } from '../types';
 import { validateUsername } from '../utils/usernameValidation';
@@ -29,6 +30,8 @@ interface ProfileDropdownProps {
   totalIncome?: number;
   totalDebt?: number;
   currencySymbol?: string;
+  currentCurrencyCode?: string;
+  currentCurrencyFlag?: string;
   dbStatus?: DBStatus;
   onSyncWithDB?: () => Promise<void>;
   isSyncing?: boolean;
@@ -38,6 +41,7 @@ interface ProfileDropdownProps {
   onOpenSettings?: () => void;
   onLogout?: () => void;
   onOpenDonate?: () => void;
+  onOpenCurrencies?: () => void;
 }
 
 export function ProfileDropdown({
@@ -53,6 +57,9 @@ export function ProfileDropdown({
   monthlyIncomeCount,
   monthlyDebtCount,
   selectedMonthYearLabel,
+  currencySymbol,
+  currentCurrencyCode,
+  currentCurrencyFlag,
   dbStatus,
   onSyncWithDB,
   isSyncing = false,
@@ -62,6 +69,7 @@ export function ProfileDropdown({
   onOpenSettings,
   onLogout,
   onOpenDonate,
+  onOpenCurrencies,
 }: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
@@ -352,6 +360,31 @@ export function ProfileDropdown({
 
           {/* Divider */}
           <div className="border-t border-zinc-100 pt-1" />
+
+          {/* Currencies Navigation Action */}
+          {onOpenCurrencies && (
+            <button
+              type="button"
+              id="btn-profile-currencies"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenCurrencies();
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-2 rounded-[5px] text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors group cursor-pointer"
+              title={`Manage currencies (Current: ${currentCurrencyCode || 'PHP'})`}
+            >
+              <div className="flex items-center gap-2">
+                <Coins className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-800 transition-transform group-hover:scale-110" />
+                <span>Currencies</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-zinc-100 group-hover:bg-zinc-200/80 text-zinc-800 font-mono text-[11px] font-semibold transition-colors border border-zinc-200/60">
+                <span className="text-sm leading-none" role="img" aria-label={currentCurrencyCode || 'Currency'}>
+                  {currentCurrencyFlag || '🌐'}
+                </span>
+                <span>{currentCurrencyCode || 'PHP'}</span>
+              </div>
+            </button>
+          )}
 
           {/* Donate Navigation Action */}
           {onOpenDonate && (
