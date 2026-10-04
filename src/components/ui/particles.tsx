@@ -8,13 +8,14 @@ interface MousePosition {
   y: number;
 }
 
-function useMousePosition(): MousePosition {
+function useMousePosition(enabled = false): MousePosition {
   const [mousePosition, setMousePosition] = useState<MousePosition>({
     x: 0,
     y: 0,
   });
 
   useEffect(() => {
+    if (!enabled) return;
     const handleMouseMove = (event: MouseEvent) => {
       setMousePosition({ x: event.clientX, y: event.clientY });
     };
@@ -24,7 +25,7 @@ function useMousePosition(): MousePosition {
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
     };
-  }, []);
+  }, [enabled]);
 
   return mousePosition;
 }
@@ -39,6 +40,7 @@ interface ParticlesProps {
   color?: string;
   vx?: number;
   vy?: number;
+  followCursor?: boolean;
 }
 
 function hexToRgb(hex: string): number[] {
@@ -81,12 +83,13 @@ const Particles: React.FC<ParticlesProps> = ({
   color = "#666666",
   vx = 0,
   vy = 0,
+  followCursor = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const context = useRef<CanvasRenderingContext2D | null>(null);
   const circles = useRef<Circle[]>([]);
-  const mousePosition = useMousePosition();
+  const mousePosition = useMousePosition(followCursor);
   const mouse = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const canvasSize = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
@@ -212,12 +215,17 @@ const Particles: React.FC<ParticlesProps> = ({
       }
       circle.x += circle.dx + vx;
       circle.y += circle.dy + vy;
-      circle.translateX +=
-        (mouse.current.x / (staticity / circle.magnetism) - circle.translateX) /
-        ease;
-      circle.translateY +=
-        (mouse.current.y / (staticity / circle.magnetism) - circle.translateY) /
-        ease;
+      if (followCursor) {
+        circle.translateX +=
+          (mouse.current.x / (staticity / circle.magnetism) - circle.translateX) /
+          ease;
+        circle.translateY +=
+          (mouse.current.y / (staticity / circle.magnetism) - circle.translateY) /
+          ease;
+      } else {
+        circle.translateX = 0;
+        circle.translateY = 0;
+      }
 
       drawCircle(circle, true);
 
@@ -259,6 +267,7 @@ const Particles: React.FC<ParticlesProps> = ({
   }, [color]);
 
   useEffect(() => {
+    if (!followCursor) return;
     if (canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
       const { w, h } = canvasSize.current;
@@ -270,7 +279,7 @@ const Particles: React.FC<ParticlesProps> = ({
         mouse.current.y = y;
       }
     }
-  }, [mousePosition.x, mousePosition.y]);
+  }, [mousePosition.x, mousePosition.y, followCursor]);
 
   useEffect(() => {
     resizeCanvas();

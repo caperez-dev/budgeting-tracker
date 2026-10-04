@@ -37,6 +37,7 @@ import { AccountManagerModal } from './components/AccountManagerModal';
 import { TransferModal } from './components/TransferModal';
 import { DonateModal } from './components/DonateModal';
 import { SettingsPage } from './components/SettingsPage';
+import { Particles } from './components/ui/particles';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { buildBudgetPdfDoc, exportPdfSaveAs } from './utils/pdfExport';
 import { getCurrent12HourTime, getTodayDateString, consolidateTransactions } from './utils/formatters';
@@ -2208,8 +2209,30 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAFA] text-[#18181B] font-sans antialiased">
-      {/* Persistent Global Header */}
+    <div className="relative min-h-screen flex flex-col bg-white text-[#18181B] font-sans antialiased overflow-x-hidden">
+      {/* Background Animated Particles & Ambient Radial Glows (matching AuthScreen, non-cursor tracking) */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        <Particles
+          color="#666666"
+          quantity={120}
+          ease={20}
+          followCursor={false}
+          className="absolute inset-0"
+        />
+
+        {/* Ambient Radial Glows */}
+        <div
+          aria-hidden
+          className="absolute inset-0 isolate -z-10 pointer-events-none overflow-hidden"
+        >
+          <div className="bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,rgba(0,0,0,0.06)_0,rgba(140,140,140,0.02)_50%,rgba(0,0,0,0.01)_80%)] absolute top-0 left-0 h-[80rem] w-[35rem] -translate-y-[21.875rem] -rotate-45 rounded-full" />
+          <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] [translate:5%_-50%] -rotate-45 rounded-full" />
+          <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] -translate-y-[21.875rem] -rotate-45 rounded-full" />
+        </div>
+      </div>
+
+      <div className="relative z-10 flex flex-col flex-1">
+        {/* Persistent Global Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -2500,6 +2523,7 @@ export default function App() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

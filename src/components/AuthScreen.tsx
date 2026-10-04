@@ -481,12 +481,13 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 bg-zinc-50 font-sans selection:bg-zinc-900 selection:text-white overflow-x-hidden">
-      {/* Interactive Particles Background */}
+    <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 bg-white font-sans selection:bg-zinc-900 selection:text-white overflow-x-hidden">
+      {/* Ambient Animated Particles Background */}
       <Particles
         color="#666666"
         quantity={120}
         ease={20}
+        followCursor={false}
         className="absolute inset-0"
       />
 
