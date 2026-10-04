@@ -61,7 +61,6 @@ export function AccountManagerModal({
   onClose,
 }: AccountManagerModalProps) {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-  const [editBalance, setEditBalance] = useState<string>('0');
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -119,18 +118,11 @@ export function AccountManagerModal({
     return counts;
   }, [transactions]);
 
-  // Modifiable accounts: Cash is the permanent core account and hidden from editable list per user request
-  const modifiableAccounts = useMemo(() => {
-    return accounts.filter((acc) => !isCashAccount(acc));
-  }, [accounts]);
-
-  // Reorderable accounts state
-  const [items, setItems] = useState<Account[]>(() =>
-    accounts.filter((acc) => !isCashAccount(acc))
-  );
+  // Reorderable accounts state (includes all accounts)
+  const [items, setItems] = useState<Account[]>(() => accounts);
 
   useEffect(() => {
-    setItems(accounts.filter((acc) => !isCashAccount(acc)));
+    setItems(accounts);
   }, [accounts]);
 
   // Handle escape key
@@ -306,7 +298,7 @@ export function AccountManagerModal({
 
     const initBal = parseFloat(initialBalance) || 0;
     if (Math.abs(initBal) > 9999999999.99) {
-      setErrorMessage('Starting balance is too high (maximum 10 digits).');
+      setErrorMessage('Starting balance is too high.');
       return;
     }
 
@@ -329,7 +321,7 @@ export function AccountManagerModal({
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingAccount) return;
+    if (!editingAccount || isCashAccount(editingAccount)) return;
     const trimmedName = editingAccount.name.trim();
     if (!trimmedName) {
       setEditErrorMessage('Please provide an account name.');
@@ -340,16 +332,9 @@ export function AccountManagerModal({
       return;
     }
 
-    const initBal = parseFloat(editBalance) || 0;
-    if (Math.abs(initBal) > 9999999999.99) {
-      setEditErrorMessage('Starting balance is too high (maximum 10 digits).');
-      return;
-    }
-
     onUpdateAccount({
       ...editingAccount,
       name: trimmedName.slice(0, 30),
-      initialBalance: initBal,
     });
     setEditingAccount(null);
     setEditErrorMessage(null);
@@ -489,17 +474,12 @@ export function AccountManagerModal({
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label
-                      htmlFor="input-new-account-balance"
-                      className="text-[11px] font-medium text-zinc-700"
-                    >
-                      Starting Balance ({currencySymbol})
-                    </label>
-                    <span className="text-[10px] text-zinc-400 font-mono">
-                      Max 10 digits
-                    </span>
-                  </div>
+                  <label
+                    htmlFor="input-new-account-balance"
+                    className="block text-[11px] font-medium text-zinc-700 mb-1"
+                  >
+                    Starting Balance ({currencySymbol})
+                  </label>
                   <input
                     id="input-new-account-balance"
                     type="text"
@@ -576,53 +556,30 @@ export function AccountManagerModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-zinc-700 mb-1">
-                    Account Type
-                  </label>
-                  {isCashAccount(editingAccount) ? (
-                    <div className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-700 font-medium flex items-center justify-between min-h-[34px]">
-                      <span>Cash</span>
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-[3px]">
-                        Main Account
-                      </span>
-                    </div>
-                  ) : (
-                    <AccountTypeSelect
-                      id="select-edit-account-type"
-                      value={editingAccount.type}
-                      onChange={(t) =>
-                        setEditingAccount({
-                          ...editingAccount,
-                          type: t,
-                        })
-                      }
-                      ariaLabel="Edit account type"
-                    />
-                  )}
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-medium text-zinc-700">
-                      Starting Balance ({currencySymbol})
-                    </label>
-                    <span className="text-[10px] text-zinc-400 font-mono">
-                      Max 10 digits
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-700 mb-1">
+                  Account Type
+                </label>
+                {isCashAccount(editingAccount) ? (
+                  <div className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-700 font-medium flex items-center justify-between min-h-[34px]">
+                    <span>Cash</span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-[3px]">
+                      Main Account
                     </span>
                   </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={editBalance}
-                    onChange={(e) => {
-                      setEditBalance(sanitizeBalanceInput(e.target.value));
-                      if (editErrorMessage) setEditErrorMessage(null);
-                    }}
-                    className="w-full bg-white border border-zinc-200 px-3 py-1.5 rounded-[4px] text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-500"
+                ) : (
+                  <AccountTypeSelect
+                    id="select-edit-account-type"
+                    value={editingAccount.type}
+                    onChange={(t) =>
+                      setEditingAccount({
+                        ...editingAccount,
+                        type: t,
+                      })
+                    }
+                    ariaLabel="Edit account type"
                   />
-                </div>
+                )}
               </div>
 
               {/* Icon selection */}
@@ -692,6 +649,7 @@ export function AccountManagerModal({
                   className="border border-zinc-200 rounded-[4px] divide-y divide-zinc-100 bg-white relative overflow-hidden select-none"
                 >
                   {items.map((acc, index) => {
+                    const isCash = isCashAccount(acc);
                     const currentBalance = accountBalances.get(acc.id) ?? (acc.initialBalance || 0);
                     const typeObj = ACCOUNT_TYPES.find((t) => t.id === acc.type);
                     const isDragging = draggingIndex === index;
@@ -717,48 +675,61 @@ export function AccountManagerModal({
                       >
                         {/* Left: Drag Handle, Icon & Info */}
                         <div className="flex items-center gap-2 min-w-0">
-                          <button
-                            type="button"
-                            id={`btn-drag-handle-${acc.id}`}
-                            onPointerDown={(e) => handlePointerDown(e, index)}
-                            onPointerMove={handlePointerMove}
-                            onPointerUp={handlePointerUp}
-                            onPointerCancel={handlePointerCancel}
-                            onKeyDown={(e) => {
-                              if (e.key === 'ArrowDown' && index < items.length - 1) {
-                                e.preventDefault();
-                                const reordered = [...items];
-                                const [moved] = reordered.splice(index, 1);
-                                reordered.splice(index + 1, 0, moved);
-                                setItems(reordered);
-                                onReorderAccounts?.(reordered);
-                                setSaveStatus(true);
-                                if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-                                saveTimerRef.current = setTimeout(() => {
-                                  setSaveStatus(false);
-                                }, 2000);
-                              } else if (e.key === 'ArrowUp' && index > 0) {
-                                e.preventDefault();
-                                const reordered = [...items];
-                                const [moved] = reordered.splice(index, 1);
-                                reordered.splice(index - 1, 0, moved);
-                                setItems(reordered);
-                                onReorderAccounts?.(reordered);
-                                setSaveStatus(true);
-                                if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-                                saveTimerRef.current = setTimeout(() => {
-                                  setSaveStatus(false);
-                                }, 2000);
-                              }
-                            }}
-                            className={`p-1 -ml-1 text-zinc-400 hover:text-zinc-700 active:text-zinc-950 flex items-center justify-center rounded-[3px] hover:bg-zinc-100 transition-colors touch-none cursor-grab active:cursor-grabbing shrink-0 ${
-                              isDragging ? 'cursor-grabbing text-zinc-900 bg-zinc-100' : ''
-                            }`}
-                            title="Drag to reorder"
-                            aria-label={`Drag to reorder ${acc.name}`}
-                          >
-                            <GripVertical className="w-4 h-4 shrink-0" />
-                          </button>
+                          {isCash ? (
+                            <button
+                              type="button"
+                              id={`btn-drag-handle-${acc.id}`}
+                              disabled
+                              className="p-1 -ml-1 text-zinc-300 flex items-center justify-center rounded-[3px] opacity-40 shrink-0 cursor-default"
+                              title="Default account cannot be reordered"
+                              aria-label={`Default account ${acc.name}`}
+                            >
+                              <GripVertical className="w-4 h-4 shrink-0" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              id={`btn-drag-handle-${acc.id}`}
+                              onPointerDown={(e) => handlePointerDown(e, index)}
+                              onPointerMove={handlePointerMove}
+                              onPointerUp={handlePointerUp}
+                              onPointerCancel={handlePointerCancel}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowDown' && index < items.length - 1) {
+                                  e.preventDefault();
+                                  const reordered = [...items];
+                                  const [moved] = reordered.splice(index, 1);
+                                  reordered.splice(index + 1, 0, moved);
+                                  setItems(reordered);
+                                  onReorderAccounts?.(reordered);
+                                  setSaveStatus(true);
+                                  if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                                  saveTimerRef.current = setTimeout(() => {
+                                    setSaveStatus(false);
+                                  }, 2000);
+                                } else if (e.key === 'ArrowUp' && index > 0) {
+                                  e.preventDefault();
+                                  const reordered = [...items];
+                                  const [moved] = reordered.splice(index, 1);
+                                  reordered.splice(index - 1, 0, moved);
+                                  setItems(reordered);
+                                  onReorderAccounts?.(reordered);
+                                  setSaveStatus(true);
+                                  if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                                  saveTimerRef.current = setTimeout(() => {
+                                    setSaveStatus(false);
+                                  }, 2000);
+                                }
+                              }}
+                              className={`p-1 -ml-1 text-zinc-400 hover:text-zinc-700 active:text-zinc-950 flex items-center justify-center rounded-[3px] hover:bg-zinc-100 transition-colors touch-none cursor-grab active:cursor-grabbing shrink-0 ${
+                                isDragging ? 'cursor-grabbing text-zinc-900 bg-zinc-100' : ''
+                              }`}
+                              title="Drag to reorder"
+                              aria-label={`Drag to reorder ${acc.name}`}
+                            >
+                              <GripVertical className="w-4 h-4 shrink-0" />
+                            </button>
+                          )}
 
                           <AccountIcon name={acc.icon} className="w-4 h-4 text-zinc-600 shrink-0" />
 
@@ -769,6 +740,11 @@ export function AccountManagerModal({
                             <span className="text-[10px] text-zinc-400 shrink-0">
                               • {typeObj?.label || 'Asset'}
                             </span>
+                            {isCash && (
+                              <span className="text-[10px] text-zinc-500 bg-zinc-100 border border-zinc-200 px-1.5 py-0.2 rounded-[2px] shrink-0 font-medium">
+                                Default
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -783,36 +759,57 @@ export function AccountManagerModal({
                           </span>
 
                           <div className="flex items-center gap-1 border-l border-zinc-100 pl-2">
-                            <button
-                              type="button"
-                              id={`btn-edit-account-${acc.id}`}
-                              onClick={() => {
-                                setEditingAccount(acc);
-                                setEditBalance(
-                                  acc.initialBalance !== undefined
-                                    ? String(acc.initialBalance)
-                                    : '0'
-                                );
-                                setEditErrorMessage(null);
-                                setIsAdding(false);
-                              }}
-                              className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] transition-colors cursor-pointer"
-                              title="Edit account"
-                              aria-label={`Edit ${acc.name}`}
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
+                            {isCash ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="p-1 text-zinc-300 cursor-not-allowed opacity-40"
+                                  title="Default account cannot be edited"
+                                  aria-label="Default account cannot be edited"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
 
-                            <button
-                              type="button"
-                              id={`btn-delete-account-${acc.id}`}
-                              onClick={() => setAccountToDelete(acc)}
-                              className="p-1 text-zinc-400 hover:text-rose-600 rounded-[3px] transition-colors cursor-pointer"
-                              title="Delete account"
-                              aria-label={`Delete ${acc.name}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="p-1 text-zinc-300 cursor-not-allowed opacity-40"
+                                  title="Default account cannot be removed"
+                                  aria-label="Default account cannot be removed"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  id={`btn-edit-account-${acc.id}`}
+                                  onClick={() => {
+                                    setEditingAccount(acc);
+                                    setEditErrorMessage(null);
+                                    setIsAdding(false);
+                                  }}
+                                  className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] transition-colors cursor-pointer"
+                                  title="Edit account"
+                                  aria-label={`Edit ${acc.name}`}
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  id={`btn-delete-account-${acc.id}`}
+                                  onClick={() => setAccountToDelete(acc)}
+                                  className="p-1 text-zinc-400 hover:text-rose-600 rounded-[3px] transition-colors cursor-pointer"
+                                  title="Delete account"
+                                  aria-label={`Delete ${acc.name}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -660,10 +660,12 @@ export function CategoryManagerModal({
         {!isAdding && !editingCat && (
           <div className="pt-2 border-t border-zinc-100 flex justify-end shrink-0">
             <button
+              type="button"
+              id="btn-done-categories"
               onClick={onClose}
-              className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
+              className="px-4 py-1.5 text-xs text-zinc-700 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
             >
-              Close
+              Done
             </button>
           </div>
         )}

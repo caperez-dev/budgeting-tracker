@@ -223,15 +223,26 @@ export function TransferModal({
             )}
 
             {/* Account Selection: Left (From) and Right (To) - Horizontally aligned */}
-            <div>
-              <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
-                {/* Left: From */}
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center justify-between gap-1">
-                    <label className="text-xs font-medium text-zinc-700 truncate">
-                      From
-                    </label>
-                  </div>
+            <div className="space-y-1.5">
+              {/* Row with From and To labels */}
+              <div className="flex items-center gap-2 sm:gap-3 w-full">
+                <div className="flex-1 min-w-0">
+                  <label htmlFor="transfer-from-account" className="text-xs font-medium text-zinc-700 truncate block">
+                    From
+                  </label>
+                </div>
+                {/* Spacer matching swap button width */}
+                <div className="w-8 sm:w-9 shrink-0" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <label htmlFor="transfer-to-account" className="text-xs font-medium text-zinc-700 truncate block">
+                    To
+                  </label>
+                </div>
+              </div>
+
+              {/* Row with From AccountSelect, Swap Button, and To AccountSelect */}
+              <div className="flex items-center gap-2 sm:gap-3 w-full">
+                <div className="flex-1 min-w-0">
                   <AccountSelect
                     id="transfer-from-account"
                     ariaLabel="Select from account"
@@ -243,6 +254,40 @@ export function TransferModal({
                     currencySymbol={currencySymbol}
                     alignDropdown="left"
                   />
+                </div>
+
+                {/* Center: Swap button */}
+                <div className="flex items-center justify-center shrink-0 w-8 sm:w-9">
+                  <button
+                    type="button"
+                    id="btn-swap-transfer-accounts"
+                    onClick={handleSwap}
+                    title="Swap From and To accounts"
+                    aria-label="Swap From and To accounts"
+                    className="p-1.5 sm:p-2 text-zinc-500 hover:text-zinc-900 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-full transition-colors cursor-pointer shrink-0 shadow-2xs"
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <AccountSelect
+                    id="transfer-to-account"
+                    ariaLabel="Select to account"
+                    accounts={accounts}
+                    value={toAccountId}
+                    onChange={(val) => setToAccountId(val)}
+                    allowNone={false}
+                    accountBalances={accountBalances}
+                    currencySymbol={currencySymbol}
+                    alignDropdown="right"
+                  />
+                </div>
+              </div>
+
+              {/* Row with Balance Previews below */}
+              <div className="flex items-start gap-2 sm:gap-3 w-full">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between text-[11px] px-0.5 min-h-[32px]">
                     <span className="text-zinc-500 pt-0.5">Available:</span>
                     {isValidAmount && !isInsufficient && !isSameAccount ? (
@@ -266,38 +311,10 @@ export function TransferModal({
                   </div>
                 </div>
 
-                {/* Center: Swap button */}
-                <div className="flex items-center justify-center shrink-0">
-                  <button
-                    type="button"
-                    id="btn-swap-transfer-accounts"
-                    onClick={handleSwap}
-                    title="Swap From and To accounts"
-                    aria-label="Swap From and To accounts"
-                    className="p-1.5 sm:p-2 text-zinc-500 hover:text-zinc-900 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-full transition-colors cursor-pointer shrink-0 shadow-2xs"
-                  >
-                    <ArrowLeftRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                {/* Spacer matching swap button width */}
+                <div className="w-8 sm:w-9 shrink-0" aria-hidden="true" />
 
-                {/* Right: To */}
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center justify-between gap-1">
-                    <label className="text-xs font-medium text-zinc-700 truncate">
-                      To
-                    </label>
-                  </div>
-                  <AccountSelect
-                    id="transfer-to-account"
-                    ariaLabel="Select to account"
-                    accounts={accounts}
-                    value={toAccountId}
-                    onChange={(val) => setToAccountId(val)}
-                    allowNone={false}
-                    accountBalances={accountBalances}
-                    currencySymbol={currencySymbol}
-                    alignDropdown="right"
-                  />
+                <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between text-[11px] px-0.5 min-h-[32px]">
                     <span className="text-zinc-500 pt-0.5">Current:</span>
                     {isValidAmount && !isInsufficient && !isSameAccount ? (
