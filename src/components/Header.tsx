@@ -413,7 +413,7 @@ export function Header({
       </div>
 
       {/* Sub-bar: Navigation Tabs & Utilities */}
-      <div className="bg-zinc-50/80 border-t border-zinc-200">
+      <div className="bg-white border-t border-zinc-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 overflow-x-auto">
           {/* Main Navigation Tabs */}
           <nav className="flex space-x-1 py-1.5 shrink-0" aria-label="Tabs">
