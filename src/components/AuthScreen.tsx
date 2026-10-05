@@ -491,16 +491,6 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         className="absolute inset-0"
       />
 
-      {/* Ambient Radial Glows */}
-      <div
-        aria-hidden
-        className="absolute inset-0 isolate -z-10 pointer-events-none overflow-hidden"
-      >
-        <div className="bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,rgba(0,0,0,0.06)_0,rgba(140,140,140,0.02)_50%,rgba(0,0,0,0.01)_80%)] absolute top-0 left-0 h-[80rem] w-[35rem] -translate-y-[21.875rem] -rotate-45 rounded-full" />
-        <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] [translate:5%_-50%] -rotate-45 rounded-full" />
-        <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] -translate-y-[21.875rem] -rotate-45 rounded-full" />
-      </div>
-
       <div className="relative z-10 w-full max-w-md">
         <Card className="border border-zinc-200/80 bg-white/95 backdrop-blur-md shadow-xl rounded-2xl overflow-hidden transition-all">
           {/* Top Header Card */}
