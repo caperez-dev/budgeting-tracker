@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Wallet,
   ArrowRight,
   ShieldCheck,
   Scale,
@@ -49,13 +48,12 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-zinc-200">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
             {/* Logo / Brand Name */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-[4px] bg-zinc-900 text-white flex items-center justify-center shadow-xs">
-                <Wallet className="w-4 h-4 text-zinc-100" />
-              </div>
-              <span className="text-base font-semibold tracking-tight text-zinc-900">
-                Wallo
-              </span>
+            <div className="flex items-center shrink-0">
+              <img
+                src="/logo.png"
+                alt="Wallo"
+                className="h-8 sm:h-9 w-auto object-contain select-none"
+              />
             </div>
 
             {/* Top Right Actions: Login first, then Sign up */}
@@ -125,10 +123,11 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
               {/* Mock App Header */}
               <div className="bg-zinc-50/90 border-b border-zinc-200/80 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-[3px] bg-zinc-900 text-white flex items-center justify-center">
-                    <Wallet className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-xs font-semibold text-zinc-800">Wallo</span>
+                  <img
+                    src="/logo.png"
+                    alt="Wallo"
+                    className="h-6 w-auto object-contain select-none"
+                  />
                   <span className="hidden sm:inline-block text-[11px] text-zinc-400 bg-zinc-200/60 px-2 py-0.5 rounded-[3px]">
                     October 2026
                   </span>
@@ -398,10 +397,11 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
         <footer className="mt-auto bg-white border-t border-zinc-200 py-6 px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-[3px] bg-zinc-900 text-white flex items-center justify-center">
-                <Wallet className="w-3.5 h-3.5 text-zinc-100" />
-              </div>
-              <span className="font-semibold text-zinc-800">Wallo</span>
+              <img
+                src="/logo.png"
+                alt="Wallo"
+                className="h-6 w-auto object-contain select-none"
+              />
             </div>
 
             <div className="flex items-center gap-4">

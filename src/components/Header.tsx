@@ -215,14 +215,13 @@ export function Header({
     <header className="sticky top-0 z-40 bg-white border-b border-zinc-200">
       {/* Top Banner: Global Financial Status & Branding (One-liner layout on mobile) */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 relative">
-        {/* Logo & Brand (Title hidden on mobile portrait view for a clean one-liner) */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-[4px] bg-zinc-900 text-white flex items-center justify-center shadow-xs">
-            <Wallet className="w-4 h-4 text-zinc-100" />
-          </div>
-          <h1 className="hidden sm:block text-base font-semibold tracking-tight text-zinc-900">
-            Wallo
-          </h1>
+        {/* Logo & Brand */}
+        <div className="flex items-center shrink-0">
+          <img
+            src="/logo.png"
+            alt="Wallo"
+            className="h-8 w-auto object-contain select-none"
+          />
         </div>
 
         {/* Centered Month & Year Component with Previous and Next Buttons */}
