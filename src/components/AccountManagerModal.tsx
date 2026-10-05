@@ -34,6 +34,53 @@ export const isCashAccount = (acc: { id?: string; type?: string; name?: string }
   );
 };
 
+export const ensureCashAccount = (accList: Account[]): Account[] => {
+  if (!Array.isArray(accList) || accList.length === 0) {
+    return [
+      {
+        id: 'cash',
+        name: 'Cash',
+        type: 'cash',
+        color: '#16A34A',
+        icon: 'Banknote',
+        order: 0,
+        isDefault: true,
+        initialBalance: 0,
+      },
+    ];
+  }
+  const cashAcc = accList.find(isCashAccount);
+  const seenIds = new Set<string>();
+  if (cashAcc) {
+    seenIds.add(cashAcc.id);
+    seenIds.add('cash');
+  }
+
+  const otherAccs: Account[] = [];
+  for (const a of accList) {
+    if (!a || !a.id || isCashAccount(a)) continue;
+    if (!seenIds.has(a.id)) {
+      seenIds.add(a.id);
+      otherAccs.push(a);
+    }
+  }
+
+  const finalCash: Account = cashAcc
+    ? { ...cashAcc, order: 0 }
+    : {
+        id: 'cash',
+        name: 'Cash',
+        type: 'cash' as const,
+        color: '#16A34A',
+        icon: 'Banknote',
+        order: 0,
+        isDefault: otherAccs.every((a) => !a.isDefault),
+        initialBalance: 0,
+      };
+
+  return [finalCash, ...otherAccs.map((a, idx) => ({ ...a, order: idx + 1 }))];
+};
+
 // Sanitizes starting balance input: allows optional minus, max 10 integer digits, and up to 2 decimal places
 const sanitizeBalanceInput = (val: string): string => {
   if (val === '' || val === '-') return val;
@@ -118,11 +165,11 @@ export function AccountManagerModal({
     return counts;
   }, [transactions]);
 
-  // Reorderable accounts state (includes all accounts)
-  const [items, setItems] = useState<Account[]>(() => accounts);
+  // Reorderable accounts state (includes all accounts, guaranteed single cash at index 0)
+  const [items, setItems] = useState<Account[]>(() => ensureCashAccount(accounts));
 
   useEffect(() => {
-    setItems(accounts);
+    setItems(ensureCashAccount(accounts));
   }, [accounts]);
 
   // Handle escape key
@@ -167,7 +214,9 @@ export function AccountManagerModal({
   const rowHeightRef = useRef<number>(44);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>, index: number) => {
-    if (items.length <= 1) return;
+    // Cash account (index 0) cannot be dragged, and we need at least 2 non-cash accounts to reorder
+    if (index === 0 || isCashAccount(items[index])) return;
+    if (items.length <= 2) return;
     if (e.button !== 0) return; // Only primary mouse button
 
     e.preventDefault();
@@ -180,8 +229,13 @@ export function AccountManagerModal({
     if (rowRefs.current[index] && containerRef.current) {
       const rowRect = rowRefs.current[index]!.getBoundingClientRect();
       const contRect = containerRef.current.getBoundingClientRect();
-      // Strictly clamp within container wrapper boundaries so it never escapes vertically outside of the box
-      minDeltaYRef.current = contRect.top - rowRect.top;
+      const firstNonCashRow = rowRefs.current[1];
+      const topLimit = firstNonCashRow
+        ? firstNonCashRow.getBoundingClientRect().top
+        : contRect.top;
+
+      // Strictly clamp so the dragged row NEVER moves above the first non-cash row (never overlaps Cash)
+      minDeltaYRef.current = topLimit - rowRect.top;
       maxDeltaYRef.current = contRect.bottom - rowRect.bottom;
       rowHeightRef.current = rowRect.height || 44;
     }
@@ -192,19 +246,19 @@ export function AccountManagerModal({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (activeDragIndexRef.current === null || !containerRef.current) return;
+    if (activeDragIndexRef.current === null || activeDragIndexRef.current === 0 || !containerRef.current) return;
 
     const deltaY = e.clientY - startYRef.current;
-    // Strictly clamp within wrapper vertically so the account never goes out of the box
+    // Strictly clamp within wrapper vertically so the account never goes out of the box and cannot overlap Cash
     const clampedY = Math.max(minDeltaYRef.current, Math.min(maxDeltaYRef.current, deltaY));
 
     setDragOffsetY(clampedY);
 
-    // Calculate hover index based on vertical row shifts
+    // Calculate hover index based on vertical row shifts (strictly clamped between 1 and items.length - 1)
     const rowH = rowHeightRef.current || 44;
     const indexShift = Math.round(clampedY / rowH);
     const targetIdx = Math.max(
-      0,
+      1, // Strictly NEVER 0 - Cash stays in place at index 0!
       Math.min(items.length - 1, activeDragIndexRef.current + indexShift)
     );
 
@@ -215,14 +269,15 @@ export function AccountManagerModal({
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (activeDragIndexRef.current === null) return;
+    if (activeDragIndexRef.current === null || activeDragIndexRef.current === 0) return;
 
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {}
 
     const fromIdx = activeDragIndexRef.current;
-    const toIdx = currentHoverIndexRef.current;
+    const rawToIdx = currentHoverIndexRef.current;
+    const toIdx = rawToIdx !== null ? Math.max(1, Math.min(items.length - 1, rawToIdx)) : fromIdx;
 
     activeDragIndexRef.current = null;
     currentHoverIndexRef.current = null;
@@ -230,12 +285,13 @@ export function AccountManagerModal({
     setDragOffsetY(0);
     setCurrentHoverIndex(null);
 
-    if (toIdx !== null && toIdx !== fromIdx && toIdx >= 0 && toIdx < items.length) {
+    if (toIdx !== null && toIdx !== fromIdx && fromIdx >= 1 && toIdx >= 1 && toIdx < items.length) {
       const reordered = [...items];
       const [moved] = reordered.splice(fromIdx, 1);
       reordered.splice(toIdx, 0, moved);
-      setItems(reordered);
-      onReorderAccounts?.(reordered);
+      const clean = ensureCashAccount(reordered);
+      setItems(clean);
+      onReorderAccounts?.(clean);
       setSaveStatus(true);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
@@ -257,12 +313,15 @@ export function AccountManagerModal({
 
   const getRowTransform = (index: number) => {
     if (draggingIndex === null) return undefined;
+    // Cash NEVER moves or transforms - it stays strictly fixed in place
+    if (index === 0 || isCashAccount(items[index])) return undefined;
+
     if (index === draggingIndex) {
       // Moves ONLY vertically, never horizontally
       return `translate3d(0, ${dragOffsetY}px, 0)`;
     }
     const rowH = rowHeightRef.current || 44;
-    if (currentHoverIndex !== null) {
+    if (currentHoverIndex !== null && currentHoverIndex >= 1 && draggingIndex >= 1) {
       if (draggingIndex < currentHoverIndex) {
         if (index > draggingIndex && index <= currentHoverIndex) {
           return `translate3d(0, -${rowH}px, 0)`;
@@ -676,16 +735,10 @@ export function AccountManagerModal({
                         {/* Left: Drag Handle, Icon & Info */}
                         <div className="flex items-center gap-2 min-w-0">
                           {isCash ? (
-                            <button
-                              type="button"
-                              id={`btn-drag-handle-${acc.id}`}
-                              disabled
-                              className="p-1 -ml-1 text-zinc-300 flex items-center justify-center rounded-[3px] opacity-40 shrink-0 cursor-default"
-                              title="Default account cannot be reordered"
-                              aria-label={`Default account ${acc.name}`}
-                            >
-                              <GripVertical className="w-4 h-4 shrink-0" />
-                            </button>
+                            <div
+                              className="w-6 h-6 shrink-0 flex items-center justify-center -ml-1"
+                              aria-hidden="true"
+                            />
                           ) : (
                             <button
                               type="button"
@@ -700,20 +753,22 @@ export function AccountManagerModal({
                                   const reordered = [...items];
                                   const [moved] = reordered.splice(index, 1);
                                   reordered.splice(index + 1, 0, moved);
-                                  setItems(reordered);
-                                  onReorderAccounts?.(reordered);
+                                  const clean = ensureCashAccount(reordered);
+                                  setItems(clean);
+                                  onReorderAccounts?.(clean);
                                   setSaveStatus(true);
                                   if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
                                   saveTimerRef.current = setTimeout(() => {
                                     setSaveStatus(false);
                                   }, 2000);
-                                } else if (e.key === 'ArrowUp' && index > 0) {
+                                } else if (e.key === 'ArrowUp' && index > 1) {
                                   e.preventDefault();
                                   const reordered = [...items];
                                   const [moved] = reordered.splice(index, 1);
                                   reordered.splice(index - 1, 0, moved);
-                                  setItems(reordered);
-                                  onReorderAccounts?.(reordered);
+                                  const clean = ensureCashAccount(reordered);
+                                  setItems(clean);
+                                  onReorderAccounts?.(clean);
                                   setSaveStatus(true);
                                   if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
                                   saveTimerRef.current = setTimeout(() => {
@@ -740,11 +795,6 @@ export function AccountManagerModal({
                             <span className="text-[10px] text-zinc-400 shrink-0">
                               • {typeObj?.label || 'Asset'}
                             </span>
-                            {isCash && (
-                              <span className="text-[10px] text-zinc-500 bg-zinc-100 border border-zinc-200 px-1.5 py-0.2 rounded-[2px] shrink-0 font-medium">
-                                Default
-                              </span>
-                            )}
                           </div>
                         </div>
 

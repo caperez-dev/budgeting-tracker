@@ -83,9 +83,22 @@ export const isCashAccount = (acc: { id?: string; type?: string; name?: string }
 };
 
 export const sortAccountsByOrder = (accList: Account[]): Account[] => {
-  if (!Array.isArray(accList) || accList.length <= 1) return accList;
+  if (!Array.isArray(accList) || accList.length === 0) return DEFAULT_ACCOUNTS;
   const cashAcc = accList.find(isCashAccount);
-  const otherAccs = accList.filter((a) => !isCashAccount(a));
+  const seenIds = new Set<string>();
+  if (cashAcc) {
+    seenIds.add(cashAcc.id);
+    seenIds.add('cash');
+  }
+
+  const otherAccs: Account[] = [];
+  for (const a of accList) {
+    if (!a || !a.id || isCashAccount(a)) continue;
+    if (!seenIds.has(a.id)) {
+      seenIds.add(a.id);
+      otherAccs.push(a);
+    }
+  }
 
   otherAccs.sort((a, b) => {
     const orderA = typeof a.order === 'number' ? a.order : 9999;
@@ -93,30 +106,56 @@ export const sortAccountsByOrder = (accList: Account[]): Account[] => {
     return orderA - orderB;
   });
 
-  return cashAcc ? [{ ...cashAcc, order: 0 }, ...otherAccs] : otherAccs;
+  const finalCash: Account = cashAcc
+    ? { ...cashAcc, order: 0 }
+    : {
+        id: 'cash',
+        name: 'Cash',
+        type: 'cash' as const,
+        color: '#16A34A',
+        icon: 'Banknote',
+        order: 0,
+        isDefault: otherAccs.every((a) => !a.isDefault),
+        initialBalance: 0,
+      };
+
+  return [finalCash, ...otherAccs.map((a, idx) => ({ ...a, order: idx + 1 }))];
 };
 
 export const ensureCashAccount = (accList: Account[]): Account[] => {
   if (!Array.isArray(accList) || accList.length === 0) {
-    return DEFAULT_ACCOUNTS;
+    return DEFAULT_ACCOUNTS.map((a, idx) => ({ ...a, order: idx }));
   }
-  const hasCash = accList.some(isCashAccount);
-  const listWithCash = hasCash
-    ? accList
-    : [
-        {
-          id: 'cash',
-          name: 'Cash',
-          type: 'cash' as const,
-          color: '#16A34A',
-          icon: 'Banknote',
-          order: 0,
-          isDefault: accList.every((a) => !a.isDefault),
-          initialBalance: 0,
-        },
-        ...accList,
-      ];
-  return sortAccountsByOrder(listWithCash);
+  const cashAcc = accList.find(isCashAccount);
+  const seenIds = new Set<string>();
+  if (cashAcc) {
+    seenIds.add(cashAcc.id);
+    seenIds.add('cash');
+  }
+
+  const otherAccs: Account[] = [];
+  for (const a of accList) {
+    if (!a || !a.id || isCashAccount(a)) continue;
+    if (!seenIds.has(a.id)) {
+      seenIds.add(a.id);
+      otherAccs.push(a);
+    }
+  }
+
+  const finalCash: Account = cashAcc
+    ? { ...cashAcc, order: 0 }
+    : {
+        id: 'cash',
+        name: 'Cash',
+        type: 'cash' as const,
+        color: '#16A34A',
+        icon: 'Banknote',
+        order: 0,
+        isDefault: otherAccs.every((a) => !a.isDefault),
+        initialBalance: 0,
+      };
+
+  return [finalCash, ...otherAccs.map((a, idx) => ({ ...a, order: idx + 1 }))];
 };
 
 const STORAGE_KEYS = {
@@ -1259,7 +1298,8 @@ export default function App() {
 
   const displayAccounts: Account[] = useMemo(() => {
     const targetCurr = settings.defaultCurrency || 'PHP';
-    return accounts.map((acc) => {
+    const cleanedAccounts = ensureCashAccount(accounts);
+    return cleanedAccounts.map((acc) => {
       const origBal = acc.originalInitialBalance !== undefined ? acc.originalInitialBalance : (acc.initialBalance || 0);
       const accCurr = acc.originalCurrency || acc.currency || targetCurr;
       const convertedBal =
@@ -1276,6 +1316,35 @@ export default function App() {
       };
     });
   }, [accounts, settings.defaultCurrency, ratesMap]);
+
+  // Self-heal accounts if any duplicate cash or duplicate IDs ever exist in state
+  useEffect(() => {
+    if (Array.isArray(accounts) && accounts.length > 0) {
+      const cleaned = ensureCashAccount(accounts);
+      if (cleaned.length !== accounts.length || accounts.filter(isCashAccount).length > 1) {
+        setAccounts(cleaned);
+        if (currentUser?.id) {
+          try {
+            localStorage.setItem(
+              getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, currentUser.id),
+              JSON.stringify(cleaned)
+            );
+          } catch {}
+          fetch('/api/db/accounts/reorder', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': currentUser.id,
+            },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              accounts: cleaned,
+            }),
+          }).catch(() => {});
+        }
+      }
+    }
+  }, [accounts, currentUser?.id]);
 
   // Monthly filtered transactions for the selected month or specific date
   const monthlyTransactions = useMemo(() => {
@@ -1814,15 +1883,17 @@ export default function App() {
     }).catch(() => {});
   };
 
-  const handleReorderAccounts = (reorderedModifiableAccounts: Account[]) => {
-    if (!reorderedModifiableAccounts || reorderedModifiableAccounts.length === 0) return;
-    const cashAcc = accounts.find(isCashAccount);
-    const combined = cashAcc ? [cashAcc, ...reorderedModifiableAccounts] : [...reorderedModifiableAccounts];
-
-    const updated = combined.map((acc, idx) => ({
-      ...acc,
-      order: idx,
-    }));
+  const handleReorderAccounts = (reorderedCustomAccounts: Account[]) => {
+    if (!reorderedCustomAccounts) return;
+    const cashAcc = accounts.find(isCashAccount) || DEFAULT_ACCOUNTS.find(isCashAccount)!;
+    const cleanCustom = reorderedCustomAccounts.filter((a) => !isCashAccount(a));
+    const updated = [
+      { ...cashAcc, order: 0 },
+      ...cleanCustom.map((acc, idx) => ({
+        ...acc,
+        order: idx + 1,
+      })),
+    ];
 
     setAccounts(updated);
 

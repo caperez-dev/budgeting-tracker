@@ -1933,6 +1933,15 @@ app.post("/api/db/accounts/reorder", async (req, res) => {
       if (bulkOps.length > 0) {
         await (AccountModel as any).bulkWrite(bulkOps);
       }
+
+      // Clean up any accounts not in the reordered list
+      const activeIds = accounts.map((a: any) => a.id);
+      const delFilter: any = { id: { $nin: activeIds } };
+      if (userId) {
+        delFilter.$or = [{ userId }, { userId: "" }, { userId: { $exists: false } }];
+      }
+      await (AccountModel as any).deleteMany(delFilter).catch(() => {});
+
       res.json({ success: true });
       return;
     } catch (err: any) {
