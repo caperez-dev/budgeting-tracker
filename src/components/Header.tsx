@@ -221,7 +221,7 @@ export function Header({
             <Wallet className="w-4 h-4 text-zinc-100" />
           </div>
           <h1 className="hidden sm:block text-base font-semibold tracking-tight text-zinc-900">
-            Budget Tracker
+            Wallo
           </h1>
         </div>
 

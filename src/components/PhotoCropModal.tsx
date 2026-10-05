@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCcw, Check, Loader2 } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCcw, Loader2 } from 'lucide-react';
 
 interface PhotoCropModalProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface PhotoCropModalProps {
 
 const CROP_SIZE = 260; // Size of the circular crop viewport in px
 const OUTPUT_SIZE = 400; // Output square image resolution
+const COVER_PADDING = 24; // Extra padding ensuring the image always covers circle with safety cushion
 
 export function PhotoCropModal({
   isOpen,
@@ -22,11 +23,14 @@ export function PhotoCropModal({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [isSnapping, setIsSnapping] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const imageRef = useRef<HTMLImageElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef({ x: 0, y: 0 });
+  panRef.current = pan;
 
   const dragRef = useRef({
     isDragging: false,
@@ -38,16 +42,17 @@ export function PhotoCropModal({
 
   const touchStartDistRef = useRef<number | null>(null);
   const touchStartZoomRef = useRef<number>(1);
-  const maxPanRef = useRef({ x: 0, y: 0 });
+  const snapTimeoutRef = useRef<number | null>(null);
+  const rafIdRef = useRef<number | null>(null);
 
-  // Calculate base dimensions ensuring image completely covers the CROP_SIZE circle
+  // Calculate base dimensions ensuring image covers the circle with a smooth elastic safety cushion
   const { baseWidth, baseHeight } = useMemo(() => {
     if (!naturalDimensions || naturalDimensions.width === 0 || naturalDimensions.height === 0) {
-      return { baseWidth: CROP_SIZE, baseHeight: CROP_SIZE };
+      return { baseWidth: CROP_SIZE + COVER_PADDING, baseHeight: CROP_SIZE + COVER_PADDING };
     }
     const { width, height } = naturalDimensions;
-    // Scale factor so that image covers the entire CROP_SIZE square:
-    const scale = Math.max(CROP_SIZE / width, CROP_SIZE / height);
+    // Scale factor so that image covers the entire CROP_SIZE square with a soft edge cushion:
+    const scale = Math.max((CROP_SIZE + COVER_PADDING) / width, (CROP_SIZE + COVER_PADDING) / height);
     return {
       baseWidth: width * scale,
       baseHeight: height * scale,
@@ -58,28 +63,80 @@ export function PhotoCropModal({
   const displayedWidth = baseWidth * zoom;
   const displayedHeight = baseHeight * zoom;
 
-  // Maximum allowed pan so image edges NEVER cross inside the crop circle:
-  const maxPanX = Math.max(0, (displayedWidth - CROP_SIZE) / 2);
-  const maxPanY = Math.max(0, (displayedHeight - CROP_SIZE) / 2);
+  // Absolute hard limit where an edge could ever reach the circle viewport:
+  const absoluteMaxX = Math.max(0, (displayedWidth - CROP_SIZE) / 2);
+  const absoluteMaxY = Math.max(0, (displayedHeight - CROP_SIZE) / 2);
 
-  // Keep ref updated for smooth, event-listener-free drag tracking
-  maxPanRef.current = { x: maxPanX, y: maxPanY };
+  // Resting limits where the photo smoothly settles (leaving room for elastic cushioning at the edges)
+  const cushionX = Math.min(16, Math.max(4, absoluteMaxX * 0.2));
+  const cushionY = Math.min(16, Math.max(4, absoluteMaxY * 0.2));
+  const restMaxX = Math.max(0, absoluteMaxX - cushionX);
+  const restMaxY = Math.max(0, absoluteMaxY - cushionY);
 
-  // Clamped pan values
-  const clampedX = Math.min(maxPanX, Math.max(-maxPanX, pan.x));
-  const clampedY = Math.min(maxPanY, Math.max(-maxPanY, pan.y));
+  // Smooth rubber-band formula with zero dead-zone
+  const calculateDampedPan = useCallback(
+    (targetX: number, targetY: number) => {
+      let x = targetX;
+      let y = targetY;
 
-  // Image top-left in viewport coordinate space (0 to CROP_SIZE)
-  const imgLeft = Math.round(CROP_SIZE / 2 - displayedWidth / 2 + clampedX);
-  const imgTop = Math.round(CROP_SIZE / 2 - displayedHeight / 2 + clampedY);
+      // Elastic dampening on X axis
+      if (targetX > restMaxX) {
+        const overflow = targetX - restMaxX;
+        const room = Math.max(0, absoluteMaxX - restMaxX);
+        const damped = (1 - 1 / (overflow * 0.04 + 1)) * room;
+        x = restMaxX + damped;
+      } else if (targetX < -restMaxX) {
+        const overflow = -targetX - restMaxX;
+        const room = Math.max(0, absoluteMaxX - restMaxX);
+        const damped = (1 - 1 / (overflow * 0.04 + 1)) * room;
+        x = -restMaxX - damped;
+      }
+
+      // Elastic dampening on Y axis
+      if (targetY > restMaxY) {
+        const overflow = targetY - restMaxY;
+        const room = Math.max(0, absoluteMaxY - restMaxY);
+        const damped = (1 - 1 / (overflow * 0.04 + 1)) * room;
+        y = restMaxY + damped;
+      } else if (targetY < -restMaxY) {
+        const overflow = -targetY - restMaxY;
+        const room = Math.max(0, absoluteMaxY - restMaxY);
+        const damped = (1 - 1 / (overflow * 0.04 + 1)) * room;
+        y = -restMaxY - damped;
+      }
+
+      return { x, y };
+    },
+    [restMaxX, restMaxY, absoluteMaxX, absoluteMaxY]
+  );
+
+  // Smooth snap-back when releasing past resting bounds
+  const snapBackIfNeeded = useCallback(() => {
+    const curX = panRef.current.x;
+    const curY = panRef.current.y;
+    const clampedX = Math.min(restMaxX, Math.max(-restMaxX, curX));
+    const clampedY = Math.min(restMaxY, Math.max(-restMaxY, curY));
+
+    if (Math.abs(clampedX - curX) > 0.5 || Math.abs(clampedY - curY) > 0.5) {
+      setIsSnapping(true);
+      setPan({ x: clampedX, y: clampedY });
+      panRef.current = { x: clampedX, y: clampedY };
+      if (snapTimeoutRef.current) clearTimeout(snapTimeoutRef.current);
+      snapTimeoutRef.current = window.setTimeout(() => {
+        setIsSnapping(false);
+      }, 300);
+    }
+  }, [restMaxX, restMaxY]);
 
   // Reset zoom, pan, and dimensions when a new image is loaded or modal opens
   useEffect(() => {
     if (isOpen) {
       setZoom(1);
       setPan({ x: 0, y: 0 });
+      panRef.current = { x: 0, y: 0 };
       setImageLoaded(false);
       setNaturalDimensions(null);
+      setIsSnapping(false);
     }
   }, [isOpen, imageSrc]);
 
@@ -94,17 +151,27 @@ export function PhotoCropModal({
     }
   }, [isOpen, imageSrc]);
 
-  // Keep pan strictly inside boundaries whenever zoom decreases
-  useEffect(() => {
+  // Keep pan comfortably inside boundaries whenever zoom changes
+  const handleZoomChange = (newZoom: number) => {
+    const clampedZoom = Math.min(3, Math.max(1, +newZoom.toFixed(2)));
+    setZoom(clampedZoom);
+
+    const nextDisplayedWidth = baseWidth * clampedZoom;
+    const nextDisplayedHeight = baseHeight * clampedZoom;
+    const nextAbsMaxX = Math.max(0, (nextDisplayedWidth - CROP_SIZE) / 2);
+    const nextAbsMaxY = Math.max(0, (nextDisplayedHeight - CROP_SIZE) / 2);
+    const nextCushionX = Math.min(16, Math.max(4, nextAbsMaxX * 0.2));
+    const nextCushionY = Math.min(16, Math.max(4, nextAbsMaxY * 0.2));
+    const nextRestMaxX = Math.max(0, nextAbsMaxX - nextCushionX);
+    const nextRestMaxY = Math.max(0, nextAbsMaxY - nextCushionY);
+
     setPan((prev) => {
-      const clampedPrevX = Math.min(maxPanX, Math.max(-maxPanX, prev.x));
-      const clampedPrevY = Math.min(maxPanY, Math.max(-maxPanY, prev.y));
-      if (clampedPrevX !== prev.x || clampedPrevY !== prev.y) {
-        return { x: clampedPrevX, y: clampedPrevY };
-      }
-      return prev;
+      const nextX = Math.min(nextRestMaxX, Math.max(-nextRestMaxX, prev.x));
+      const nextY = Math.min(nextRestMaxY, Math.max(-nextRestMaxY, prev.y));
+      panRef.current = { x: nextX, y: nextY };
+      return { x: nextX, y: nextY };
     });
-  }, [maxPanX, maxPanY]);
+  };
 
   // Handle ESC key
   useEffect(() => {
@@ -118,38 +185,71 @@ export function PhotoCropModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isSaving, onClose]);
 
-  // Mouse Drag handlers
+  // Mouse Drag handlers with silky response and zero dead-zone
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (snapTimeoutRef.current) clearTimeout(snapTimeoutRef.current);
+    setIsSnapping(false);
+
     dragRef.current = {
       isDragging: true,
       startX: e.clientX,
       startY: e.clientY,
-      initialPanX: clampedX,
-      initialPanY: clampedY,
+      initialPanX: panRef.current.x,
+      initialPanY: panRef.current.y,
     };
     setIsDragging(true);
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragRef.current.isDragging) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    const targetX = dragRef.current.initialPanX + dx;
-    const targetY = dragRef.current.initialPanY + dy;
-    const maxX = maxPanRef.current.x;
-    const maxY = maxPanRef.current.y;
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!dragRef.current.isDragging) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      let targetX = dragRef.current.initialPanX + dx;
+      let targetY = dragRef.current.initialPanY + dy;
 
-    setPan({
-      x: Math.min(maxX, Math.max(-maxX, targetX)),
-      y: Math.min(maxY, Math.max(-maxY, targetY)),
-    });
-  }, []);
+      // Prevent dead zone by capping overscroll distance so reversing direction responds instantly
+      const maxOvershootX = 40;
+      const maxOvershootY = 40;
+      if (targetX > restMaxX + maxOvershootX) {
+        dragRef.current.startX = e.clientX - (restMaxX + maxOvershootX - dragRef.current.initialPanX);
+        targetX = restMaxX + maxOvershootX;
+      } else if (targetX < -restMaxX - maxOvershootX) {
+        dragRef.current.startX = e.clientX - (-restMaxX - maxOvershootX - dragRef.current.initialPanX);
+        targetX = -restMaxX - maxOvershootX;
+      }
+
+      if (targetY > restMaxY + maxOvershootY) {
+        dragRef.current.startY = e.clientY - (restMaxY + maxOvershootY - dragRef.current.initialPanY);
+        targetY = restMaxY + maxOvershootY;
+      } else if (targetY < -restMaxY - maxOvershootY) {
+        dragRef.current.startY = e.clientY - (-restMaxY - maxOvershootY - dragRef.current.initialPanY);
+        targetY = -restMaxY - maxOvershootY;
+      }
+
+      const nextPan = calculateDampedPan(targetX, targetY);
+      panRef.current = nextPan;
+
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      rafIdRef.current = requestAnimationFrame(() => {
+        setPan(nextPan);
+      });
+    },
+    [calculateDampedPan, restMaxX, restMaxY]
+  );
 
   const handleMouseUp = useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
     dragRef.current.isDragging = false;
     setIsDragging(false);
-  }, []);
+    snapBackIfNeeded();
+  }, [snapBackIfNeeded]);
 
   useEffect(() => {
     if (isDragging) {
@@ -162,15 +262,18 @@ export function PhotoCropModal({
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Touch handlers with pinch-to-zoom support
+  // Touch handlers with smooth pinch-to-zoom and dead-zone-free panning
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
+      if (snapTimeoutRef.current) clearTimeout(snapTimeoutRef.current);
+      setIsSnapping(false);
+
       dragRef.current = {
         isDragging: true,
         startX: e.touches[0].clientX,
         startY: e.touches[0].clientY,
-        initialPanX: clampedX,
-        initialPanY: clampedY,
+        initialPanX: panRef.current.x,
+        initialPanY: panRef.current.y,
       };
       setIsDragging(true);
     } else if (e.touches.length === 2) {
@@ -189,14 +292,35 @@ export function PhotoCropModal({
     if (e.touches.length === 1 && dragRef.current.isDragging) {
       const dx = e.touches[0].clientX - dragRef.current.startX;
       const dy = e.touches[0].clientY - dragRef.current.startY;
-      const targetX = dragRef.current.initialPanX + dx;
-      const targetY = dragRef.current.initialPanY + dy;
-      const maxX = maxPanRef.current.x;
-      const maxY = maxPanRef.current.y;
+      let targetX = dragRef.current.initialPanX + dx;
+      let targetY = dragRef.current.initialPanY + dy;
 
-      setPan({
-        x: Math.min(maxX, Math.max(-maxX, targetX)),
-        y: Math.min(maxY, Math.max(-maxY, targetY)),
+      const maxOvershootX = 40;
+      const maxOvershootY = 40;
+      if (targetX > restMaxX + maxOvershootX) {
+        dragRef.current.startX = e.touches[0].clientX - (restMaxX + maxOvershootX - dragRef.current.initialPanX);
+        targetX = restMaxX + maxOvershootX;
+      } else if (targetX < -restMaxX - maxOvershootX) {
+        dragRef.current.startX = e.touches[0].clientX - (-restMaxX - maxOvershootX - dragRef.current.initialPanX);
+        targetX = -restMaxX - maxOvershootX;
+      }
+
+      if (targetY > restMaxY + maxOvershootY) {
+        dragRef.current.startY = e.touches[0].clientY - (restMaxY + maxOvershootY - dragRef.current.initialPanY);
+        targetY = restMaxY + maxOvershootY;
+      } else if (targetY < -restMaxY - maxOvershootY) {
+        dragRef.current.startY = e.touches[0].clientY - (-restMaxY - maxOvershootY - dragRef.current.initialPanY);
+        targetY = -restMaxY - maxOvershootY;
+      }
+
+      const nextPan = calculateDampedPan(targetX, targetY);
+      panRef.current = nextPan;
+
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      rafIdRef.current = requestAnimationFrame(() => {
+        setPan(nextPan);
       });
     } else if (e.touches.length === 2 && touchStartDistRef.current !== null) {
       const dist = Math.hypot(
@@ -204,27 +328,37 @@ export function PhotoCropModal({
         e.touches[0].clientY - e.touches[1].clientY
       );
       const scaleFactor = dist / touchStartDistRef.current;
-      const newZoom = Math.min(3, Math.max(1, +(touchStartZoomRef.current * scaleFactor).toFixed(2)));
-      setZoom(newZoom);
+      handleZoomChange(touchStartZoomRef.current * scaleFactor);
     }
   };
 
   const handleTouchEnd = () => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
     dragRef.current.isDragging = false;
     touchStartDistRef.current = null;
     setIsDragging(false);
+    snapBackIfNeeded();
   };
 
-  // Wheel zoom
+  // Wheel zoom with gentle increments
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom((prev) => Math.min(3, Math.max(1, +(prev + delta).toFixed(2))));
+    const delta = e.deltaY > 0 ? -0.08 : 0.08;
+    handleZoomChange(zoom + delta);
   };
 
   const handleReset = () => {
+    setIsSnapping(true);
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    panRef.current = { x: 0, y: 0 };
+    if (snapTimeoutRef.current) clearTimeout(snapTimeoutRef.current);
+    snapTimeoutRef.current = window.setTimeout(() => {
+      setIsSnapping(false);
+    }, 300);
   };
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -255,10 +389,18 @@ export function PhotoCropModal({
     // Ratio from displayed px to output canvas px
     const displayToCanvas = OUTPUT_SIZE / CROP_SIZE;
 
+    // Use clamped resting pan ensuring the output crop has zero borders
+    const finalPanX = Math.min(restMaxX, Math.max(-restMaxX, panRef.current.x));
+    const finalPanY = Math.min(restMaxY, Math.max(-restMaxY, panRef.current.y));
+
+    // Centered base position + clamped pan
+    const imgLeft = (CROP_SIZE - displayedWidth) / 2 + finalPanX;
+    const imgTop = (CROP_SIZE - displayedHeight) / 2 + finalPanY;
+
     // Clear canvas
     ctx.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
 
-    // Draw the image onto the canvas exactly as positioned in the viewport
+    // Draw the image onto the canvas exactly as framed in the viewport
     ctx.drawImage(
       img,
       imgLeft * displayToCanvas,
@@ -292,7 +434,7 @@ export function PhotoCropModal({
               Crop Profile Photo
             </h3>
             <p className="text-[11px] text-zinc-500">
-              Drag to reposition, use zoom to adjust
+              Drag to reposition smoothly, use zoom to adjust
             </p>
           </div>
           <button
@@ -307,7 +449,7 @@ export function PhotoCropModal({
         </div>
 
         {/* Crop Viewport */}
-        <div className="p-5 flex flex-col items-center bg-zinc-950/5">
+        <div className="p-5 flex flex-col items-center bg-white">
           <div
             ref={containerRef}
             onWheel={handleWheel}
@@ -316,8 +458,8 @@ export function PhotoCropModal({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             style={{ width: CROP_SIZE, height: CROP_SIZE }}
-            className={`relative overflow-hidden select-none bg-zinc-900 rounded-full shadow-inner cursor-grab active:cursor-grabbing border-2 border-white ring-1 ring-zinc-300 ${
-              isDragging ? 'cursor-grabbing' : ''
+            className={`relative overflow-hidden select-none bg-white rounded-full border-4 border-white shadow-[0_2px_12px_rgba(0,0,0,0.12)] touch-none transition-shadow duration-150 ${
+              isDragging ? 'cursor-grabbing shadow-[0_4px_20px_rgba(0,0,0,0.18)]' : 'cursor-grab'
             }`}
           >
             <img
@@ -328,10 +470,13 @@ export function PhotoCropModal({
               draggable={false}
               style={{
                 position: 'absolute',
-                left: `${imgLeft}px`,
-                top: `${imgTop}px`,
+                left: `${(CROP_SIZE - displayedWidth) / 2}px`,
+                top: `${(CROP_SIZE - displayedHeight) / 2}px`,
                 width: `${displayedWidth}px`,
                 height: `${displayedHeight}px`,
+                transform: `translate3d(${pan.x}px, ${pan.y}px, 0)`,
+                transition: isSnapping ? 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
+                willChange: 'transform',
                 maxWidth: 'none',
                 maxHeight: 'none',
                 pointerEvents: 'none',
@@ -354,7 +499,7 @@ export function PhotoCropModal({
           </div>
 
           <span className="text-[11px] text-zinc-400 mt-2">
-            Circle indicates how your photo will appear
+            Circle shows how your photo will appear
           </span>
         </div>
 
@@ -376,7 +521,7 @@ export function PhotoCropModal({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setZoom((prev) => Math.max(1, +(prev - 0.15).toFixed(2)))}
+              onClick={() => handleZoomChange(zoom - 0.15)}
               disabled={zoom <= 1.01}
               aria-label="Zoom out"
               className="p-1 text-zinc-500 hover:text-zinc-800 disabled:opacity-30 rounded cursor-pointer"
@@ -390,14 +535,15 @@ export function PhotoCropModal({
               max="3"
               step="0.01"
               value={zoom}
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
+              onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
               aria-label="Photo zoom slider"
               className="flex-1 h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-zinc-900"
-            />
+            >
+            </input>
 
             <button
               type="button"
-              onClick={() => setZoom((prev) => Math.min(3, +(prev + 0.15).toFixed(2)))}
+              onClick={() => handleZoomChange(zoom + 0.15)}
               disabled={zoom >= 2.99}
               aria-label="Zoom in"
               className="p-1 text-zinc-500 hover:text-zinc-800 disabled:opacity-30 rounded cursor-pointer"
@@ -408,7 +554,7 @@ export function PhotoCropModal({
         </div>
 
         {/* Modal Actions */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-zinc-100 bg-zinc-50/50">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-zinc-100 bg-white">
           <button
             type="button"
             id="btn-cancel-crop"
@@ -423,7 +569,7 @@ export function PhotoCropModal({
             id="btn-save-cropped-photo"
             onClick={handleCropAndSave}
             disabled={isSaving || !imageLoaded}
-            className="px-3.5 py-1.5 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded-[4px] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="px-3.5 py-1.5 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded-[4px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs min-w-[90px]"
           >
             {isSaving ? (
               <>
@@ -431,10 +577,7 @@ export function PhotoCropModal({
                 <span>Saving...</span>
               </>
             ) : (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                <span>Save Photo</span>
-              </>
+              <span>Save Photo</span>
             )}
           </button>
         </div>

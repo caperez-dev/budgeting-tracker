@@ -49,7 +49,7 @@ export function buildBudgetPdfDoc({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(24, 24, 27); // zinc-900
-  doc.text('BUDGET TRACKER REPORT', 14, 20);
+  doc.text('WALLO FINANCIAL REPORT', 14, 20);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -280,13 +280,13 @@ export function buildBudgetPdfDoc({
     doc.setFontSize(8);
     doc.setTextColor(161, 161, 170); // zinc-400
     doc.text(
-      `Budget Tracker Report - Page ${i} of ${pageCount}`,
+      `Wallo Report - Page ${i} of ${pageCount}`,
       14,
       287
     );
   }
 
-  const defaultFilename = `budget_tracker_report_${now.toISOString().slice(0, 10)}.pdf`;
+  const defaultFilename = `wallo_report_${now.toISOString().slice(0, 10)}.pdf`;
   return { doc, defaultFilename };
 }
 

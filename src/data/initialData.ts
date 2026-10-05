@@ -185,7 +185,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   defaultCurrency: 'PHP',
   includeDebtInNetWorth: false,
   donateInfo: {
-    message: 'If this budget tracker helps keep your finances organized, feel free to support future development!',
+    message: 'If Wallo helps keep your finances organized, feel free to support future development!',
     platform: 'GCash / Maya / PayPal',
     handle: '@carlos.perez.budget',
     linkUrl: 'https://paypal.me',

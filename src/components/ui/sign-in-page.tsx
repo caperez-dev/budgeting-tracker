@@ -63,7 +63,7 @@ export function LoginPage({
         <div className="absolute inset-0">
           <img
             src="https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?q=80&w=1200&auto=format&fit=crop"
-            alt="Budget Tracker Visual"
+            alt="Wallo Visual"
             className="w-full h-full object-cover opacity-60 mix-blend-luminosity"
             referrerPolicy="no-referrer"
           />

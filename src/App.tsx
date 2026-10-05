@@ -2433,7 +2433,7 @@ export default function App() {
       <footer className="bg-white border-t border-zinc-200 mt-auto py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-zinc-800">Budget Tracker</span>
+            <span className="font-semibold text-zinc-800">Wallo</span>
           </div>
 
           <div className="flex items-center gap-3">

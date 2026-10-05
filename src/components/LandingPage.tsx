@@ -51,7 +51,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                 <Wallet className="w-4 h-4 text-zinc-100" />
               </div>
               <span className="text-base font-semibold tracking-tight text-zinc-900">
-                Budget Tracker
+                Wallo
               </span>
             </div>
 
@@ -112,7 +112,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                   <div className="w-6 h-6 rounded-[3px] bg-zinc-900 text-white flex items-center justify-center">
                     <Wallet className="w-3.5 h-3.5" />
                   </div>
-                  <span className="text-xs font-semibold text-zinc-800">Budget Tracker</span>
+                  <span className="text-xs font-semibold text-zinc-800">Wallo</span>
                   <span className="hidden sm:inline-block text-[11px] text-zinc-400 bg-zinc-200/60 px-2 py-0.5 rounded-[3px]">
                     October 2026
                   </span>
@@ -385,7 +385,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               <div className="w-6 h-6 rounded-[3px] bg-zinc-900 text-white flex items-center justify-center">
                 <Wallet className="w-3.5 h-3.5 text-zinc-100" />
               </div>
-              <span className="font-semibold text-zinc-800">Budget Tracker</span>
+              <span className="font-semibold text-zinc-800">Wallo</span>
             </div>
 
             <div className="flex items-center gap-4">

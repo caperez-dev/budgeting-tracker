@@ -524,7 +524,7 @@ export function SettingsPage({
                     fileInputRef.current?.click();
                   }
                 }}
-                className="relative group w-20 h-20 rounded-full shrink-0 cursor-pointer overflow-hidden border-2 border-zinc-200 shadow-xs focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 transition-all"
+                className="relative group w-20 h-20 rounded-full shrink-0 cursor-pointer overflow-hidden border-2 border-white ring-1 ring-zinc-200 shadow-xs focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 transition-all"
                 title="Click or hover to change photo"
                 aria-label="Change profile photo"
               >

@@ -49,7 +49,7 @@ export function DonateModal({
             <div>
               <h3 className="text-sm font-semibold text-zinc-900">Support Development</h3>
               <p className="text-[11px] text-zinc-500">
-                Help maintain and improve this budget tracker.
+                Help maintain and improve Wallo.
               </p>
             </div>
           </div>
