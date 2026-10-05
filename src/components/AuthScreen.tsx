@@ -35,6 +35,8 @@ import { Particles } from '@/components/ui/particles';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, profileUpdate?: Partial<UserProfile>) => void;
+  initialMode?: AuthScreenMode;
+  onBackToLanding?: () => void;
 }
 
 export type AuthScreenMode =
@@ -73,9 +75,19 @@ export interface FieldErrors {
   confirmNewPassword?: string;
 }
 
-export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
+export function AuthScreen({
+  onLoginSuccess,
+  initialMode = 'login',
+  onBackToLanding,
+}: AuthScreenProps) {
   // Navigation states: 'login' | 'register' | 'forgot_email' | 'forgot_sent' | 'forgot_new_password'
-  const [mode, setMode] = useState<AuthScreenMode>('login');
+  const [mode, setMode] = useState<AuthScreenMode>(initialMode);
+
+  useEffect(() => {
+    if (initialMode) {
+      setMode(initialMode);
+    }
+  }, [initialMode]);
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -575,6 +587,18 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       />
 
       <div className="relative z-10 w-full max-w-md">
+        {onBackToLanding && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={onBackToLanding}
+              className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-900 transition-colors px-1 py-1 rounded-[4px] cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to overview</span>
+            </button>
+          </div>
+        )}
         <Card className="border border-zinc-200/80 bg-white/95 backdrop-blur-md shadow-xl rounded-2xl overflow-hidden transition-all">
           {/* Top Header Card */}
           <CardHeader className="flex flex-col items-center space-y-2 pb-4 pt-8 text-center">

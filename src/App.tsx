@@ -24,7 +24,8 @@ import {
   createDefaultCategoriesForAccount,
 } from './data/initialData';
 import { Header, ActiveTab } from './components/Header';
-import { AuthScreen } from './components/AuthScreen';
+import { AuthScreen, AuthScreenMode } from './components/AuthScreen';
+import { LandingPage } from './components/LandingPage';
 import { QuickEntryForm } from './components/QuickEntryForm';
 import { TrackerView } from './components/TrackerView';
 import { SummaryPanel } from './components/SummaryPanel';
@@ -195,6 +196,9 @@ export default function App() {
       return null;
     }
   });
+
+  const [authView, setAuthView] = useState<'landing' | 'auth'>('landing');
+  const [authInitialMode, setAuthInitialMode] = useState<AuthScreenMode>('login');
 
   useEffect(() => {
     try {
@@ -2168,6 +2172,7 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
     } catch {}
     setCurrentUser(null);
+    setAuthView('landing');
     setTransactions([]);
     setSettings(DEFAULT_SETTINGS);
     setUserProfile(DEFAULT_USER_PROFILE);
@@ -2243,28 +2248,45 @@ export default function App() {
     }
   };
 
-  // If user is not signed in or not verified, render the uniform AuthScreen
+  // If user is not signed in or not verified, render the LandingPage or AuthScreen
   if (!currentUser || currentUser.isVerified === false) {
+    if (authView === 'auth') {
+      return (
+        <AuthScreen
+          initialMode={authInitialMode}
+          onBackToLanding={() => setAuthView('landing')}
+          onLoginSuccess={(user, profileUpdate) => {
+            setIsProfileLoading(true);
+            setCurrentUser(user);
+            try {
+              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+            } catch {}
+            setUserProfile({
+              nickname: profileUpdate?.nickname || user.nickname || 'User',
+              avatarUrl:
+                profileUpdate?.avatarUrl !== undefined
+                  ? profileUpdate.avatarUrl
+                  : user.avatarUrl || '',
+              email: user.email,
+            });
+            loadUserDataForUser(user);
+            handleSyncWithDB(user.id).finally(() => {
+              setIsProfileLoading(false);
+            });
+          }}
+        />
+      );
+    }
+
     return (
-      <AuthScreen
-        onLoginSuccess={(user, profileUpdate) => {
-          setIsProfileLoading(true);
-          setCurrentUser(user);
-          try {
-            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-          } catch {}
-          setUserProfile({
-            nickname: profileUpdate?.nickname || user.nickname || 'User',
-            avatarUrl:
-              profileUpdate?.avatarUrl !== undefined
-                ? profileUpdate.avatarUrl
-                : user.avatarUrl || '',
-            email: user.email,
-          });
-          loadUserDataForUser(user);
-          handleSyncWithDB(user.id).finally(() => {
-            setIsProfileLoading(false);
-          });
+      <LandingPage
+        onGetStarted={() => {
+          setAuthInitialMode('register');
+          setAuthView('auth');
+        }}
+        onSignIn={() => {
+          setAuthInitialMode('login');
+          setAuthView('auth');
         }}
       />
     );

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCcw, Check, Loader2 } from 'lucide-react';
 
 interface PhotoCropModalProps {
@@ -22,20 +22,89 @@ export function PhotoCropModal({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const imageRef = useRef<HTMLImageElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Reset zoom & pan when image changes or modal opens
+  const dragRef = useRef({
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    initialPanX: 0,
+    initialPanY: 0,
+  });
+
+  const touchStartDistRef = useRef<number | null>(null);
+  const touchStartZoomRef = useRef<number>(1);
+  const maxPanRef = useRef({ x: 0, y: 0 });
+
+  // Calculate base dimensions ensuring image completely covers the CROP_SIZE circle
+  const { baseWidth, baseHeight } = useMemo(() => {
+    if (!naturalDimensions || naturalDimensions.width === 0 || naturalDimensions.height === 0) {
+      return { baseWidth: CROP_SIZE, baseHeight: CROP_SIZE };
+    }
+    const { width, height } = naturalDimensions;
+    // Scale factor so that image covers the entire CROP_SIZE square:
+    const scale = Math.max(CROP_SIZE / width, CROP_SIZE / height);
+    return {
+      baseWidth: width * scale,
+      baseHeight: height * scale,
+    };
+  }, [naturalDimensions]);
+
+  // Scaled dimensions at current zoom
+  const displayedWidth = baseWidth * zoom;
+  const displayedHeight = baseHeight * zoom;
+
+  // Maximum allowed pan so image edges NEVER cross inside the crop circle:
+  const maxPanX = Math.max(0, (displayedWidth - CROP_SIZE) / 2);
+  const maxPanY = Math.max(0, (displayedHeight - CROP_SIZE) / 2);
+
+  // Keep ref updated for smooth, event-listener-free drag tracking
+  maxPanRef.current = { x: maxPanX, y: maxPanY };
+
+  // Clamped pan values
+  const clampedX = Math.min(maxPanX, Math.max(-maxPanX, pan.x));
+  const clampedY = Math.min(maxPanY, Math.max(-maxPanY, pan.y));
+
+  // Image top-left in viewport coordinate space (0 to CROP_SIZE)
+  const imgLeft = Math.round(CROP_SIZE / 2 - displayedWidth / 2 + clampedX);
+  const imgTop = Math.round(CROP_SIZE / 2 - displayedHeight / 2 + clampedY);
+
+  // Reset zoom, pan, and dimensions when a new image is loaded or modal opens
   useEffect(() => {
     if (isOpen) {
       setZoom(1);
       setPan({ x: 0, y: 0 });
       setImageLoaded(false);
+      setNaturalDimensions(null);
     }
   }, [isOpen, imageSrc]);
+
+  // Read natural dimensions if image is already cached/complete
+  useEffect(() => {
+    if (isOpen && imageRef.current?.complete && imageRef.current.naturalWidth) {
+      setNaturalDimensions({
+        width: imageRef.current.naturalWidth,
+        height: imageRef.current.naturalHeight,
+      });
+      setImageLoaded(true);
+    }
+  }, [isOpen, imageSrc]);
+
+  // Keep pan strictly inside boundaries whenever zoom decreases
+  useEffect(() => {
+    setPan((prev) => {
+      const clampedPrevX = Math.min(maxPanX, Math.max(-maxPanX, prev.x));
+      const clampedPrevY = Math.min(maxPanY, Math.max(-maxPanY, prev.y));
+      if (clampedPrevX !== prev.x || clampedPrevY !== prev.y) {
+        return { x: clampedPrevX, y: clampedPrevY };
+      }
+      return prev;
+    });
+  }, [maxPanX, maxPanY]);
 
   // Handle ESC key
   useEffect(() => {
@@ -49,24 +118,36 @@ export function PhotoCropModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isSaving, onClose]);
 
+  // Mouse Drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    dragRef.current = {
+      isDragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialPanX: clampedX,
+      initialPanY: clampedY,
+    };
     setIsDragging(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging) return;
-      setPan({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
-    },
-    [isDragging, dragStart]
-  );
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragRef.current.isDragging) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    const targetX = dragRef.current.initialPanX + dx;
+    const targetY = dragRef.current.initialPanY + dy;
+    const maxX = maxPanRef.current.x;
+    const maxY = maxPanRef.current.y;
+
+    setPan({
+      x: Math.min(maxX, Math.max(-maxX, targetX)),
+      y: Math.min(maxY, Math.max(-maxY, targetY)),
+    });
+  }, []);
 
   const handleMouseUp = useCallback(() => {
+    dragRef.current.isDragging = false;
     setIsDragging(false);
   }, []);
 
@@ -81,27 +162,56 @@ export function PhotoCropModal({
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Touch handlers for mobile/trackpad drag
+  // Touch handlers with pinch-to-zoom support
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
+      dragRef.current = {
+        isDragging: true,
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        initialPanX: clampedX,
+        initialPanY: clampedY,
+      };
       setIsDragging(true);
-      setDragStart({
-        x: e.touches[0].clientX - pan.x,
-        y: e.touches[0].clientY - pan.y,
-      });
+    } else if (e.touches.length === 2) {
+      dragRef.current.isDragging = false;
+      setIsDragging(false);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      touchStartDistRef.current = dist;
+      touchStartZoomRef.current = zoom;
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (isDragging && e.touches.length === 1) {
+    if (e.touches.length === 1 && dragRef.current.isDragging) {
+      const dx = e.touches[0].clientX - dragRef.current.startX;
+      const dy = e.touches[0].clientY - dragRef.current.startY;
+      const targetX = dragRef.current.initialPanX + dx;
+      const targetY = dragRef.current.initialPanY + dy;
+      const maxX = maxPanRef.current.x;
+      const maxY = maxPanRef.current.y;
+
       setPan({
-        x: e.touches[0].clientX - dragStart.x,
-        y: e.touches[0].clientY - dragStart.y,
+        x: Math.min(maxX, Math.max(-maxX, targetX)),
+        y: Math.min(maxY, Math.max(-maxY, targetY)),
       });
+    } else if (e.touches.length === 2 && touchStartDistRef.current !== null) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const scaleFactor = dist / touchStartDistRef.current;
+      const newZoom = Math.min(3, Math.max(1, +(touchStartZoomRef.current * scaleFactor).toFixed(2)));
+      setZoom(newZoom);
     }
   };
 
   const handleTouchEnd = () => {
+    dragRef.current.isDragging = false;
+    touchStartDistRef.current = null;
     setIsDragging(false);
   };
 
@@ -117,8 +227,19 @@ export function PhotoCropModal({
     setPan({ x: 0, y: 0 });
   };
 
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth && img.naturalHeight) {
+      setNaturalDimensions({
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+      setImageLoaded(true);
+    }
+  };
+
   const handleCropAndSave = async () => {
-    if (!imageRef.current || !imageLoaded) return;
+    if (!imageRef.current || !naturalDimensions) return;
 
     const img = imageRef.current;
     const canvas = document.createElement('canvas');
@@ -127,33 +248,17 @@ export function PhotoCropModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Calculate crop
-    // Container display dimensions of the image:
-    // Natural aspect ratio:
-    const naturalWidth = img.naturalWidth;
-    const naturalHeight = img.naturalHeight;
+    // High quality smoothing for clear profile pictures
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    // Determine base scale (cover CROP_SIZE):
-    const scaleBase = Math.max(CROP_SIZE / naturalWidth, CROP_SIZE / naturalHeight);
-    const displayedWidth = naturalWidth * scaleBase * zoom;
-    const displayedHeight = naturalHeight * scaleBase * zoom;
-
-    // Center of crop area in displayed coordinates:
-    const centerDisplayX = CROP_SIZE / 2;
-    const centerDisplayY = CROP_SIZE / 2;
-
-    // Top-left of image relative to container center:
-    const imgLeft = centerDisplayX - displayedWidth / 2 + pan.x;
-    const imgTop = centerDisplayY - displayedHeight / 2 + pan.y;
-
-    // Ratio from displayed px to output canvas px:
+    // Ratio from displayed px to output canvas px
     const displayToCanvas = OUTPUT_SIZE / CROP_SIZE;
 
     // Clear canvas
     ctx.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
 
-    // Draw image onto canvas transformed:
-    ctx.save();
+    // Draw the image onto the canvas exactly as positioned in the viewport
     ctx.drawImage(
       img,
       imgLeft * displayToCanvas,
@@ -161,10 +266,9 @@ export function PhotoCropModal({
       displayedWidth * displayToCanvas,
       displayedHeight * displayToCanvas
     );
-    ctx.restore();
 
     try {
-      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
       await onSave(croppedDataUrl);
     } catch (err) {
       console.error('Failed to export cropped photo', err);
@@ -220,20 +324,18 @@ export function PhotoCropModal({
               ref={imageRef}
               src={imageSrc}
               alt="Crop preview"
-              onLoad={() => setImageLoaded(true)}
+              onLoad={handleImageLoad}
               draggable={false}
               style={{
                 position: 'absolute',
-                left: '50%',
-                top: '50%',
-                transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                transformOrigin: 'center center',
+                left: `${imgLeft}px`,
+                top: `${imgTop}px`,
+                width: `${displayedWidth}px`,
+                height: `${displayedHeight}px`,
                 maxWidth: 'none',
                 maxHeight: 'none',
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
                 pointerEvents: 'none',
+                userSelect: 'none',
               }}
             />
 
@@ -275,7 +377,7 @@ export function PhotoCropModal({
             <button
               type="button"
               onClick={() => setZoom((prev) => Math.max(1, +(prev - 0.15).toFixed(2)))}
-              disabled={zoom <= 1}
+              disabled={zoom <= 1.01}
               aria-label="Zoom out"
               className="p-1 text-zinc-500 hover:text-zinc-800 disabled:opacity-30 rounded cursor-pointer"
             >
@@ -286,7 +388,7 @@ export function PhotoCropModal({
               type="range"
               min="1"
               max="3"
-              step="0.02"
+              step="0.01"
               value={zoom}
               onChange={(e) => setZoom(parseFloat(e.target.value))}
               aria-label="Photo zoom slider"
@@ -296,7 +398,7 @@ export function PhotoCropModal({
             <button
               type="button"
               onClick={() => setZoom((prev) => Math.min(3, +(prev + 0.15).toFixed(2)))}
-              disabled={zoom >= 3}
+              disabled={zoom >= 2.99}
               aria-label="Zoom in"
               className="p-1 text-zinc-500 hover:text-zinc-800 disabled:opacity-30 rounded cursor-pointer"
             >
