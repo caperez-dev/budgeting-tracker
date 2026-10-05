@@ -18,14 +18,17 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Particles } from './ui/particles';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface LandingPageProps {
   onGetStarted: () => void;
   onSignIn: () => void;
+  onSignUp?: () => void;
 }
 
-export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
+export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) {
   const [mockMetricView, setMockMetricView] = useState<'expense' | 'income'>('expense');
+  const handleSignUp = onSignUp || onGetStarted;
 
   return (
     <div className="relative min-h-screen flex flex-col bg-white text-zinc-900 font-sans selection:bg-zinc-900 selection:text-white overflow-x-hidden">
@@ -55,15 +58,26 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               </span>
             </div>
 
-            {/* Top Right Action: Sign In Button */}
-            <div className="flex items-center gap-3">
+            {/* Top Right Actions: Login first, then Sign up */}
+            <div className="flex items-center gap-2 sm:gap-2.5">
               <button
                 type="button"
+                id="btn-header-login"
                 onClick={onSignIn}
-                className="px-3.5 py-1.5 text-xs font-medium text-zinc-700 hover:text-zinc-900 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-[4px] transition-colors shadow-2xs cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-medium text-zinc-700 hover:text-zinc-900 bg-white hover:bg-zinc-50 border border-zinc-200 rounded-[4px] transition-colors shadow-2xs cursor-pointer"
               >
-                Sign in
+                Log in
               </button>
+              <SpecularButton
+                type="button"
+                id="btn-header-signup"
+                size="sm"
+                radius={4}
+                onClick={handleSignUp}
+                className="px-3.5 py-1.5 text-xs font-medium text-white shadow-xs"
+              >
+                Sign up
+              </SpecularButton>
             </div>
           </div>
         </header>
@@ -88,14 +102,16 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
 
           {/* Primary CTA */}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
-            <button
+            <SpecularButton
               type="button"
+              size="lg"
+              radius={4}
               onClick={onGetStarted}
-              className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[4px] bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-sm transition-all shadow-xs hover:shadow cursor-pointer group"
+              className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 text-white font-medium text-sm transition-all shadow-xs hover:shadow cursor-pointer group"
             >
               <span>Get started</span>
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-            </button>
+            </SpecularButton>
           </div>
 
           {/* Trust Cue */}
@@ -394,14 +410,14 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                 onClick={onSignIn}
                 className="text-zinc-600 hover:text-zinc-900 transition-colors font-medium cursor-pointer"
               >
-                Sign in
+                Log in
               </button>
               <button
                 type="button"
-                onClick={onGetStarted}
+                onClick={handleSignUp}
                 className="text-zinc-600 hover:text-zinc-900 transition-colors font-medium cursor-pointer"
               >
-                Get started
+                Sign up
               </button>
             </div>
           </div>

@@ -29,6 +29,7 @@ import {
   getCurrent12HourTime,
 } from '../utils/formatters';
 import { CategoryIcon, AccountIcon } from './CategoryIcon';
+import { SpecularButton } from './ui/SpecularButton';
 import { CurrencySelect } from './CurrencySelect';
 import { CategorySelect } from './CategorySelect';
 import { AccountSelect } from './AccountSelect';
@@ -1832,8 +1833,10 @@ export function TrackerView({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
+                size="sm"
+                radius={3}
                 disabled={
                   Boolean(transferAmountValidationError) ||
                   (editingTx.type === 'transfer' &&
@@ -1843,10 +1846,10 @@ export function TrackerView({
                       !(editingTx.fromAccountId || editingTx.accountId) ||
                       (editingTx.fromAccountId || editingTx.accountId) === editingTx.toAccountId))
                 }
-                className="px-3 py-1.5 bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-[3px] cursor-pointer"
+                className="px-3 py-1.5 text-white text-xs font-semibold"
               >
                 Save Changes
-              </button>
+              </SpecularButton>
             </div>
           </form>
         </div>

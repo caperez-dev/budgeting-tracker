@@ -5,6 +5,7 @@ import { AccountIcon } from './CategoryIcon';
 import { formatCurrency } from '../utils/formatters';
 import { AccountTypeSelect } from './AccountTypeSelect';
 import { AccountIconPicker } from './AccountIconPicker';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface AccountManagerModalProps {
   accounts: Account[];
@@ -453,9 +454,11 @@ export function AccountManagerModal({
               </span>
             </div>
             {!isAdding && (
-              <button
+              <SpecularButton
                 id="btn-show-add-account"
                 type="button"
+                size="sm"
+                radius={4}
                 onClick={() => {
                   setName('GCash');
                   setType('ewallet');
@@ -465,10 +468,10 @@ export function AccountManagerModal({
                   setIsAdding(true);
                   setEditingAccount(null);
                 }}
-                className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
+                className="px-3 py-1 text-white text-xs font-medium"
               >
                 <span>Add Account</span>
-              </button>
+              </SpecularButton>
             )}
           </div>
         )}
@@ -886,14 +889,16 @@ export function AccountManagerModal({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 id="btn-save-new-account"
                 type="submit"
                 form="form-add-account"
-                className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors cursor-pointer"
+                size="sm"
+                radius={4}
+                className="px-4 py-1.5 text-white text-xs font-semibold"
               >
                 Save Account
-              </button>
+              </SpecularButton>
             </>
           ) : editingAccount ? (
             <>
@@ -908,14 +913,16 @@ export function AccountManagerModal({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 id="btn-save-edit-account"
                 type="submit"
                 form="form-edit-account"
-                className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors cursor-pointer"
+                size="sm"
+                radius={4}
+                className="px-4 py-1.5 text-white text-xs font-semibold"
               >
                 Save Changes
-              </button>
+              </SpecularButton>
             </>
           ) : (
             <button

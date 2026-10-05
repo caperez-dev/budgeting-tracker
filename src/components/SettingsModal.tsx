@@ -16,6 +16,7 @@ import {
 import { AuthUser, UserProfile } from '../types';
 import { maskEmailAddress } from './SettingsPage';
 import { PhotoCropModal } from './PhotoCropModal';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface SettingsModalProps {
   currentUser: AuthUser | null;
@@ -352,14 +353,16 @@ export function SettingsModal({
                       >
                         Cancel
                       </button>
-                      <button
+                      <SpecularButton
                         type="button"
                         id="btn-save-remove-photo"
+                        size="sm"
+                        radius={4}
                         onClick={handleSaveRemovePhoto}
-                        className="px-2.5 py-1 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-[4px] transition-colors shadow-2xs cursor-pointer"
+                        className="px-2.5 py-1 text-xs font-medium text-white shadow-2xs"
                       >
                         Save
-                      </button>
+                      </SpecularButton>
                     </div>
                   )}
                 </div>
@@ -467,11 +470,13 @@ export function SettingsModal({
             >
               Cancel
             </button>
-            <button
+            <SpecularButton
               type="submit"
               id="btn-save-settings"
+              size="sm"
+              radius={4}
               disabled={isSubmitting}
-              className="px-3.5 py-1.5 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded-[4px] transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="px-3.5 py-1.5 text-xs font-medium text-white shadow-2xs flex items-center gap-1.5"
             >
               {isSubmitting ? (
                 <>
@@ -481,7 +486,7 @@ export function SettingsModal({
               ) : (
                 <span>Save Changes</span>
               )}
-            </button>
+            </SpecularButton>
           </div>
         </form>
       </div>

@@ -13,6 +13,7 @@ import {
   fetchLiveExchangeRates,
 } from '../data/worldCurrencies';
 import { CurrencyFlag } from './CurrencyFlag';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface CurrencyManagerModalProps {
   currencies: Currency[];
@@ -275,14 +276,16 @@ export function CurrencyManagerModal({
                       </div>
 
                       <div className="shrink-0 pl-2">
-                        <button
+                        <SpecularButton
                           type="button"
+                          size="sm"
+                          radius={3}
                           onClick={() => handleAddWorldCurrency(wc)}
-                          className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] font-medium rounded-[3px] flex items-center gap-1 transition-colors cursor-pointer"
+                          className="px-2.5 py-1 text-white text-[11px] font-medium flex items-center gap-1"
                         >
                           <Plus className="w-3 h-3" />
                           Add
-                        </button>
+                        </SpecularButton>
                       </div>
                     </div>
                   );

@@ -16,6 +16,7 @@ import {
 import { AuthUser, UserProfile } from '../types';
 import { validateUsername } from '../utils/usernameValidation';
 import { PhotoCropModal } from './PhotoCropModal';
+import { SpecularButton } from './ui/SpecularButton';
 
 /**
  * Masks an email for placeholder display:
@@ -589,19 +590,21 @@ export function SettingsPage({
                     >
                       Cancel
                     </button>
-                    <button
+                    <SpecularButton
                       type="button"
                       id="btn-save-remove-photo"
+                      size="sm"
+                      radius={4}
                       onClick={handleSaveRemovePhoto}
                       disabled={isSavingPhotoRemoval}
-                      className="px-2.5 py-0.5 text-[11px] font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-0.5 text-[11px] font-medium text-white shadow-2xs flex items-center gap-1"
                     >
                       {isSavingPhotoRemoval ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
                         <span>Save</span>
                       )}
-                    </button>
+                    </SpecularButton>
                   </div>
                 )}
 
@@ -705,19 +708,21 @@ export function SettingsPage({
                   >
                     Cancel
                   </button>
-                  <button
+                  <SpecularButton
                     type="button"
                     id="btn-save-username"
+                    size="sm"
+                    radius={4}
                     onClick={handleSaveNickname}
                     disabled={isSavingNickname}
-                    className="px-3.5 py-2 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded-[4px] transition-colors cursor-pointer shadow-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+                    className="px-3.5 py-2 text-xs font-medium text-white shadow-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                   >
                     {isSavingNickname ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
                     ) : (
                       <span>Save</span>
                     )}
-                  </button>
+                  </SpecularButton>
                 </div>
               </div>
             </div>
@@ -850,12 +855,14 @@ export function SettingsPage({
                   >
                     Cancel
                   </button>
-                  <button
+                  <SpecularButton
                     type="button"
                     id="btn-confirm-change-email"
+                    size="sm"
+                    radius={4}
                     onClick={handleChangeEmail}
                     disabled={isChangingEmail}
-                    className="px-3.5 py-1.5 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded-[4px] transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 text-xs font-medium text-white shadow-xs flex items-center gap-1.5"
                   >
                     {isChangingEmail ? (
                       <>
@@ -865,7 +872,7 @@ export function SettingsPage({
                     ) : (
                       <span>Change</span>
                     )}
-                  </button>
+                  </SpecularButton>
                 </div>
               </div>
             )}
@@ -957,16 +964,14 @@ export function SettingsPage({
 
               {/* Continue button aligned to the right (initially muted) */}
               <div className="flex items-center justify-end gap-2 pt-1">
-                <button
+                <SpecularButton
                   type="button"
                   id="btn-verify-current-password"
+                  size="sm"
+                  radius={4}
                   onClick={handleVerifyCurrentPassword}
                   disabled={isVerifyingPassword || currentPassword.length === 0}
-                  className={`px-4 py-1.5 text-xs font-medium rounded-[4px] transition-all duration-200 flex items-center gap-1.5 ${
-                    currentPassword.length === 0
-                      ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed select-none opacity-60'
-                      : 'bg-zinc-900 hover:bg-zinc-800 text-white cursor-pointer shadow-xs opacity-100'
-                  }`}
+                  className="px-4 py-1.5 text-xs font-medium flex items-center gap-1.5"
                 >
                   {isVerifyingPassword ? (
                     <>
@@ -976,7 +981,7 @@ export function SettingsPage({
                   ) : (
                     <span>Continue</span>
                   )}
-                </button>
+                </SpecularButton>
               </div>
             </div>
           ) : (
@@ -1190,12 +1195,14 @@ export function SettingsPage({
                 >
                   Cancel
                 </button>
-                <button
+                <SpecularButton
                   type="button"
                   id="btn-save-new-password"
+                  size="sm"
+                  radius={4}
                   onClick={handleSaveNewPassword}
                   disabled={isUpdatingPassword}
-                  className="px-3.5 py-1.5 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded-[4px] transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 text-xs font-medium text-white shadow-xs flex items-center gap-1.5"
                 >
                   {isUpdatingPassword ? (
                     <>
@@ -1205,7 +1212,7 @@ export function SettingsPage({
                   ) : (
                     <span>Save Password</span>
                   )}
-                </button>
+                </SpecularButton>
               </div>
             </div>
           )}

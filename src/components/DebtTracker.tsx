@@ -11,6 +11,7 @@ import {
 import { Currency, Debt } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface DebtTrackerProps {
   debts: Debt[];
@@ -119,13 +120,15 @@ export function DebtTracker({
             </p>
           </div>
 
-          <button
+          <SpecularButton
             onClick={() => setShowAddModal(true)}
             id="btn-add-debt"
-            className="flex items-center justify-center px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors shadow-xs"
+            size="sm"
+            radius={4}
+            className="px-3 py-1.5 text-white text-xs font-semibold shadow-xs"
           >
             <span>Add Debt Record</span>
-          </button>
+          </SpecularButton>
         </div>
 
         {/* 2 Metric Summary (Money You Owe & Money Owed to You) */}
@@ -451,12 +454,14 @@ export function DebtTracker({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
-                className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[3px] transition-colors"
+                size="sm"
+                radius={3}
+                className="px-3.5 py-1.5 text-white text-xs font-semibold"
               >
                 Save Debt
-              </button>
+              </SpecularButton>
             </div>
           </form>
         </div>

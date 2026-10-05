@@ -10,6 +10,7 @@ import { Category, Currency, TransactionType, Account, Transaction } from '../ty
 import { CategoryIcon, AccountIcon } from './CategoryIcon';
 import { getCurrent12HourTime, getTodayDateString, formatCurrency } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface QuickEntryFormProps {
   currencies: Currency[];
@@ -436,18 +437,16 @@ export function QuickEntryForm({
               Cancel
             </button>
           )}
-          <button
+          <SpecularButton
             type="submit"
             id="btn-save-transaction"
+            size="sm"
+            radius={4}
             disabled={!isAmountFilled}
-            className={`flex items-center justify-center px-4 py-1.5 text-xs font-semibold rounded-[4px] transition-colors shadow-xs ${
-              !isAmountFilled
-                ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-200 shadow-none'
-                : 'bg-zinc-900 hover:bg-zinc-800 text-white cursor-pointer'
-            }`}
+            className="px-4 py-1.5 text-xs font-semibold shadow-xs"
           >
             <span>Save Transaction</span>
-          </button>
+          </SpecularButton>
         </div>
       </form>
     </div>

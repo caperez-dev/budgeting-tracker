@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HeartHandshake, Copy, Check, ExternalLink, QrCode, Edit2, X } from 'lucide-react';
 import { UserSettings } from '../types';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface DonateModalProps {
   donateInfo: UserSettings['donateInfo'];
@@ -107,12 +108,14 @@ export function DonateModal({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
-                className="px-3.5 py-1 bg-zinc-900 text-white font-semibold rounded-[3px]"
+                size="sm"
+                radius={3}
+                className="px-3.5 py-1 text-white font-semibold"
               >
                 Save Details
-              </button>
+              </SpecularButton>
             </div>
           </form>
         ) : (

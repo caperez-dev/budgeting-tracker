@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Trash2, Edit2, Check, X, Palette, GripVertical } from 'lucide-react';
 import { Category, TransactionType } from '../types';
 import { CategoryIcon, ICON_MAP } from './CategoryIcon';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface CategoryManagerModalProps {
   categories: Category[];
@@ -310,15 +311,17 @@ export function CategoryManagerModal({
               </button>
             </div>
 
-            <button
+            <SpecularButton
+              size="sm"
+              radius={4}
               onClick={() => {
                 setIsAdding(true);
                 setCategoryType(activeTab);
               }}
-              className="px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-[4px] hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="px-3 py-1.5 text-white text-xs font-medium"
             >
               <span>Add Category</span>
-            </button>
+            </SpecularButton>
           </div>
         )}
 
@@ -433,12 +436,14 @@ export function CategoryManagerModal({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
-                className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded-[3px] transition-colors cursor-pointer text-xs"
+                size="sm"
+                radius={3}
+                className="px-3.5 py-1.5 text-white font-medium text-xs"
               >
                 Save Category
-              </button>
+              </SpecularButton>
             </div>
           </form>
         )}
@@ -523,12 +528,14 @@ export function CategoryManagerModal({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
-                className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded-[3px] transition-colors cursor-pointer text-xs"
+                size="sm"
+                radius={3}
+                className="px-3.5 py-1.5 text-white font-medium text-xs"
               >
                 Update
-              </button>
+              </SpecularButton>
             </div>
           </form>
         )}

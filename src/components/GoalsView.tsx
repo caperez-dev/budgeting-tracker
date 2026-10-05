@@ -15,6 +15,7 @@ import {
 import { Currency, Goal } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface GoalsViewProps {
   goals: Goal[];
@@ -205,13 +206,15 @@ export function GoalsView({
         </div>
 
         <div className="flex items-center gap-3">
-          <button
+          <SpecularButton
             onClick={() => setShowAddModal(true)}
             id="btn-add-goal"
-            className="flex items-center justify-center px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[4px] transition-colors shadow-xs"
+            size="sm"
+            radius={4}
+            className="px-3 py-1.5 text-white text-xs font-semibold shadow-xs"
           >
             <span>Create Goal</span>
-          </button>
+          </SpecularButton>
         </div>
       </div>
 
@@ -522,12 +525,14 @@ export function GoalsView({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
-                className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-[3px] transition-colors"
+                size="sm"
+                radius={3}
+                className="px-3.5 py-1.5 text-white text-xs font-semibold"
               >
                 Save Goal
-              </button>
+              </SpecularButton>
             </div>
           </form>
         </div>
@@ -593,12 +598,14 @@ export function GoalsView({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
-                className="px-3.5 py-1.5 bg-zinc-900 text-white font-semibold rounded-[3px]"
+                size="sm"
+                radius={3}
+                className="px-3.5 py-1.5 text-white font-semibold"
               >
                 Confirm Deposit
-              </button>
+              </SpecularButton>
             </div>
           </form>
         </div>

@@ -3,6 +3,7 @@ import { X, ArrowLeftRight, AlertCircle, CheckCircle2, Wallet } from 'lucide-rea
 import { Account, Transaction } from '../types';
 import { AccountSelect } from './AccountSelect';
 import { formatCurrency } from '../utils/formatters';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -198,18 +199,20 @@ export function TransferModal({
               </p>
             </div>
             {onOpenAddAccount && (
-              <button
+              <SpecularButton
                 type="button"
                 id="btn-transfer-go-to-accounts"
+                size="sm"
+                radius={4}
                 onClick={() => {
                   onClose();
                   onOpenAddAccount();
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 text-white rounded-[4px] text-xs font-medium hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-medium"
               >
                 <Wallet className="w-3.5 h-3.5" />
                 <span>Add Another Account</span>
-              </button>
+              </SpecularButton>
             )}
           </div>
         ) : (
@@ -440,22 +443,20 @@ export function TransferModal({
               >
                 Cancel
               </button>
-              <button
+              <SpecularButton
                 type="submit"
                 id="btn-submit-transfer"
+                size="sm"
+                radius={4}
                 disabled={isSubmitDisabled}
-                className={`flex items-center justify-center px-4 py-1.5 text-xs font-medium rounded-[4px] transition-all shadow-2xs ${
-                  isSubmitDisabled
-                    ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-200'
-                    : 'bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-900 cursor-pointer'
-                }`}
+                className="px-4 py-1.5 text-xs font-medium shadow-2xs"
               >
                 <span>
                   {isValidAmount && !isInsufficient
                     ? `Transfer ${formatCurrency(parsedAmount, currencySymbol)}`
                     : 'Transfer Balance'}
                 </span>
-              </button>
+              </SpecularButton>
             </div>
           </form>
         )}

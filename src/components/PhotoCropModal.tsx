@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCcw, Loader2 } from 'lucide-react';
+import { SpecularButton } from './ui/SpecularButton';
 
 interface PhotoCropModalProps {
   isOpen: boolean;
@@ -564,12 +565,14 @@ export function PhotoCropModal({
           >
             Cancel
           </button>
-          <button
+          <SpecularButton
             type="button"
             id="btn-save-cropped-photo"
+            size="sm"
+            radius={4}
             onClick={handleCropAndSave}
             disabled={isSaving || !imageLoaded}
-            className="px-3.5 py-1.5 text-xs font-medium text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 rounded-[4px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs min-w-[90px]"
+            className="px-3.5 py-1.5 text-xs font-medium text-white flex items-center justify-center gap-1.5 shadow-xs min-w-[90px]"
           >
             {isSaving ? (
               <>
@@ -579,7 +582,7 @@ export function PhotoCropModal({
             ) : (
               <span>Save Photo</span>
             )}
-          </button>
+          </SpecularButton>
         </div>
       </div>
     </div>

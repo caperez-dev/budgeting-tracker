@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { SpecularButton } from './SpecularButton';
 
 export interface SignInPageProps {
   onSignIn?: (data: { email: string; password: string; rememberMe: boolean }) => void;
@@ -201,13 +202,15 @@ export function LoginPage({
             </div>
 
             {/* Submit */}
-            <button
+            <SpecularButton
               type="submit"
               disabled={isLoading}
-              className="w-full bg-zinc-900 text-white py-3 px-4 rounded-xl font-medium text-sm hover:bg-zinc-800 active:scale-[0.99] transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              size="custom"
+              radius={12}
+              className="w-full py-3 px-4 rounded-xl font-medium text-sm shadow-xs cursor-pointer disabled:opacity-50"
             >
               {isLoading ? 'Signing In...' : 'Sign In'}
-            </button>
+            </SpecularButton>
           </form>
         </div>
       </div>

@@ -2284,6 +2284,10 @@ export default function App() {
           setAuthInitialMode('register');
           setAuthView('auth');
         }}
+        onSignUp={() => {
+          setAuthInitialMode('register');
+          setAuthView('auth');
+        }}
         onSignIn={() => {
           setAuthInitialMode('login');
           setAuthView('auth');
