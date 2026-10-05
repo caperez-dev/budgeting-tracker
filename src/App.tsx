@@ -30,7 +30,6 @@ import { TrackerView } from './components/TrackerView';
 import { SummaryPanel } from './components/SummaryPanel';
 import { DebtTracker } from './components/DebtTracker';
 import { GoalsView } from './components/GoalsView';
-import { AIAdvisorModal } from './components/AIAdvisorModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { CurrencyManagerModal } from './components/CurrencyManagerModal';
 import { AccountManagerModal } from './components/AccountManagerModal';
@@ -1883,17 +1882,9 @@ export default function App() {
     }).catch(() => {});
   };
 
-  const handleReorderAccounts = (reorderedCustomAccounts: Account[]) => {
-    if (!reorderedCustomAccounts) return;
-    const cashAcc = accounts.find(isCashAccount) || DEFAULT_ACCOUNTS.find(isCashAccount)!;
-    const cleanCustom = reorderedCustomAccounts.filter((a) => !isCashAccount(a));
-    const updated = [
-      { ...cashAcc, order: 0 },
-      ...cleanCustom.map((acc, idx) => ({
-        ...acc,
-        order: idx + 1,
-      })),
-    ];
+  const handleReorderAccounts = (reorderedAccounts: Account[]) => {
+    if (!reorderedAccounts || reorderedAccounts.length === 0) return;
+    const updated = ensureCashAccount(reorderedAccounts);
 
     setAccounts(updated);
 
@@ -2403,20 +2394,6 @@ export default function App() {
             onAddGoal={handleAddGoal}
             onUpdateGoal={handleUpdateGoal}
             onDeleteGoal={handleDeleteGoal}
-          />
-        )}
-
-        {activeTab === 'ai' && (
-          <AIAdvisorModal
-            transactions={displayTransactions}
-            categories={categories}
-            debts={displayDebts}
-            goals={displayGoals}
-            currentSavings={currentSavings}
-            totalIncome={totalIncome}
-            totalExpenses={totalExpense}
-            netDebt={netDebt}
-            currencySymbol={currencySymbol}
           />
         )}
 

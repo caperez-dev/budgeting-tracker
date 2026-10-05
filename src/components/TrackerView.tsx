@@ -18,7 +18,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Layers,
   X,
 } from 'lucide-react';
 import { Category, Currency, Transaction, Account } from '../types';
@@ -1282,17 +1281,9 @@ export function TrackerView({
 
         {monthGroups.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 space-y-3">
-            <Layers className="w-8 h-8 mx-auto text-zinc-300" />
-            <div>
-              <p className="text-sm font-medium text-zinc-700">
-                No transactions found {selectedDate ? `for ${selectedMonthYearLabel}` : `in this view`}
-              </p>
-              <p className="text-xs text-zinc-400 mt-1">
-                {searchQuery || filterType !== 'all' || filterCategory !== 'all'
-                  ? 'Try clearing your filters or search terms.'
-                  : 'Add an entry using the form above or pick another date from the calendar.'}
-              </p>
-            </div>
+            <p className="text-sm font-medium text-zinc-700">
+              You have no transactions yet
+            </p>
             {selectedDate && (
               <button
                 type="button"

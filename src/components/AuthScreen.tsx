@@ -60,6 +60,19 @@ export const GoogleIcon = (
   </svg>
 );
 
+export interface FieldErrors {
+  nickname?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+  terms?: string;
+  general?: string;
+  pin?: string;
+  forgotEmail?: string;
+  newPassword?: string;
+  confirmNewPassword?: string;
+}
+
 export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   // Navigation states: 'login' | 'register' | 'forgot_email' | 'forgot_sent' | 'forgot_new_password'
   const [mode, setMode] = useState<AuthScreenMode>('login');
@@ -89,6 +102,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Verification PIN States
@@ -184,19 +198,21 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         }
       }, 1000);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to open Google sign-in. Please try again.');
+      setFieldErrors({ general: err.message || 'Unable to open Google sign-in. Please try again.' });
       setIsGoogleLoading(false);
     }
   };
 
   // Navigation handlers
   const handleGoToForgotPassword = () => {
+    setFieldErrors({});
     setErrorMessage(null);
     setSuccessMessage(null);
     setMode('forgot_email');
   };
 
   const handleBackToLogin = () => {
+    setFieldErrors({});
     setErrorMessage(null);
     setSuccessMessage(null);
     setMode('login');
@@ -205,19 +221,20 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   // Flow Step 1: User submits their email address for password reset
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
     setErrorMessage(null);
     setSuccessMessage(null);
 
     const cleanEmail = email.trim();
     if (!cleanEmail) {
-      setErrorMessage('Please enter your email address.');
+      setFieldErrors({ forgotEmail: 'Please enter your email address.' });
       return;
     }
 
     // Basic email format check
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
-      setErrorMessage('Please enter a valid email address (e.g. name@example.com).');
+      setFieldErrors({ forgotEmail: 'Please enter a valid email address (e.g. name@example.com).' });
       return;
     }
 
@@ -232,6 +249,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
   // Flow Step 2: User advances from email sent confirmation to entering their new password
   const handleProceedToNewPassword = () => {
+    setFieldErrors({});
     setErrorMessage(null);
     setSuccessMessage(null);
     setNewPassword('');
@@ -242,21 +260,25 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   // Flow Step 3: User submits New Password and Confirm Password
   const handleNewPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!newPassword || !confirmNewPassword) {
-      setErrorMessage('Please fill in both password fields.');
-      return;
+    const errs: FieldErrors = {};
+    if (!newPassword) {
+      errs.newPassword = 'Please enter your new password.';
+    } else if (newPassword.length < 6) {
+      errs.newPassword = 'Your new password must be at least 6 characters long.';
     }
 
-    if (newPassword.length < 6) {
-      setErrorMessage('Your new password must be at least 6 characters long.');
-      return;
+    if (!confirmNewPassword) {
+      errs.confirmNewPassword = 'Please confirm your new password.';
+    } else if (newPassword && newPassword !== confirmNewPassword) {
+      errs.confirmNewPassword = 'The passwords do not match. Please re-enter them.';
     }
 
-    if (newPassword !== confirmNewPassword) {
-      setErrorMessage('The passwords do not match. Please re-enter them.');
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
       return;
     }
 
@@ -268,6 +290,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       setConfirmPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
+      setFieldErrors({});
       setMode('login');
       setSuccessMessage('Your password has been changed! You can now sign in with your new password.');
     }, 350);
@@ -276,18 +299,19 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   // Flow: Submit 6-digit PIN to verify account
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
     setErrorMessage(null);
     setSuccessMessage(null);
 
     const cleanPin = verificationPin.trim();
     if (!cleanPin || cleanPin.length !== 6) {
-      setErrorMessage('Please enter the full 6-digit verification PIN.');
+      setFieldErrors({ pin: 'Please enter the full 6-digit verification PIN.' });
       return;
     }
 
     const targetEmail = (pendingEmail || email).trim().toLowerCase();
     if (!targetEmail) {
-      setErrorMessage('Verification email address is missing. Please sign in again.');
+      setFieldErrors({ pin: 'Verification email address is missing. Please sign in again.' });
       return;
     }
 
@@ -304,7 +328,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error('Verification service error. Please try again.');
+        throw new Error('Unable to verify code. Please try again.');
       }
 
       if (!res.ok || !data?.success) {
@@ -320,7 +344,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         });
       }, 400);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Verification failed. Please try again.');
+      setFieldErrors({ pin: err.message || 'Verification failed. Please try again.' });
     } finally {
       setIsVerifying(false);
     }
@@ -331,11 +355,12 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     if (resendCooldown > 0 || isResending) return;
     const targetEmail = (pendingEmail || email).trim().toLowerCase();
     if (!targetEmail) {
-      setErrorMessage('Email address missing. Please return to Sign In.');
+      setFieldErrors({ pin: 'Email address missing. Please return to Sign In.' });
       return;
     }
 
     setIsResending(true);
+    setFieldErrors({});
     setErrorMessage(null);
     setSuccessMessage(null);
 
@@ -357,7 +382,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       setResendCooldown(60);
       setSuccessMessage(`A new 6-digit PIN has been sent to ${targetEmail}.`);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to resend verification code right now.');
+      setFieldErrors({ pin: err.message || 'Unable to resend verification code right now.' });
     } finally {
       setIsResending(false);
     }
@@ -368,43 +393,67 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    const newErrors: FieldErrors = {};
 
     const cleanEmail = email.trim();
-    if (!cleanEmail || !password) {
-      setErrorMessage('Please enter both your email and password.');
+
+    if (mode === 'login') {
+      if (!cleanEmail) {
+        newErrors.email = 'Please enter your email address.';
+      } else {
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(cleanEmail)) {
+          newErrors.email = 'Please enter a valid email address (e.g. name@example.com).';
+        }
+      }
+      if (!password) {
+        newErrors.password = 'Please enter your password.';
+      }
+    } else if (mode === 'register') {
+      const cleanNickname = nickname.trim();
+      if (!cleanNickname) {
+        newErrors.nickname = 'Please enter a username.';
+      } else {
+        const usernameValidation = validateUsername(cleanNickname);
+        if (!usernameValidation.isValid) {
+          newErrors.nickname = usernameValidation.error || 'Please choose a valid username.';
+        }
+      }
+
+      if (!cleanEmail) {
+        newErrors.email = 'Please enter your email address.';
+      } else if (cleanEmail.length > 64) {
+        newErrors.email = 'Email address cannot be longer than 64 characters.';
+      } else {
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(cleanEmail)) {
+          newErrors.email = 'Please enter a valid email address (e.g. name@example.com).';
+        }
+      }
+
+      if (!password) {
+        newErrors.password = 'Please enter a password.';
+      } else if (password.length < 6) {
+        newErrors.password = 'Password must be at least 6 characters.';
+      }
+
+      if (!confirmPassword) {
+        newErrors.confirmPassword = 'Please confirm your password.';
+      } else if (password && password !== confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match. Please re-enter.';
+      }
+
+      if (!agreedToTerms) {
+        newErrors.terms = 'Please agree to the Terms and Conditions to create your account.';
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFieldErrors(newErrors);
       return;
     }
 
-    if (mode === 'register') {
-      const cleanNickname = nickname.trim();
-      const usernameValidation = validateUsername(cleanNickname);
-      if (!usernameValidation.isValid) {
-        setErrorMessage(usernameValidation.error || 'Please choose a valid username.');
-        return;
-      }
-      if (cleanEmail.length > 64) {
-        setErrorMessage('Email address cannot be longer than 64 characters.');
-        return;
-      }
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailPattern.test(cleanEmail)) {
-        setErrorMessage('Please enter a valid email address (e.g. name@example.com).');
-        return;
-      }
-      if (password.length < 6) {
-        setErrorMessage('Password must be at least 6 characters.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setErrorMessage('Passwords do not match. Please re-enter.');
-        return;
-      }
-      if (!agreedToTerms) {
-        setErrorMessage('Please agree to the Terms and Conditions to create your account.');
-        return;
-      }
-    }
-
+    setFieldErrors({});
     setIsLoading(true);
 
     try {
@@ -447,7 +496,25 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           setErrorMessage(data.error || 'Please enter the verification PIN sent to your email.');
           return;
         }
-        throw new Error(data?.error || 'Something went wrong. Please check your details and try again.');
+
+        const errMsg = data?.error || 'Something went wrong. Please check your details and try again.';
+        const lowerErr = errMsg.toLowerCase();
+        const serverErrors: FieldErrors = {};
+        if (lowerErr.includes('username')) {
+          serverErrors.nickname = errMsg;
+        } else if (
+          lowerErr.includes('email') ||
+          lowerErr.includes('account found') ||
+          lowerErr.includes('already exists')
+        ) {
+          serverErrors.email = errMsg;
+        } else if (lowerErr.includes('password') || lowerErr.includes('credentials')) {
+          serverErrors.password = errMsg;
+        } else {
+          serverErrors.general = errMsg;
+        }
+        setFieldErrors(serverErrors);
+        return;
       }
 
       // Check if registration requires verification PIN
@@ -474,7 +541,23 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         });
       }, 350);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to sign in right now. Please try again.');
+      const errMsg = err.message || 'Unable to sign in right now. Please try again.';
+      const lowerErr = errMsg.toLowerCase();
+      const serverErrors: FieldErrors = {};
+      if (lowerErr.includes('username')) {
+        serverErrors.nickname = errMsg;
+      } else if (
+        lowerErr.includes('email') ||
+        lowerErr.includes('account found') ||
+        lowerErr.includes('already exists')
+      ) {
+        serverErrors.email = errMsg;
+      } else if (lowerErr.includes('password') || lowerErr.includes('credentials')) {
+        serverErrors.password = errMsg;
+      } else {
+        serverErrors.general = errMsg;
+      }
+      setFieldErrors(serverErrors);
     } finally {
       setIsLoading(false);
     }
@@ -527,14 +610,6 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           </CardHeader>
 
           <CardContent className="space-y-5 px-6 sm:px-8">
-            {/* Status alerts */}
-            {errorMessage && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700 animate-in fade-in duration-200">
-                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{errorMessage}</span>
-              </div>
-            )}
-
             {successMessage && (
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-800 animate-in fade-in duration-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -579,7 +654,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   </div>
                 </div>
 
-                <form onSubmit={handleAuthSubmit} className="space-y-4">
+                <form onSubmit={handleAuthSubmit} noValidate className="space-y-4">
                   {/* Username field (Register only) */}
                   {mode === 'register' && (
                     <div className="space-y-1.5">
@@ -588,17 +663,25 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                         <Input
                           id="auth-nickname"
                           type="text"
-                          required
                           maxLength={30}
                           value={nickname}
-                          onChange={(e) => setNickname(e.target.value.slice(0, 30))}
-                          placeholder="e.g. carlosperez"
-                          className="ps-10"
+                          onChange={(e) => {
+                            setNickname(e.target.value.slice(0, 30));
+                            if (fieldErrors.nickname) setFieldErrors((prev) => ({ ...prev, nickname: undefined }));
+                          }}
+                          placeholder="yourusername"
+                          className={`ps-10 ${fieldErrors.nickname ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                         />
                         <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                           <User className="h-4 w-4" />
                         </div>
                       </div>
+                      {fieldErrors.nickname && (
+                        <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          <span>{fieldErrors.nickname}</span>
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -609,17 +692,25 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       <Input
                         id="auth-email"
                         type="email"
-                        required
                         maxLength={64}
                         value={email}
-                        onChange={(e) => setEmail(e.target.value.slice(0, 64))}
+                        onChange={(e) => {
+                          setEmail(e.target.value.slice(0, 64));
+                          if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                        }}
                         placeholder="name@example.com"
-                        className="ps-10"
+                        className={`ps-10 ${fieldErrors.email ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                       />
                       <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                         <Mail className="h-4 w-4" />
                       </div>
                     </div>
+                    {fieldErrors.email && (
+                      <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                        <span>{fieldErrors.email}</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* Password */}
@@ -640,11 +731,13 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       <Input
                         id="auth-password"
                         type={showPassword ? 'text' : 'password'}
-                        required
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                        }}
                         placeholder="••••••••"
-                        className="ps-10 pe-10"
+                        className={`ps-10 pe-10 ${fieldErrors.password ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                       />
                       <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                         <Lock className="h-4 w-4" />
@@ -658,6 +751,12 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {fieldErrors.password && (
+                      <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                        <span>{fieldErrors.password}</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* Confirm Password (Register only) */}
@@ -668,11 +767,13 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                         <Input
                           id="auth-confirm-password"
                           type={showConfirmPassword ? 'text' : 'password'}
-                          required
                           value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            if (fieldErrors.confirmPassword) setFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                          }}
                           placeholder="••••••••"
-                          className="ps-10 pe-10"
+                          className={`ps-10 pe-10 ${fieldErrors.confirmPassword ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                         />
                         <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                           <ShieldCheck className="h-4 w-4" />
@@ -686,6 +787,12 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                           {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
+                      {fieldErrors.confirmPassword && (
+                        <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          <span>{fieldErrors.confirmPassword}</span>
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -708,20 +815,39 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
                   {/* Terms Checkbox (Register) */}
                   {mode === 'register' && (
-                    <div className="flex items-center space-x-2 pt-1">
-                      <Checkbox
-                        id="terms"
-                        checked={agreedToTerms}
-                        onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
-                      />
-                      <label
-                        htmlFor="terms"
-                        className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
-                      >
-                        I agree to the{' '}
-                        <span className="text-zinc-900 font-medium hover:underline">Terms</span> and{' '}
-                        <span className="text-zinc-900 font-medium hover:underline">Conditions</span>
-                      </label>
+                    <div>
+                      <div className="flex items-center space-x-2 pt-1">
+                        <Checkbox
+                          id="terms"
+                          checked={agreedToTerms}
+                          onCheckedChange={(checked) => {
+                            setAgreedToTerms(checked === true);
+                            if (fieldErrors.terms) setFieldErrors((prev) => ({ ...prev, terms: undefined }));
+                          }}
+                        />
+                        <label
+                          htmlFor="terms"
+                          className="text-xs text-zinc-600 font-normal cursor-pointer select-none"
+                        >
+                          I agree to the{' '}
+                          <span className="text-zinc-900 font-medium hover:underline">Terms</span> and{' '}
+                          <span className="text-zinc-900 font-medium hover:underline">Conditions</span>
+                        </label>
+                      </div>
+                      {fieldErrors.terms && (
+                        <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1.5 animate-in fade-in duration-150 font-normal">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          <span>{fieldErrors.terms}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* General / connection errors right above submit button */}
+                  {fieldErrors.general && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700 animate-in fade-in duration-200">
+                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{fieldErrors.general}</span>
                     </div>
                   )}
 
@@ -798,16 +924,26 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                         setVerificationPin(val);
+                        if (fieldErrors.pin) setFieldErrors((prev) => ({ ...prev, pin: undefined }));
                         if (errorMessage) setErrorMessage(null);
                       }}
                       placeholder="••••••"
-                      className="text-center font-mono text-2xl tracking-[0.4em] h-14 font-bold rounded-xl border-zinc-300 focus-visible:ring-zinc-900 bg-zinc-50/50"
+                      className={`text-center font-mono text-2xl tracking-[0.4em] h-14 font-bold rounded-xl border-zinc-300 focus-visible:ring-zinc-900 bg-zinc-50/50 ${
+                        fieldErrors.pin || errorMessage ? 'border-red-400 focus-visible:ring-red-400' : ''
+                      }`}
                       autoFocus
                     />
                   </div>
-                  <p className="text-[11px] text-zinc-400 text-center">
-                    PIN expires in 15 minutes. Check spam folder if not found.
-                  </p>
+                  {fieldErrors.pin || errorMessage ? (
+                    <p className="text-xs text-red-600 flex items-center justify-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{fieldErrors.pin || errorMessage}</span>
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-zinc-400 text-center">
+                      PIN expires in 15 minutes. Check spam folder if not found.
+                    </p>
+                  )}
                 </div>
 
                 {/* Submit button */}
@@ -877,20 +1013,29 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     <Input
                       id="forgot-email-input"
                       type="email"
-                      required
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (fieldErrors.forgotEmail) setFieldErrors((prev) => ({ ...prev, forgotEmail: undefined }));
+                      }}
                       placeholder="name@example.com"
-                      className="ps-10"
+                      className={`ps-10 ${fieldErrors.forgotEmail ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                       autoFocus
                     />
                     <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                       <Mail className="h-4 w-4" />
                     </div>
                   </div>
-                  <p className="text-[11px] text-zinc-400">
-                    We will send a secure link to this email address to reset your password.
-                  </p>
+                  {fieldErrors.forgotEmail ? (
+                    <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{fieldErrors.forgotEmail}</span>
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-zinc-400">
+                      We will send a secure link to this email address to reset your password.
+                    </p>
+                  )}
                 </div>
 
                 <Button
@@ -1009,11 +1154,13 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     <Input
                       id="forgot-new-password"
                       type={showNewPassword ? 'text' : 'password'}
-                      required
                       value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        if (fieldErrors.newPassword) setFieldErrors((prev) => ({ ...prev, newPassword: undefined }));
+                      }}
                       placeholder="At least 6 characters"
-                      className="ps-10 pe-10"
+                      className={`ps-10 pe-10 ${fieldErrors.newPassword ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                       autoFocus
                     />
                     <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
@@ -1028,6 +1175,12 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {fieldErrors.newPassword && (
+                    <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{fieldErrors.newPassword}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Field 2: Confirm Password */}
@@ -1037,11 +1190,13 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     <Input
                       id="forgot-confirm-password"
                       type={showConfirmNewPassword ? 'text' : 'password'}
-                      required
                       value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      onChange={(e) => {
+                        setConfirmNewPassword(e.target.value);
+                        if (fieldErrors.confirmNewPassword) setFieldErrors((prev) => ({ ...prev, confirmNewPassword: undefined }));
+                      }}
                       placeholder="Re-enter your new password"
-                      className="ps-10 pe-10"
+                      className={`ps-10 pe-10 ${fieldErrors.confirmNewPassword ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                     />
                     <div className="text-zinc-400 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3.5">
                       <ShieldCheck className="h-4 w-4" />
@@ -1055,6 +1210,12 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {fieldErrors.confirmNewPassword && (
+                    <p className="text-xs text-red-600 flex items-center gap-1.5 mt-1 animate-in fade-in duration-150 font-normal">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{fieldErrors.confirmNewPassword}</span>
+                    </p>
+                  )}
                 </div>
 
                 <Button
@@ -1099,6 +1260,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     type="button"
                     onClick={() => {
                       setMode('register');
+                      setFieldErrors({});
                       setErrorMessage(null);
                       setSuccessMessage(null);
                     }}
@@ -1114,6 +1276,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     type="button"
                     onClick={() => {
                       setMode('login');
+                      setFieldErrors({});
                       setErrorMessage(null);
                       setSuccessMessage(null);
                     }}

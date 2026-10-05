@@ -218,10 +218,7 @@ export function GoalsView({
       {/* Goals Grid */}
       {goals.length === 0 ? (
         <div className="bg-white border border-zinc-200 rounded-[5px] p-12 text-center text-zinc-500">
-          <p className="text-sm font-medium text-zinc-700">No purchase goals defined yet</p>
-          <p className="text-xs text-zinc-400 mt-1">
-            Set up an item you are saving for with a target purchase date.
-          </p>
+          <p className="text-sm font-medium text-zinc-700">Add your first purchase goal</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

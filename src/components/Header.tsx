@@ -5,7 +5,6 @@ import {
   BarChart3,
   Scale,
   Flag,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   ArrowLeftRight,
@@ -20,7 +19,9 @@ const MONTH_NAMES = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-export type ActiveTab = 'tracker' | 'summary' | 'debts' | 'goals' | 'ai' | 'settings';
+const HEADER_METRIC_STORAGE_KEY = 'budget_tracker_header_metric_view';
+
+export type ActiveTab = 'tracker' | 'summary' | 'debts' | 'goals' | 'settings';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -156,7 +157,59 @@ export function Header({
     }).format(d);
   }, [headerYear, headerMonth]);
 
-  const savingsHoverMessage = `Month of ${specificMonthName}`;
+  const [metricView, setMetricView] = useState<'expense' | 'income'>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const userSaved = currentUser?.id
+          ? localStorage.getItem(`${HEADER_METRIC_STORAGE_KEY}_${currentUser.id}`)
+          : null;
+        if (userSaved === 'income' || userSaved === 'expense') {
+          return userSaved;
+        }
+        const globalSaved = localStorage.getItem(HEADER_METRIC_STORAGE_KEY);
+        if (globalSaved === 'income' || globalSaved === 'expense') {
+          return globalSaved;
+        }
+      }
+    } catch {}
+    return 'expense';
+  });
+
+  // Synchronize persisted preference when currentUser changes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const userSaved = currentUser?.id
+          ? localStorage.getItem(`${HEADER_METRIC_STORAGE_KEY}_${currentUser.id}`)
+          : null;
+        if (userSaved === 'income' || userSaved === 'expense') {
+          setMetricView(userSaved);
+          return;
+        }
+        const globalSaved = localStorage.getItem(HEADER_METRIC_STORAGE_KEY);
+        if (globalSaved === 'income' || globalSaved === 'expense') {
+          setMetricView(globalSaved);
+        }
+      }
+    } catch {}
+  }, [currentUser?.id]);
+
+  const handleToggleMetricView = () => {
+    setMetricView((prev) => {
+      const next = prev === 'expense' ? 'income' : 'expense';
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(HEADER_METRIC_STORAGE_KEY, next);
+          if (currentUser?.id) {
+            localStorage.setItem(`${HEADER_METRIC_STORAGE_KEY}_${currentUser.id}`, next);
+          }
+        }
+      } catch {}
+      return next;
+    });
+  };
+
+  const monthHoverMessage = `Month of ${specificMonthName}`;
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-zinc-200">
@@ -303,31 +356,34 @@ export function Header({
 
         {/* Global Financial Metrics */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 ml-auto sm:ml-0">
-          {/* Current Savings (Hidden on mobile view) */}
-          <div
-            id="current-savings-display"
-            className="relative group hidden sm:flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-[4px] cursor-default"
-            title={savingsHoverMessage}
+          {/* Expenses / Income Metric Component (Clickable to switch between Monthly Expenses and Monthly Income) */}
+          <button
+            type="button"
+            id="header-expenses-display"
+            onClick={handleToggleMetricView}
+            className="relative group hidden sm:flex items-center gap-2 px-3 py-1.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 hover:border-zinc-300 rounded-[4px] cursor-pointer transition-all active:scale-[0.98] select-none text-left"
+            title={monthHoverMessage}
+            aria-label={`${metricView === 'expense' ? 'Expenses' : 'Income'} for ${monthHoverMessage}. Click to switch to ${metricView === 'expense' ? 'income' : 'expenses'}.`}
           >
             <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-              Savings:
+              {metricView === 'expense' ? 'Expenses:' : 'Income:'}
             </span>
             <span
               className={`font-mono text-sm font-semibold tabular-nums ${
-                currentSavings >= 0 ? 'text-zinc-900' : 'text-rose-600'
+                metricView === 'income' ? 'text-emerald-600' : 'text-zinc-900'
               }`}
             >
-              {formatCurrency(currentSavings, currencySymbol)}
+              {formatCurrency(metricView === 'expense' ? totalExpense : totalIncome, currencySymbol)}
             </span>
 
             {/* Hover Tooltip */}
             <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-30 drop-shadow-md">
               <div className="w-1.5 h-1.5 bg-zinc-900 rotate-45 -mb-0.5 border-l border-t border-zinc-800" />
               <div className="bg-zinc-900 text-white text-[11px] font-medium px-2.5 py-1 rounded-[4px] whitespace-nowrap shadow-md">
-                {savingsHoverMessage}
+                {monthHoverMessage}
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Profile Dropdown */}
           <ProfileDropdown
@@ -418,20 +474,6 @@ export function Header({
             >
               <Flag className="w-3.5 h-3.5 shrink-0" />
               <span>Goals</span>
-            </button>
-
-            <button
-              id="tab-ai"
-              onClick={() => setActiveTab('ai')}
-              title="AI Advisor"
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-[4px] transition-colors whitespace-nowrap cursor-pointer ${
-                activeTab === 'ai'
-                  ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span>AI Advisor</span>
             </button>
           </nav>
 
