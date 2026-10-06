@@ -342,17 +342,33 @@ export function QuickEntryForm({
           <div className="flex flex-wrap gap-1.5">
             {availableCategories.map((cat) => {
               const isSelected = categoryId === cat.id;
+              if (isSelected) {
+                return (
+                  <SpecularButton
+                    key={cat.id}
+                    type="button"
+                    id={`cat-chip-${cat.id}`}
+                    onClick={() => setCategoryId(cat.id)}
+                    size="custom"
+                    radius={4}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-medium shadow-2xs cursor-pointer border border-zinc-900"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full inline-block shrink-0"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    <CategoryIcon name={cat.icon} className="w-3 h-3 shrink-0" />
+                    <span>{cat.name}</span>
+                  </SpecularButton>
+                );
+              }
               return (
                 <button
                   key={cat.id}
                   type="button"
                   id={`cat-chip-${cat.id}`}
                   onClick={() => setCategoryId(cat.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border ${
-                    isSelected
-                      ? 'bg-zinc-900 text-white border-zinc-900 font-medium shadow-2xs'
-                      : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
-                  }`}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 cursor-pointer"
                 >
                   <span
                     className="w-2 h-2 rounded-full inline-block shrink-0"
@@ -394,20 +410,31 @@ export function QuickEntryForm({
 
                 return (
                   <div key={acc.id} className="relative group">
-                    <button
-                      type="button"
-                      id={`acc-chip-${acc.id}`}
-                      onClick={() => setAccountId(acc.id)}
-                      title={`${acc.name}: ${formattedBalance}`}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border cursor-pointer ${
-                        isSelected
-                          ? 'bg-zinc-900 text-white border-zinc-900 font-medium shadow-2xs'
-                          : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
-                      }`}
-                    >
-                      <AccountIcon name={acc.icon} className="w-3.5 h-3.5 shrink-0" />
-                      <span>{acc.name}</span>
-                    </button>
+                    {isSelected ? (
+                      <SpecularButton
+                        type="button"
+                        id={`acc-chip-${acc.id}`}
+                        onClick={() => setAccountId(acc.id)}
+                        title={`${acc.name}: ${formattedBalance}`}
+                        size="custom"
+                        radius={4}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-medium shadow-2xs cursor-pointer border border-zinc-900"
+                      >
+                        <AccountIcon name={acc.icon} className="w-3.5 h-3.5 shrink-0" />
+                        <span>{acc.name}</span>
+                      </SpecularButton>
+                    ) : (
+                      <button
+                        type="button"
+                        id={`acc-chip-${acc.id}`}
+                        onClick={() => setAccountId(acc.id)}
+                        title={`${acc.name}: ${formattedBalance}`}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border cursor-pointer bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300"
+                      >
+                        <AccountIcon name={acc.icon} className="w-3.5 h-3.5 shrink-0" />
+                        <span>{acc.name}</span>
+                      </button>
+                    )}
 
                     {/* Balance Tooltip on Hover */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-30 drop-shadow-md">

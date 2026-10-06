@@ -38,10 +38,11 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  muted?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size, asChild = false, children, ...props }, ref) => {
+  ({ className, variant = "default", size, asChild = false, muted = false, children, ...props }, ref) => {
     const computedClass = cn(buttonVariants({ variant: (variant ?? "default") as VariantProps<typeof buttonVariants>["variant"], size, className }));
 
     if (asChild) {
@@ -62,6 +63,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           size="custom"
           className={computedClass}
           ref={ref}
+          muted={muted}
           {...props}
         >
           {children}

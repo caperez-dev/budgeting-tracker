@@ -87,6 +87,7 @@ export interface SpecularButtonProps extends ButtonHTMLAttributes<HTMLButtonElem
   proximity?: number;
   autoAnimate?: boolean;
   disabled?: boolean;
+  muted?: boolean;
   onClick?: MouseEventHandler<HTMLButtonElement>;
   className?: string;
   type?: 'button' | 'submit' | 'reset';
@@ -120,6 +121,7 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
       proximity = 250,
       autoAnimate = false,
       disabled = false,
+      muted = false,
       onClick,
       className = '',
       type = 'button',
@@ -138,6 +140,14 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
 
     React.useImperativeHandle(forwardedRef, () => btnRef.current as HTMLButtonElement);
   const fxRef = useRef<HTMLSpanElement | null>(null);
+
+  const isMuted = Boolean(
+    disabled ||
+    muted ||
+    (rest as any)['aria-disabled'] === true ||
+    (rest as any)['aria-disabled'] === 'true'
+  );
+
   const propsRef = useRef<{
     radius: number;
     lineColor: string;
@@ -150,6 +160,7 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
     followMouse: boolean;
     proximity: number;
     autoAnimate: boolean;
+    isMuted: boolean;
   }>({
     radius: radius ?? 4,
     lineColor,
@@ -162,6 +173,7 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
     followMouse,
     proximity,
     autoAnimate,
+    isMuted,
   });
 
   // Calculate default radius based on class if radius prop not explicitly provided
@@ -196,6 +208,7 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
     followMouse,
     proximity,
     autoAnimate,
+    isMuted,
   };
 
   useEffect(() => {
@@ -298,6 +311,12 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
         last = now;
         const p = propsRef.current;
 
+        if (p.isMuted) {
+          program.uniforms.uIntensity.value = 0;
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          return;
+        }
+
         idleAngle += p.speed * dt;
         const steer = p.followMouse && pointerAngle != null && (!p.autoAnimate || proximityT > 0);
         const target = steer ? pointerAngle : idleAngle;
@@ -356,9 +375,10 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
       ref={btnRef}
       type={type}
       disabled={disabled}
-      onClick={onClick}
-      className={`specular-button specular-button--${size}${
-        glareHover ? (glarePlayOnce ? ' specular-button--glare-play-once' : ' specular-button--glare') : ''
+      aria-disabled={isMuted || undefined}
+      onClick={isMuted ? undefined : onClick}
+      className={`specular-button specular-button--${size}${isMuted ? ' is-muted' : ''}${
+        glareHover && !isMuted ? (glarePlayOnce ? ' specular-button--glare-play-once' : ' specular-button--glare') : ''
       }${className ? ` ${className}` : ''}`}
       style={{
         '--sb-radius': `${computedRadius}px`,
@@ -375,7 +395,7 @@ export const SpecularButton = React.forwardRef<HTMLButtonElement, SpecularButton
       {...rest}
     >
       <span ref={fxRef} className="specular-button__fx" aria-hidden="true" />
-      {glareHover && <span className="specular-button__glare" aria-hidden="true" />}
+      {glareHover && !isMuted && <span className="specular-button__glare" aria-hidden="true" />}
       <span className="specular-button__label">{children}</span>
     </button>
   );

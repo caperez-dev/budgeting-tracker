@@ -141,12 +141,16 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
                     className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-[4px] border border-zinc-200 bg-white hover:bg-zinc-100 transition-colors cursor-pointer"
                     title="Click to toggle between Expenses and Income"
                   >
-                    <span className="text-zinc-500 font-medium">
+                    <span
+                      className={`${
+                        mockMetricView === 'income' ? 'text-black font-semibold' : 'text-zinc-500 font-medium'
+                      }`}
+                    >
                       {mockMetricView === 'expense' ? 'Expenses:' : 'Income:'}
                     </span>
                     <span
                       className={`font-semibold ${
-                        mockMetricView === 'expense' ? 'text-rose-600' : 'text-emerald-600'
+                        mockMetricView === 'expense' ? 'text-rose-600' : 'text-black'
                       }`}
                     >
                       {mockMetricView === 'expense' ? '₱14,850.00' : '₱45,000.00'}

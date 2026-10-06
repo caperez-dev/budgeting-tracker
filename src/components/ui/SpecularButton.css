@@ -42,14 +42,37 @@
   outline-offset: 2px;
 }
 
-.specular-button:disabled {
-  opacity: 0.55;
+.specular-button:disabled,
+.specular-button.is-muted,
+.specular-button[aria-disabled="true"] {
+  opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
+  box-shadow: none;
 }
 
-.specular-button:disabled:active {
+.specular-button:disabled:active,
+.specular-button.is-muted:active,
+.specular-button[aria-disabled="true"]:active {
   transform: none;
+}
+
+.specular-button:disabled:hover,
+.specular-button.is-muted:hover,
+.specular-button[aria-disabled="true"]:hover {
+  background: var(--sb-bg) !important;
+}
+
+.specular-button:disabled .specular-button__fx,
+.specular-button.is-muted .specular-button__fx,
+.specular-button[aria-disabled="true"] .specular-button__fx {
+  display: none !important;
+}
+
+.specular-button:disabled .specular-button__glare,
+.specular-button.is-muted .specular-button__glare,
+.specular-button[aria-disabled="true"] .specular-button__glare {
+  display: none !important;
 }
 
 .specular-button--sm {

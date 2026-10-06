@@ -360,16 +360,20 @@ export function Header({
             type="button"
             id="header-expenses-display"
             onClick={handleToggleMetricView}
-            className="relative group hidden sm:flex items-center gap-2 px-3 py-1.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 hover:border-zinc-300 rounded-[4px] cursor-pointer transition-all active:scale-[0.98] select-none text-left"
+            className="relative group hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-[4px] cursor-pointer transition-all active:scale-[0.98] select-none text-left shadow-2xs"
             title={monthHoverMessage}
             aria-label={`${metricView === 'expense' ? 'Expenses' : 'Income'} for ${monthHoverMessage}. Click to switch to ${metricView === 'expense' ? 'income' : 'expenses'}.`}
           >
-            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            <span
+              className={`text-xs uppercase tracking-wider ${
+                metricView === 'income' ? 'text-black font-semibold' : 'text-zinc-500 font-medium'
+              }`}
+            >
               {metricView === 'expense' ? 'Expenses:' : 'Income:'}
             </span>
             <span
               className={`font-mono text-sm font-semibold tabular-nums ${
-                metricView === 'income' ? 'text-emerald-600' : 'text-zinc-900'
+                metricView === 'income' ? 'text-black' : 'text-zinc-900'
               }`}
             >
               {formatCurrency(metricView === 'expense' ? totalExpense : totalIncome, currencySymbol)}
