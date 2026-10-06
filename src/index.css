@@ -7,4 +7,74 @@
 
 body {
   font-family: var(--font-sans);
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Default: text inside budgeting tracker components cannot be highlighted */
+#root,
+#quick-entry-panel,
+header,
+nav,
+aside,
+main,
+section,
+footer {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* All buttons, navigation links, and interactive controls must never be highlightable */
+button,
+button *,
+a,
+a *,
+nav,
+nav *,
+[role="button"],
+[role="button"] *,
+[role="tab"],
+[role="tab"] *,
+.specular-button,
+.specular-button * {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Form inputs & textareas must remain editable and highlightable for typing */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Exception: Transaction History remains highlightable so users can copy amounts, notes, and details */
+.transaction-history,
+.transaction-history *:not(button):not(button *):not(svg):not(path),
+[data-transaction-history],
+[data-transaction-history] *:not(button):not(button *):not(svg):not(path) {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Interactive action buttons within transaction history remain unhighlightable */
+.transaction-history button,
+.transaction-history button *,
+[data-transaction-history] button,
+[data-transaction-history] button * {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
 }

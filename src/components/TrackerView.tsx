@@ -1097,7 +1097,11 @@ export function TrackerView({
       )}
 
       {/* Transactions Container */}
-      <div className="bg-white border border-zinc-200 rounded-[5px] shadow-xs divide-y divide-zinc-100">
+      <div
+        id="transaction-history-section"
+        data-transaction-history="true"
+        className="bg-white border border-zinc-200 rounded-[5px] shadow-xs divide-y divide-zinc-100 transaction-history select-text"
+      >
         {/* Persistent Section Header Bar: Month/Date & Interactive Calendar Selector */}
         <div className="p-4 sm:p-5 pb-3 flex flex-wrap items-center justify-between gap-3 bg-white rounded-t-[5px]">
           <div className="flex items-center gap-2">

@@ -420,7 +420,7 @@ export function Header({
       <div className="bg-white border-t border-zinc-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 overflow-x-auto">
           {/* Main Navigation Tabs */}
-          <nav className="flex space-x-1 py-1.5 shrink-0" aria-label="Tabs">
+          <nav className="flex space-x-1 py-1.5 shrink-0 select-none" aria-label="Tabs">
             <button
               id="tab-tracker"
               onClick={() => setActiveTab('tracker')}
