@@ -470,7 +470,7 @@ export function SettingsPage({
   const initialLetter = (nickname || activeEmail || 'U').charAt(0).toUpperCase();
 
   return (
-    <div id="settings-page" className="max-w-2xl mx-auto space-y-6 pb-12 animate-fade-in">
+    <div id="settings-page" className="max-w-2xl mx-auto space-y-6 pb-12">
       {/* Page Title */}
       <div>
         <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Account Settings</h1>

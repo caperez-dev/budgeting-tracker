@@ -3,6 +3,7 @@ import { Trash2, Edit2, Check, X, Palette, GripVertical } from 'lucide-react';
 import { Category, TransactionType } from '../types';
 import { CategoryIcon, ICON_MAP } from './CategoryIcon';
 import { SpecularButton } from './ui/SpecularButton';
+import { useModalAnimation } from '../utils/useModalAnimation';
 
 interface CategoryManagerModalProps {
   categories: Category[];
@@ -236,22 +237,24 @@ export function CategoryManagerModal({
     setEditingCat(null);
   };
 
+  const { requestClose, backdropClass, modalClass } = useModalAnimation({ onClose });
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 cursor-pointer"
+      className={`fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 cursor-pointer ${backdropClass}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
     >
       <div
-        className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-lg w-full shadow-lg space-y-4 max-h-[90vh] flex flex-col cursor-default"
+        className={`bg-white rounded-[5px] border border-zinc-200 p-5 max-w-lg w-full shadow-lg space-y-4 max-h-[90vh] flex flex-col cursor-default ${modalClass}`}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
@@ -270,7 +273,7 @@ export function CategoryManagerModal({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="text-zinc-400 hover:text-zinc-600 p-1 rounded cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -681,7 +684,7 @@ export function CategoryManagerModal({
       {/* Delete Category Confirmation Modal */}
       {categoryToDelete && (
         <div
-          className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4 animate-modal-backdrop-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setCategoryToDelete(null);
@@ -689,7 +692,7 @@ export function CategoryManagerModal({
           }}
         >
           <div
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4"
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4 animate-modal-slide-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">

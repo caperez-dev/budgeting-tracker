@@ -230,7 +230,7 @@ export function SettingsModal({
   return (
     <div
       id="modal-settings-backdrop"
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
@@ -240,7 +240,7 @@ export function SettingsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="bg-white rounded-[6px] border border-zinc-200 p-6 max-w-md w-full shadow-xl space-y-5 relative"
+        className="bg-white rounded-[6px] border border-zinc-200 p-6 max-w-md w-full shadow-xl space-y-5 relative animate-modal-slide-in"
       >
         {/* Header */}
         <div className="flex items-start justify-between pb-3 border-b border-zinc-100">

@@ -14,6 +14,7 @@ import {
 } from '../data/worldCurrencies';
 import { CurrencyFlag } from './CurrencyFlag';
 import { SpecularButton } from './ui/SpecularButton';
+import { useModalAnimation } from '../utils/useModalAnimation';
 
 interface CurrencyManagerModalProps {
   currencies: Currency[];
@@ -115,24 +116,26 @@ export function CurrencyManagerModal({
     );
   });
 
+  const { requestClose, backdropClass, modalClass } = useModalAnimation({ onClose });
+
   return (
     <div
       id="modal-currencies-backdrop"
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in cursor-pointer"
+      className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 cursor-pointer ${backdropClass}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
     >
       <div
         id="modal-currencies"
-        className="bg-white rounded-[6px] border border-zinc-200 p-4 sm:p-5 max-w-xl w-full shadow-xl space-y-4 max-h-[90vh] flex flex-col cursor-default"
+        className={`bg-white rounded-[6px] border border-zinc-200 p-4 sm:p-5 max-w-xl w-full shadow-xl space-y-4 max-h-[90vh] flex flex-col cursor-default ${modalClass}`}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
@@ -142,7 +145,7 @@ export function CurrencyManagerModal({
             <h3 className="text-sm font-semibold text-zinc-900">Currencies</h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="text-zinc-400 hover:text-zinc-600 p-1 text-sm leading-none cursor-pointer"
             aria-label="Close currencies window"
           >
@@ -312,7 +315,7 @@ export function CurrencyManagerModal({
       {currencyToDelete && (
         <div
           id="modal-delete-currency-backdrop"
-          className="fixed inset-0 z-60 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in cursor-pointer"
+          className="fixed inset-0 z-60 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in cursor-pointer"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
               setCurrencyToDelete(null);
@@ -326,7 +329,7 @@ export function CurrencyManagerModal({
         >
           <div
             id="modal-delete-currency"
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4 cursor-default"
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4 cursor-default animate-modal-slide-in"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >

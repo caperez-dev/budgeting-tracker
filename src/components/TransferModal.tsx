@@ -4,6 +4,7 @@ import { Account, Transaction } from '../types';
 import { AccountSelect } from './AccountSelect';
 import { formatCurrency } from '../utils/formatters';
 import { SpecularButton } from './ui/SpecularButton';
+import { useModalAnimation } from '../utils/useModalAnimation';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -91,18 +92,23 @@ export function TransferModal({
     }
   }, [isOpen, accounts]);
 
+  const { isClosing, requestClose, backdropClass, modalClass } = useModalAnimation({
+    isOpen,
+    onClose,
+  });
+
   // Handle ESC key to close
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+      if (e.key === 'Escape' && (isOpen || isClosing)) {
+        requestClose();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isClosing, requestClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isClosing) return null;
 
   const fromAccount = accounts.find((a) => a.id === fromAccountId);
   const toAccount = accounts.find((a) => a.id === toAccountId);
@@ -145,7 +151,7 @@ export function TransferModal({
     setIsSuccess(true);
     setTimeout(() => {
       setIsSuccess(false);
-      onClose();
+      requestClose();
     }, 900);
   };
 
@@ -154,16 +160,16 @@ export function TransferModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="transfer-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-fade-in"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] ${backdropClass}`}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
     >
       <div
         id="transfer-modal-card"
-        className="w-full max-w-lg bg-white border border-zinc-200 rounded-[6px] shadow-xl overflow-hidden flex flex-col"
+        className={`w-full max-w-lg bg-white border border-zinc-200 rounded-[6px] shadow-xl overflow-hidden flex flex-col ${modalClass}`}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 bg-white">
@@ -178,7 +184,7 @@ export function TransferModal({
           <button
             type="button"
             id="btn-close-transfer-modal"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close transfer modal"
             className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[4px] hover:bg-zinc-100 transition-colors cursor-pointer"
           >
@@ -438,7 +444,7 @@ export function TransferModal({
               <button
                 type="button"
                 id="btn-cancel-transfer"
-                onClick={onClose}
+                onClick={requestClose}
                 className="px-3.5 py-1.5 text-xs text-zinc-600 hover:text-zinc-900 border border-zinc-200 hover:bg-zinc-50 rounded-[4px] transition-colors cursor-pointer"
               >
                 Cancel

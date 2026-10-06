@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HeartHandshake, Copy, Check, ExternalLink, QrCode, Edit2, X } from 'lucide-react';
 import { UserSettings } from '../types';
 import { SpecularButton } from './ui/SpecularButton';
+import { useModalAnimation } from '../utils/useModalAnimation';
 
 interface DonateModalProps {
   donateInfo: UserSettings['donateInfo'];
@@ -14,12 +15,21 @@ export function DonateModal({
   onUpdateDonateInfo,
   onClose,
 }: DonateModalProps) {
+  const { requestClose, backdropClass, modalClass } = useModalAnimation({ onClose });
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [platform, setPlatform] = useState(donateInfo.platform);
   const [handle, setHandle] = useState(donateInfo.handle);
   const [message, setMessage] = useState(donateInfo.message);
   const [linkUrl, setLinkUrl] = useState(donateInfo.linkUrl || '');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [requestClose]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(handle);
@@ -39,8 +49,13 @@ export function DonateModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4">
+    <div
+      className={`fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 ${backdropClass}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) requestClose();
+      }}
+    >
+      <div className={`bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 ${modalClass}`}>
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
           <div className="flex items-center gap-2">
@@ -54,7 +69,7 @@ export function DonateModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 text-xs p-1">
+          <button onClick={requestClose} className="text-zinc-400 hover:text-zinc-600 text-xs p-1 cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -175,8 +190,8 @@ export function DonateModal({
 
         <div className="pt-2 border-t border-zinc-100 flex justify-end">
           <button
-            onClick={onClose}
-            className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[3px] transition-colors"
+            onClick={requestClose}
+            className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
           >
             Close
           </button>

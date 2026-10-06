@@ -381,7 +381,7 @@ export function GoalsView({
       {/* Add Goal Modal */}
       {showAddModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               handleCloseModal();
@@ -390,7 +390,7 @@ export function GoalsView({
         >
           <form
             onSubmit={handleAddSubmit}
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4"
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 animate-modal-slide-in"
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
               <h4 className="text-sm font-semibold text-zinc-900">Add Purchase Goal</h4>
@@ -541,7 +541,7 @@ export function GoalsView({
       {/* Deposit to Goal Modal */}
       {contributingGoal && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setContributingGoal(null);
@@ -550,7 +550,7 @@ export function GoalsView({
         >
           <form
             onSubmit={handleContributeSubmit}
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 text-xs"
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 text-xs animate-modal-slide-in"
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
               <h4 className="text-sm font-semibold text-zinc-900">

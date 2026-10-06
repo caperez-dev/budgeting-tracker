@@ -6,6 +6,7 @@ import { formatCurrency } from '../utils/formatters';
 import { AccountTypeSelect } from './AccountTypeSelect';
 import { AccountIconPicker } from './AccountIconPicker';
 import { SpecularButton } from './ui/SpecularButton';
+import { useModalAnimation } from '../utils/useModalAnimation';
 
 interface AccountManagerModalProps {
   accounts: Account[];
@@ -400,18 +401,20 @@ export function AccountManagerModal({
     setEditErrorMessage(null);
   };
 
+  const { requestClose, backdropClass, modalClass } = useModalAnimation({ onClose });
+
   return (
     <div
       id="modal-accounts-backdrop"
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+      className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer ${backdropClass}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          requestClose();
         }
       }}
     >
@@ -419,7 +422,7 @@ export function AccountManagerModal({
         id="modal-accounts"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-[6px] border border-zinc-200 shadow-xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 cursor-default"
+        className={`bg-white rounded-[6px] border border-zinc-200 shadow-xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden cursor-default ${modalClass}`}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
@@ -432,7 +435,7 @@ export function AccountManagerModal({
           <button
             id="button-close-accounts-modal"
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="text-zinc-400 hover:text-zinc-600 p-1 rounded-[3px] transition-colors cursor-pointer"
             aria-label="Close accounts window"
           >
@@ -940,7 +943,7 @@ export function AccountManagerModal({
       {/* Delete Account Confirmation Modal */}
       {accountToDelete && (
         <div
-          className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-60 bg-black/40 flex items-center justify-center p-4 animate-modal-backdrop-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setAccountToDelete(null);
@@ -948,7 +951,7 @@ export function AccountManagerModal({
           }}
         >
           <div
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4"
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4 animate-modal-slide-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">

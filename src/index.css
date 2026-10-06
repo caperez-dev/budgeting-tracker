@@ -13,6 +13,104 @@ body {
   user-select: none;
 }
 
+/* Section navigation transition: slides from top to bottom and fades in */
+@keyframes slideDownFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tab-slide-down {
+  animation: slideDownFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-tab-slide-down {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Modal backdrop transitions */
+@keyframes modalBackdropIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes modalBackdropOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Modal dialog slide-fade transitions:
+   Opening: slides down from top (-24px) and fades in smoothly
+   Closing: slides downward (16px) and fades out smoothly */
+@keyframes modalSlideDownIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalSlideDownOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+.animate-modal-backdrop-in {
+  animation: modalBackdropIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-modal-backdrop-out {
+  animation: modalBackdropOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.animate-modal-slide-in {
+  animation: modalSlideDownIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.animate-modal-slide-out {
+  animation: modalSlideDownOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-backdrop-in,
+  .animate-modal-backdrop-out,
+  .animate-modal-slide-in,
+  .animate-modal-slide-out {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
 /* Default: text inside budgeting tracker components cannot be highlighted */
 #root,
 #quick-entry-panel,

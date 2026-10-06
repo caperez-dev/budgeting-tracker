@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCcw, Loader2 } from 'lucide-react';
 import { SpecularButton } from './ui/SpecularButton';
+import { useModalAnimation } from '../utils/useModalAnimation';
 
 interface PhotoCropModalProps {
   isOpen: boolean;
@@ -418,16 +419,26 @@ export function PhotoCropModal({
     }
   };
 
-  if (!isOpen || !imageSrc) return null;
+  const { isClosing, requestClose, backdropClass, modalClass } = useModalAnimation({
+    isOpen: isOpen && Boolean(imageSrc),
+    onClose,
+  });
+
+  if ((!isOpen || !imageSrc) && !isClosing) return null;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="photo-crop-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs ${backdropClass}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSaving) {
+          requestClose();
+        }
+      }}
     >
-      <div className="bg-white rounded-[8px] border border-zinc-200 shadow-2xl max-w-sm w-full overflow-hidden flex flex-col">
+      <div className={`bg-white rounded-[8px] border border-zinc-200 shadow-2xl max-w-sm w-full overflow-hidden flex flex-col ${modalClass}`}>
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100">
           <div>
@@ -440,7 +451,7 @@ export function PhotoCropModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSaving}
             aria-label="Close crop modal"
             className="p-1 text-zinc-400 hover:text-zinc-700 rounded transition-colors cursor-pointer"
@@ -559,7 +570,7 @@ export function PhotoCropModal({
           <button
             type="button"
             id="btn-cancel-crop"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSaving}
             className="px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-[4px] transition-colors cursor-pointer"
           >

@@ -2361,84 +2361,86 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Quick Entry Form (Always accessible on Tracker view or as modal everywhere else) */}
-        {activeTab === 'tracker' && (
-          <QuickEntryForm
-            currencies={currencies}
-            categories={categories}
-            accounts={displayAccounts}
-            transactions={displayTransactions}
-            selectedCurrency={settings.defaultCurrency}
-            onSave={handleSaveTransaction}
-            onOpenAddCategory={(type) => {
-              setCategoriesInitialType(type);
-              setShowCategoriesModal(true);
-            }}
-            onOpenAddAccount={() => setShowAccountsModal(true)}
-            onOpenCurrencyManager={() => setShowCurrenciesModal(true)}
-          />
-        )}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div key={activeTab} className="animate-tab-slide-down space-y-6">
+          {/* Quick Entry Form (Always accessible on Tracker view or as modal everywhere else) */}
+          {activeTab === 'tracker' && (
+            <QuickEntryForm
+              currencies={currencies}
+              categories={categories}
+              accounts={displayAccounts}
+              transactions={displayTransactions}
+              selectedCurrency={settings.defaultCurrency}
+              onSave={handleSaveTransaction}
+              onOpenAddCategory={(type) => {
+                setCategoriesInitialType(type);
+                setShowCategoriesModal(true);
+              }}
+              onOpenAddAccount={() => setShowAccountsModal(true)}
+              onOpenCurrencyManager={() => setShowCurrenciesModal(true)}
+            />
+          )}
 
-        {/* Tab Views */}
-        {activeTab === 'tracker' && (
-          <TrackerView
-            transactions={monthlyTransactions}
-            allTransactionsCount={transactions.length}
-            selectedMonthYearLabel={selectedMonthYearLabel}
-            selectedDate={selectedDate}
-            onSelectDate={handleSelectDate}
-            categories={categories}
-            currencies={currencies}
-            accounts={displayAccounts}
-            selectedCurrency={settings.defaultCurrency}
-            onDeleteTransaction={handleDeleteTransaction}
-            onUpdateTransaction={handleUpdateTransaction}
-            pendingUndoTx={pendingUndoTx}
-            onUndoDelete={handleUndoDelete}
-            undoSecondsLeft={undoSecondsLeft}
-          />
-        )}
+          {/* Tab Views */}
+          {activeTab === 'tracker' && (
+            <TrackerView
+              transactions={monthlyTransactions}
+              allTransactionsCount={transactions.length}
+              selectedMonthYearLabel={selectedMonthYearLabel}
+              selectedDate={selectedDate}
+              onSelectDate={handleSelectDate}
+              categories={categories}
+              currencies={currencies}
+              accounts={displayAccounts}
+              selectedCurrency={settings.defaultCurrency}
+              onDeleteTransaction={handleDeleteTransaction}
+              onUpdateTransaction={handleUpdateTransaction}
+              pendingUndoTx={pendingUndoTx}
+              onUndoDelete={handleUndoDelete}
+              undoSecondsLeft={undoSecondsLeft}
+            />
+          )}
 
-        {activeTab === 'summary' && (
-          <SummaryPanel
-            transactions={displayTransactions}
-            categories={categories}
-            currencySymbol={currencySymbol}
-          />
-        )}
+          {activeTab === 'summary' && (
+            <SummaryPanel
+              transactions={displayTransactions}
+              categories={categories}
+              currencySymbol={currencySymbol}
+            />
+          )}
 
-        {activeTab === 'debts' && (
-          <DebtTracker
-            debts={displayDebts}
-            currencies={currencies}
-            selectedCurrency={settings.defaultCurrency}
-            onAddDebt={handleAddDebt}
-            onToggleSettle={handleToggleSettleDebt}
-            onDeleteDebt={handleDeleteDebt}
-          />
-        )}
+          {activeTab === 'debts' && (
+            <DebtTracker
+              debts={displayDebts}
+              currencies={currencies}
+              selectedCurrency={settings.defaultCurrency}
+              onAddDebt={handleAddDebt}
+              onToggleSettle={handleToggleSettleDebt}
+              onDeleteDebt={handleDeleteDebt}
+            />
+          )}
 
-        {activeTab === 'goals' && (
-          <GoalsView
-            goals={displayGoals}
-            currencies={currencies}
-            selectedCurrency={settings.defaultCurrency}
-            currentSavings={currentSavings}
-            onAddGoal={handleAddGoal}
-            onUpdateGoal={handleUpdateGoal}
-            onDeleteGoal={handleDeleteGoal}
-          />
-        )}
+          {activeTab === 'goals' && (
+            <GoalsView
+              goals={displayGoals}
+              currencies={currencies}
+              selectedCurrency={settings.defaultCurrency}
+              currentSavings={currentSavings}
+              onAddGoal={handleAddGoal}
+              onUpdateGoal={handleUpdateGoal}
+              onDeleteGoal={handleDeleteGoal}
+            />
+          )}
 
-        {activeTab === 'settings' && (
-          <SettingsPage
-            currentUser={currentUser}
-            profile={userProfile}
-            onBack={() => setActiveTab('tracker')}
-            onSave={handleUpdateAccountSettings}
-          />
-        )}
+          {activeTab === 'settings' && (
+            <SettingsPage
+              currentUser={currentUser}
+              profile={userProfile}
+              onBack={() => setActiveTab('tracker')}
+              onSave={handleUpdateAccountSettings}
+            />
+          )}
+        </div>
       </main>
 
       {/* Footer Utilities */}
@@ -2466,29 +2468,38 @@ export default function App() {
 
       {/* Quick Entry Modal (Available from header on any tab) */}
       {showQuickEntryModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <QuickEntryForm
-            currencies={currencies}
-            categories={categories}
-            accounts={displayAccounts}
-            transactions={displayTransactions}
-            selectedCurrency={settings.defaultCurrency}
-            onSave={handleSaveTransaction}
-            onOpenAddCategory={(type) => {
-              setCategoriesInitialType(type);
-              setShowCategoriesModal(true);
-            }}
-            onOpenAddAccount={() => {
+        <div
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
               setShowQuickEntryModal(false);
-              setShowAccountsModal(true);
-            }}
-            onOpenCurrencyManager={() => {
-              setShowQuickEntryModal(false);
-              setShowCurrenciesModal(true);
-            }}
-            isModal={true}
-            onClose={() => setShowQuickEntryModal(false)}
-          />
+            }
+          }}
+        >
+          <div className="animate-modal-slide-in max-w-xl w-full">
+            <QuickEntryForm
+              currencies={currencies}
+              categories={categories}
+              accounts={displayAccounts}
+              transactions={displayTransactions}
+              selectedCurrency={settings.defaultCurrency}
+              onSave={handleSaveTransaction}
+              onOpenAddCategory={(type) => {
+                setCategoriesInitialType(type);
+                setShowCategoriesModal(true);
+              }}
+              onOpenAddAccount={() => {
+                setShowQuickEntryModal(false);
+                setShowAccountsModal(true);
+              }}
+              onOpenCurrencyManager={() => {
+                setShowQuickEntryModal(false);
+                setShowCurrenciesModal(true);
+              }}
+              isModal={true}
+              onClose={() => setShowQuickEntryModal(false)}
+            />
+          </div>
         </div>
       )}
 
@@ -2558,14 +2569,14 @@ export default function App() {
       {/* Logout Confirmation Modal - matching the delete transaction modal design */}
       {showLogoutConfirm && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowLogoutConfirm(false);
             }
           }}
         >
-          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 animate-fade-in">
+          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 animate-modal-slide-in">
             <div className="flex items-center gap-2 text-rose-600">
               <AlertCircle className="w-5 h-5" />
               <h4 className="text-sm font-semibold text-zinc-900">Sign out of your account?</h4>
