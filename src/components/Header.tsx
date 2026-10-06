@@ -13,6 +13,7 @@ import {
 import { formatCurrency } from '../utils/formatters';
 import { UserProfile, DBStatus, AuthUser } from '../types';
 import { ProfileDropdown } from './ProfileDropdown';
+import walloLogo from '../assets/wallo.png';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -218,7 +219,7 @@ export function Header({
         {/* Logo & Brand */}
         <div className="flex items-center shrink-0">
           <img
-            src="/logo.png"
+            src={walloLogo}
             alt="Wallo"
             className="h-8 w-auto object-contain select-none"
           />

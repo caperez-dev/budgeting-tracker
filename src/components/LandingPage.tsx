@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Particles } from './ui/particles';
 import { SpecularButton } from './ui/SpecularButton';
+import walloLogo from '../assets/wallo.png';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -50,7 +51,7 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
             {/* Logo / Brand Name */}
             <div className="flex items-center shrink-0">
               <img
-                src="/logo.png"
+                src={walloLogo}
                 alt="Wallo"
                 className="h-8 sm:h-9 w-auto object-contain select-none"
               />
@@ -124,7 +125,7 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
               <div className="bg-zinc-50/90 border-b border-zinc-200/80 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <img
-                    src="/logo.png"
+                    src={walloLogo}
                     alt="Wallo"
                     className="h-6 w-auto object-contain select-none"
                   />
@@ -402,7 +403,7 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
             <div className="flex items-center gap-2">
               <img
-                src="/logo.png"
+                src={walloLogo}
                 alt="Wallo"
                 className="h-6 w-auto object-contain select-none"
               />
