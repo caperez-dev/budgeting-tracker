@@ -161,7 +161,6 @@ const UserSettingsSchema = new mongoose.Schema(
     defaultCurrency: { type: String, default: 'PHP' },
     primaryCurrency: { type: String, default: 'PHP' },
     includeDebtInNetWorth: { type: Boolean, default: false },
-    donateInfo: { type: mongoose.Schema.Types.Mixed },
     soundEnabled: { type: Boolean, default: true },
     autoBackup: { type: Boolean, default: true },
     dailyReminder: { type: Boolean, default: false },

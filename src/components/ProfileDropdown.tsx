@@ -4,7 +4,6 @@ import {
   ChevronDown,
   LogOut,
   Settings,
-  HeartHandshake,
   Coins,
 } from 'lucide-react';
 import { UserProfile, DBStatus, AuthUser } from '../types';
@@ -37,7 +36,6 @@ interface ProfileDropdownProps {
   isLoading?: boolean;
   onOpenSettings?: () => void;
   onLogout?: () => void;
-  onOpenDonate?: () => void;
   onOpenCurrencies?: () => void;
 }
 
@@ -65,7 +63,6 @@ export function ProfileDropdown({
   isLoading = false,
   onOpenSettings,
   onLogout,
-  onOpenDonate,
   onOpenCurrencies,
 }: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -248,22 +245,6 @@ export function ProfileDropdown({
                 />
                 <span>{currentCurrencyCode || 'PHP'}</span>
               </div>
-            </button>
-          )}
-
-          {/* Donate Navigation Action */}
-          {onOpenDonate && (
-            <button
-              type="button"
-              id="btn-profile-donate"
-              onClick={() => {
-                setIsOpen(false);
-                onOpenDonate();
-              }}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-[5px] text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors group cursor-pointer"
-            >
-              <HeartHandshake className="w-3.5 h-3.5 text-rose-500 group-hover:scale-110 transition-transform" />
-              <span>Donate</span>
             </button>
           )}
 

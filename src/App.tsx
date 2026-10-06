@@ -35,10 +35,10 @@ import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { CurrencyManagerModal } from './components/CurrencyManagerModal';
 import { AccountManagerModal } from './components/AccountManagerModal';
 import { TransferModal } from './components/TransferModal';
-import { DonateModal } from './components/DonateModal';
 import { SettingsPage } from './components/SettingsPage';
 import { Particles } from './components/ui/particles';
 import { ClickSpark } from './components/ui/ClickSpark';
+import { ModalPortal } from './components/ui/ModalPortal';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { buildBudgetPdfDoc, exportPdfSaveAs } from './utils/pdfExport';
 import { getCurrent12HourTime, getTodayDateString, consolidateTransactions } from './utils/formatters';
@@ -542,7 +542,6 @@ export default function App() {
   const [showAccountsModal, setShowAccountsModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
-  const [showDonateModal, setShowDonateModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -2350,7 +2349,6 @@ export default function App() {
         currentUser={currentUser}
         onOpenSettings={() => setActiveTab('settings')}
         onLogout={() => setShowLogoutConfirm(true)}
-        onOpenDonate={() => setShowDonateModal(true)}
         onOpenAccounts={() => setShowAccountsModal(true)}
         onOpenTransfer={() => setShowTransferModal(true)}
         onOpenCurrencies={() => setShowCurrenciesModal(true)}
@@ -2468,39 +2466,41 @@ export default function App() {
 
       {/* Quick Entry Modal (Available from header on any tab) */}
       {showQuickEntryModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowQuickEntryModal(false);
-            }
-          }}
-        >
-          <div className="animate-modal-slide-in max-w-xl w-full">
-            <QuickEntryForm
-              currencies={currencies}
-              categories={categories}
-              accounts={displayAccounts}
-              transactions={displayTransactions}
-              selectedCurrency={settings.defaultCurrency}
-              onSave={handleSaveTransaction}
-              onOpenAddCategory={(type) => {
-                setCategoriesInitialType(type);
-                setShowCategoriesModal(true);
-              }}
-              onOpenAddAccount={() => {
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
                 setShowQuickEntryModal(false);
-                setShowAccountsModal(true);
-              }}
-              onOpenCurrencyManager={() => {
-                setShowQuickEntryModal(false);
-                setShowCurrenciesModal(true);
-              }}
-              isModal={true}
-              onClose={() => setShowQuickEntryModal(false)}
-            />
+              }
+            }}
+          >
+            <div className="animate-modal-slide-in max-w-xl w-full my-auto">
+              <QuickEntryForm
+                currencies={currencies}
+                categories={categories}
+                accounts={displayAccounts}
+                transactions={displayTransactions}
+                selectedCurrency={settings.defaultCurrency}
+                onSave={handleSaveTransaction}
+                onOpenAddCategory={(type) => {
+                  setCategoriesInitialType(type);
+                  setShowCategoriesModal(true);
+                }}
+                onOpenAddAccount={() => {
+                  setShowQuickEntryModal(false);
+                  setShowAccountsModal(true);
+                }}
+                onOpenCurrencyManager={() => {
+                  setShowQuickEntryModal(false);
+                  setShowCurrenciesModal(true);
+                }}
+                isModal={true}
+                onClose={() => setShowQuickEntryModal(false)}
+              />
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Accounts & Assets Manager Modal */}
@@ -2555,56 +2555,47 @@ export default function App() {
         />
       )}
 
-      {/* Donate Modal */}
-      {showDonateModal && (
-        <DonateModal
-          donateInfo={settings.donateInfo}
-          onUpdateDonateInfo={(info) =>
-            setSettings((prev) => ({ ...prev, donateInfo: info }))
-          }
-          onClose={() => setShowDonateModal(false)}
-        />
-      )}
-
       {/* Logout Confirmation Modal - matching the delete transaction modal design */}
       {showLogoutConfirm && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowLogoutConfirm(false);
-            }
-          }}
-        >
-          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 animate-modal-slide-in">
-            <div className="flex items-center gap-2 text-rose-600">
-              <AlertCircle className="w-5 h-5" />
-              <h4 className="text-sm font-semibold text-zinc-900">Sign out of your account?</h4>
-            </div>
-            <p className="text-xs text-zinc-600">
-              Are you sure you want to log out? You will need to sign in again to access your finances.
-            </p>
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
-              <button
-                type="button"
-                onClick={() => setShowLogoutConfirm(false)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLogoutConfirm(false);
-                  handleLogout();
-                }}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
-              >
-                Log Out
-              </button>
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowLogoutConfirm(false);
+              }
+            }}
+          >
+            <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 my-auto animate-modal-slide-in">
+              <div className="flex items-center gap-2 text-rose-600">
+                <AlertCircle className="w-5 h-5" />
+                <h4 className="text-sm font-semibold text-zinc-900">Sign out of your account?</h4>
+              </div>
+              <p className="text-xs text-zinc-600">
+                Are you sure you want to log out? You will need to sign in again to access your finances.
+              </p>
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogoutConfirm(false);
+                    handleLogout();
+                  }}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
+                >
+                  Log Out
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
       </div>
     </div>

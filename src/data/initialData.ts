@@ -184,10 +184,4 @@ export const SEED_GOALS: Goal[] = [
 export const DEFAULT_SETTINGS: UserSettings = {
   defaultCurrency: 'PHP',
   includeDebtInNetWorth: false,
-  donateInfo: {
-    message: 'If Wallo helps keep your finances organized, feel free to support future development!',
-    platform: 'GCash / Maya / PayPal',
-    handle: '@carlos.perez.budget',
-    linkUrl: 'https://paypal.me',
-  },
 };

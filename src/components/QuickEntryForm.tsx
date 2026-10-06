@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   ArrowDownCircle,
   ArrowUpCircle,
   X,
   PlusCircle,
   Check,
+  CalendarDays,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Category, Currency, TransactionType, Account, Transaction } from '../types';
 import { CategoryIcon, AccountIcon } from './CategoryIcon';
-import { getCurrent12HourTime, getTodayDateString, formatCurrency } from '../utils/formatters';
+import {
+  getCurrent12HourTime,
+  getTodayDateString,
+  formatCurrency,
+  parseTimeComponents,
+  construct12HourTime,
+  formatFriendlyDate,
+} from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
 import { SpecularButton } from './ui/SpecularButton';
 
@@ -63,6 +74,118 @@ export function QuickEntryForm({
   const [note, setNote] = useState<string>('');
   const [amountError, setAmountError] = useState<string>('');
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
+
+  // Date and Time picker state
+  const [selectedDate, setSelectedDate] = useState<string>(() => getTodayDateString());
+  const [selectedTime, setSelectedTime] = useState<string>(() => getCurrent12HourTime());
+  const [isDateTimeOpen, setIsDateTimeOpen] = useState<boolean>(false);
+  const [activePickerTab, setActivePickerTab] = useState<'date' | 'time'>('date');
+  const [calYear, setCalYear] = useState<number>(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState<number>(() => new Date().getMonth());
+
+  const dateTimePickerRef = useRef<HTMLDivElement>(null);
+  const dateTimeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dateTimePickerRef.current &&
+        !dateTimePickerRef.current.contains(e.target as Node) &&
+        dateTimeButtonRef.current &&
+        !dateTimeButtonRef.current.contains(e.target as Node)
+      ) {
+        setIsDateTimeOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsDateTimeOpen(false);
+    };
+    if (isDateTimeOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDateTimeOpen]);
+
+  // Sync calendar view month with selectedDate if changed
+  useEffect(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const [y, m] = selectedDate.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m)) {
+        setCalYear(y);
+        setCalMonth(m - 1);
+      }
+    }
+  }, [selectedDate]);
+
+  const calMonthTitle = useMemo(() => {
+    return new Date(calYear, calMonth, 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+  }, [calYear, calMonth]);
+
+  const handlePrevMonth = () => {
+    setCalMonth((m) => {
+      if (m === 0) {
+        setCalYear((y) => y - 1);
+        return 11;
+      }
+      return m - 1;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setCalMonth((m) => {
+      if (m === 11) {
+        setCalYear((y) => y + 1);
+        return 0;
+      }
+      return m + 1;
+    });
+  };
+
+  const calGrid = useMemo(() => {
+    const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay();
+    const daysInCurrentMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(calYear, calMonth, 0).getDate();
+
+    const leadingDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      const d = daysInPrevMonth - i;
+      const prevM = calMonth === 0 ? 12 : calMonth;
+      const prevY = calMonth === 0 ? calYear - 1 : calYear;
+      const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      leadingDays.push({ day: d, isCurrentMonth: false, dateStr: dStr });
+    }
+
+    const currentDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      currentDays.push({
+        day: d,
+        isCurrentMonth: true,
+        dateStr: `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+      });
+    }
+
+    const totalSlots = Math.ceil((leadingDays.length + currentDays.length) / 7) * 7;
+    const trailingCount = totalSlots - (leadingDays.length + currentDays.length);
+    const trailingDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let t = 1; t <= trailingCount; t++) {
+      const nextM = calMonth === 11 ? 1 : calMonth + 2;
+      const nextY = calMonth === 11 ? calYear + 1 : calYear;
+      const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(t).padStart(2, '0')}`;
+      trailingDays.push({ day: t, isCurrentMonth: false, dateStr: dStr });
+    }
+
+    return [...leadingDays, ...currentDays, ...trailingDays];
+  }, [calYear, calMonth]);
+
+  const todayStr = getTodayDateString();
+  const isCustomDateTime = selectedDate !== todayStr;
 
   React.useEffect(() => {
     setCurrency(selectedCurrency);
@@ -163,9 +286,8 @@ export function QuickEntryForm({
       return;
     }
 
-    // Auto NOW() for date and time as requested
-    const currentDate = getTodayDateString();
-    const currentTime = getCurrent12HourTime();
+    const txDate = selectedDate || getTodayDateString();
+    const txTime = selectedTime || getCurrent12HourTime();
 
     onSave({
       type,
@@ -174,13 +296,15 @@ export function QuickEntryForm({
       categoryId: categoryId || (availableCategories[0]?.id ?? 'other'),
       accountId: accountId || (accounts[0]?.id ?? undefined),
       note: note.slice(0, 100).trim(),
-      date: currentDate,
-      time: currentTime,
+      date: txDate,
+      time: txTime,
     });
 
     // Reset form for next entry
     setAmount('');
     setNote('');
+    setSelectedDate(getTodayDateString());
+    setSelectedTime(getCurrent12HourTime());
     setAmountError('');
     setShowSuccessToast(true);
     setTimeout(() => setShowSuccessToast(false), 2000);
@@ -312,6 +436,255 @@ export function QuickEntryForm({
                 {note.length}/100
               </span>
             </div>
+          </div>
+
+          {/* Calendar Button (Date & Time selector) */}
+          <div className="relative shrink-0">
+            <button
+              ref={dateTimeButtonRef}
+              id="btn-quick-entry-calendar"
+              type="button"
+              onClick={() => setIsDateTimeOpen((prev) => !prev)}
+              aria-expanded={isDateTimeOpen}
+              className={`h-9 px-2.5 bg-white border rounded-[4px] flex items-center gap-1.5 text-xs transition-colors cursor-pointer select-none ${
+                isDateTimeOpen
+                  ? 'border-zinc-900 ring-1 ring-zinc-900 shadow-2xs'
+                  : isCustomDateTime
+                  ? 'border-zinc-900 bg-zinc-50 text-zinc-900 font-semibold shadow-2xs'
+                  : 'border-zinc-200 hover:border-zinc-300 text-zinc-600 hover:text-zinc-900'
+              }`}
+              title={`Selected Date & Time: ${formatFriendlyDate(selectedDate)} at ${selectedTime}`}
+              aria-label="Select date and time"
+            >
+              <CalendarDays className="w-4 h-4 text-zinc-500 shrink-0" />
+              <span className="hidden md:inline font-mono text-xs text-zinc-800">
+                {isCustomDateTime ? formatFriendlyDate(selectedDate) : 'Date & Time'}
+              </span>
+            </button>
+
+            {/* In-App Popover Calendar & Time Selector */}
+            {isDateTimeOpen && (
+              <div
+                ref={dateTimePickerRef}
+                className="absolute right-0 top-full mt-2 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3.5 w-72 sm:w-80 animate-in fade-in zoom-in-95 duration-100 cursor-default"
+              >
+                {/* Header Tabs: Date & Time */}
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                  <div className="flex items-center gap-1 bg-zinc-100 p-0.5 rounded-[4px]">
+                    <button
+                      type="button"
+                      onClick={() => setActivePickerTab('date')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-[3px] transition-colors cursor-pointer ${
+                        activePickerTab === 'date'
+                          ? 'bg-white text-zinc-900 shadow-2xs'
+                          : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      Date
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActivePickerTab('time')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-[3px] transition-colors cursor-pointer ${
+                        activePickerTab === 'time'
+                          ? 'bg-white text-zinc-900 shadow-2xs'
+                          : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      Time
+                    </button>
+                  </div>
+
+                  <span className="text-[11px] font-mono text-zinc-500 tabular-nums">
+                    {formatFriendlyDate(selectedDate)} {selectedTime}
+                  </span>
+                </div>
+
+                {activePickerTab === 'date' ? (
+                  <div>
+                    {/* Month Navigation */}
+                    <div className="flex items-center justify-between pb-2 mb-1.5">
+                      <button
+                        type="button"
+                        onClick={handlePrevMonth}
+                        className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                        title="Previous month"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      <span className="text-xs font-bold text-zinc-900 tracking-wide">
+                        {calMonthTitle}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleNextMonth}
+                        className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                        title="Next month"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Days of Week Header */}
+                    <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                        <span key={d} className="text-[10px] font-semibold text-zinc-400 py-0.5">
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Day Cells Grid */}
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {calGrid.map((item, idx) => {
+                        const isSelected = selectedDate === item.dateStr;
+                        const isToday = item.dateStr === todayStr;
+
+                        if (!item.isCurrentMonth) {
+                          return (
+                            <div
+                              key={`qe-pad-${idx}`}
+                              className="h-8 flex items-center justify-center text-[11px] text-zinc-300 pointer-events-none select-none"
+                            >
+                              {item.day}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={`qe-day-${item.dateStr}`}
+                            type="button"
+                            onClick={() => setSelectedDate(item.dateStr)}
+                            className={`h-8 flex items-center justify-center rounded-[4px] text-xs transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                                : isToday
+                                ? 'text-zinc-900 font-bold border border-zinc-400 hover:bg-zinc-100'
+                                : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                            }`}
+                          >
+                            <span>{item.day}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {(() => {
+                      const { hour: curH, minute: curM, period: curP } = parseTimeComponents(selectedTime);
+                      const setTime = (h: number, m: string, p: 'AM' | 'PM') => {
+                        const newTime = construct12HourTime(h, m, p);
+                        setSelectedTime(newTime);
+                      };
+
+                      return (
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs py-1">
+                          {/* Hour Column */}
+                          <div>
+                            <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Hour</div>
+                            <div className="max-h-36 overflow-y-auto space-y-0.5 pr-0.5">
+                              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => {
+                                const isSelected = curH === h;
+                                return (
+                                  <button
+                                    key={h}
+                                    type="button"
+                                    onClick={() => setTime(h, curM, curP)}
+                                    className={`w-full py-1 text-xs rounded-[3px] transition-colors cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-zinc-900 text-white font-bold'
+                                        : 'text-zinc-700 hover:bg-zinc-100'
+                                    }`}
+                                  >
+                                    {h}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Minute Column */}
+                          <div>
+                            <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Minute</div>
+                            <div className="max-h-36 overflow-y-auto space-y-0.5 pr-0.5">
+                              {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map((m) => {
+                                const isSelected = curM === m;
+                                return (
+                                  <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => setTime(curH, m, curP)}
+                                    className={`w-full py-1 text-xs rounded-[3px] transition-colors cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-zinc-900 text-white font-bold'
+                                        : 'text-zinc-700 hover:bg-zinc-100'
+                                    }`}
+                                  >
+                                    {m}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Period Column */}
+                          <div>
+                            <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Period</div>
+                            <div className="space-y-1">
+                              {(['AM', 'PM'] as const).map((p) => {
+                                const isSelected = curP === p;
+                                return (
+                                  <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() => setTime(curH, curM, p)}
+                                    className={`w-full py-2 text-xs rounded-[3px] font-bold transition-colors cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-zinc-900 text-white shadow-2xs'
+                                        : 'text-zinc-700 hover:bg-zinc-100 border border-zinc-200'
+                                    }`}
+                                  >
+                                    {p}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Footer Controls */}
+                <div className="pt-2.5 mt-2 border-t border-zinc-100 flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(todayStr);
+                      setSelectedTime(getCurrent12HourTime());
+                      setCalYear(new Date().getFullYear());
+                      setCalMonth(new Date().getMonth());
+                    }}
+                    className="text-[11px] text-zinc-600 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                  >
+                    Reset to Now
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsDateTimeOpen(false)}
+                    className="text-[11px] font-medium bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-1 rounded-[3px] transition-colors cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

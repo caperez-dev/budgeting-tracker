@@ -55,7 +55,6 @@ interface HeaderProps {
   currentUser?: AuthUser | null;
   onOpenSettings?: () => void;
   onLogout?: () => void;
-  onOpenDonate: () => void;
   onOpenAccounts: () => void;
   onOpenTransfer: () => void;
   onOpenCurrencies: () => void;
@@ -91,7 +90,6 @@ export function Header({
   currentUser,
   onOpenSettings,
   onLogout,
-  onOpenDonate,
   onOpenAccounts,
   onOpenTransfer,
   onOpenCurrencies,
@@ -411,7 +409,6 @@ export function Header({
             currentUser={currentUser}
             onOpenSettings={onOpenSettings}
             onLogout={onLogout}
-            onOpenDonate={onOpenDonate}
           />
         </div>
       </div>

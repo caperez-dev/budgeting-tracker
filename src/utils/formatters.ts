@@ -366,3 +366,34 @@ export function consolidateTransactions(rawList: Transaction[], accountsList: Ac
 
   return result;
 }
+
+export function parseTimeComponents(timeStr?: string): { hour: number; minute: string; period: 'AM' | 'PM' } {
+  if (!timeStr) return { hour: 12, minute: '00', period: 'PM' };
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return { hour: 12, minute: '00', period: 'PM' };
+  let h = parseInt(match[1], 10);
+  if (h < 1 || h > 12) h = 12;
+  const m = match[2];
+  const p = ((match[3] || 'PM').toUpperCase() === 'AM' ? 'AM' : 'PM') as 'AM' | 'PM';
+  return { hour: h, minute: m, period: p };
+}
+
+export function construct12HourTime(hour: number, minute: string, period: 'AM' | 'PM'): string {
+  return `${hour}:${minute.padStart(2, '0')} ${period}`;
+}
+
+export function formatFriendlyDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  const dt = new Date(y, m, d);
+  if (isNaN(dt.getTime())) return dateStr;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(dt);
+}

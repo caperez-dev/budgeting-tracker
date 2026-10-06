@@ -97,13 +97,6 @@ export interface Goal {
 export interface UserSettings {
   defaultCurrency: string;
   includeDebtInNetWorth: boolean;
-  donateInfo: {
-    message: string;
-    platform: string;
-    handle: string;
-    qrUrl?: string;
-    linkUrl?: string;
-  };
 }
 
 export interface AIInsight {

@@ -33,6 +33,7 @@ import { SpecularButton } from './ui/SpecularButton';
 import { CurrencySelect } from './CurrencySelect';
 import { CategorySelect } from './CategorySelect';
 import { AccountSelect } from './AccountSelect';
+import { ModalPortal } from './ui/ModalPortal';
 
 function formatFriendlyDate(dateStr?: string): string {
   if (!dateStr) return '';
@@ -1502,10 +1503,7 @@ export function TrackerView({
               onClick={() => setVisibleCount((prev) => prev + 10)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-zinc-50 text-zinc-800 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 text-xs font-semibold rounded-[4px] shadow-2xs transition-colors cursor-pointer"
             >
-              <span>Load 10 more transactions</span>
-              <span className="text-[11px] text-zinc-400 font-mono font-normal">
-                (Showing {Math.min(visibleCount, filtered.length)} of {filtered.length})
-              </span>
+              <span>Load more</span>
             </button>
           </div>
         )}
@@ -1513,67 +1511,70 @@ export function TrackerView({
 
       {/* Delete Confirmation Modal (per §5) */}
       {deleteConfirmId && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDeleteConfirmId(null);
-          }}
-        >
-          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 animate-modal-slide-in">
-            <div className="flex items-center gap-2 text-rose-600">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              <h4 className="text-sm font-semibold text-zinc-900">
-                {transferDeleteInfo ? 'Delete this transfer?' : 'Delete this transaction?'}
-              </h4>
-            </div>
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setDeleteConfirmId(null);
+            }}
+          >
+            <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 my-auto animate-modal-slide-in">
+              <div className="flex items-center gap-2 text-rose-600">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <h4 className="text-sm font-semibold text-zinc-900">
+                  {transferDeleteInfo ? 'Delete this transfer?' : 'Delete this transaction?'}
+                </h4>
+              </div>
 
-            {transferDeleteInfo ? (
-              transferDeleteInfo.sourceAccountExists ? (
-                <p className="text-xs text-zinc-600 leading-relaxed">
-                  Deleting this transfer will transfer the amount ({transferDeleteInfo.amountFormatted}) back to the previous account (<strong className="font-semibold text-zinc-800">{transferDeleteInfo.sourceAccountName}</strong>).
-                </p>
+              {transferDeleteInfo ? (
+                transferDeleteInfo.sourceAccountExists ? (
+                  <p className="text-xs text-zinc-600 leading-relaxed">
+                    Deleting this transfer will transfer the amount ({transferDeleteInfo.amountFormatted}) back to the previous account (<strong className="font-semibold text-zinc-800">{transferDeleteInfo.sourceAccountName}</strong>).
+                  </p>
+                ) : (
+                  <p className="text-xs text-zinc-600 leading-relaxed">
+                    The previous account is no longer available. Deleting this transfer will automatically transfer the amount ({transferDeleteInfo.amountFormatted}) back to <strong className="font-semibold text-zinc-800">Cash</strong>.
+                  </p>
+                )
               ) : (
                 <p className="text-xs text-zinc-600 leading-relaxed">
-                  The previous account is no longer available. Deleting this transfer will automatically transfer the amount ({transferDeleteInfo.amountFormatted}) back to <strong className="font-semibold text-zinc-800">Cash</strong>.
+                  Delete this transaction? This can be undone immediately from the notification banner.
                 </p>
-              )
-            ) : (
-              <p className="text-xs text-zinc-600 leading-relaxed">
-                Delete this transaction? This can be undone immediately from the notification banner.
-              </p>
-            )}
+              )}
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmId(null)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
-              >
-                Confirm Delete
-              </button>
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-[3px] transition-colors cursor-pointer"
+                >
+                  Confirm Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Edit Transaction Modal */}
       {editingTx && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEditingTx(null);
-          }}
-        >
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setEditingTx(null);
+            }}
+          >
           <form
             onSubmit={handleEditSubmit}
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 animate-modal-slide-in"
+            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 my-auto animate-modal-slide-in"
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
               <h4 className="text-sm font-semibold text-zinc-900">
@@ -1867,6 +1868,7 @@ export function TrackerView({
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

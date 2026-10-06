@@ -12,6 +12,7 @@ import { Currency, Debt } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
 import { SpecularButton } from './ui/SpecularButton';
+import { ModalPortal } from './ui/ModalPortal';
 
 interface DebtTrackerProps {
   debts: Debt[];
@@ -306,28 +307,29 @@ export function DebtTracker({
 
       {/* Add Debt Modal */}
       {showAddModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowAddModal(false);
-            }
-          }}
-        >
-          <form
-            onSubmit={handleSubmit}
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 animate-modal-slide-in"
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowAddModal(false);
+              }
+            }}
           >
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-              <h4 className="text-sm font-semibold text-zinc-900">Add Debt Entry</h4>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="text-zinc-400 hover:text-zinc-600 text-xs"
-              >
-                ✕
-              </button>
-            </div>
+            <form
+              onSubmit={handleSubmit}
+              className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 my-auto animate-modal-slide-in"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                <h4 className="text-sm font-semibold text-zinc-900">Add Debt Entry</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="text-zinc-400 hover:text-zinc-600 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
 
             <div className="space-y-3 text-xs">
               {/* Type Toggle */}
@@ -465,60 +467,63 @@ export function DebtTracker({
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
 
       {/* Delete Debt Confirmation Modal */}
       {debtToDelete && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setDebtToDelete(null);
-            }
-          }}
-        >
-          <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4 animate-modal-slide-in">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-              <h4 className="text-sm font-semibold text-zinc-900">Delete Debt Entry</h4>
-              <button
-                type="button"
-                onClick={() => setDebtToDelete(null)}
-                className="text-zinc-400 hover:text-zinc-600 text-xs"
-              >
-                ✕
-              </button>
-            </div>
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setDebtToDelete(null);
+              }
+            }}
+          >
+            <div className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-4 my-auto animate-modal-slide-in">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                <h4 className="text-sm font-semibold text-zinc-900">Delete Debt Entry</h4>
+                <button
+                  type="button"
+                  onClick={() => setDebtToDelete(null)}
+                  className="text-zinc-400 hover:text-zinc-600 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
 
-            <p className="text-xs text-zinc-600 leading-relaxed">
-              Are you sure you want to delete the debt record for{' '}
-              <strong className="text-zinc-900">{debtToDelete.person}</strong> of{' '}
-              <strong className="font-mono text-zinc-900">
-                {formatCurrency(debtToDelete.amount, currencySymbol)}
-              </strong>
-              ? This action cannot be undone.
-            </p>
+              <p className="text-xs text-zinc-600 leading-relaxed">
+                Are you sure you want to delete the debt record for{' '}
+                <strong className="text-zinc-900">{debtToDelete.person}</strong> of{' '}
+                <strong className="font-mono text-zinc-900">
+                  {formatCurrency(debtToDelete.amount, currencySymbol)}
+                </strong>
+                ? This action cannot be undone.
+              </p>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
-              <button
-                type="button"
-                onClick={() => setDebtToDelete(null)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] border border-zinc-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onDeleteDebt(debtToDelete.id);
-                  setDebtToDelete(null);
-                }}
-                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-[3px] transition-colors"
-              >
-                Delete Debt
-              </button>
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setDebtToDelete(null)}
+                  className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] border border-zinc-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteDebt(debtToDelete.id);
+                    setDebtToDelete(null);
+                  }}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-[3px] transition-colors"
+                >
+                  Delete Debt
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

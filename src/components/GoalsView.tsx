@@ -16,6 +16,7 @@ import { Currency, Goal } from '../types';
 import { formatCurrency, getTodayDateString } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
 import { SpecularButton } from './ui/SpecularButton';
+import { ModalPortal } from './ui/ModalPortal';
 
 interface GoalsViewProps {
   goals: Goal[];
@@ -380,28 +381,29 @@ export function GoalsView({
 
       {/* Add Goal Modal */}
       {showAddModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              handleCloseModal();
-            }
-          }}
-        >
-          <form
-            onSubmit={handleAddSubmit}
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 animate-modal-slide-in"
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleCloseModal();
+              }
+            }}
           >
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-              <h4 className="text-sm font-semibold text-zinc-900">Add Purchase Goal</h4>
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="text-zinc-400 hover:text-zinc-600 text-xs"
-              >
-                ✕
-              </button>
-            </div>
+            <form
+              onSubmit={handleAddSubmit}
+              className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 my-auto animate-modal-slide-in"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                <h4 className="text-sm font-semibold text-zinc-900">Add Purchase Goal</h4>
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="text-zinc-400 hover:text-zinc-600 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
 
             <div className="space-y-3 text-xs">
               {/* Name */}
@@ -536,79 +538,82 @@ export function GoalsView({
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
 
       {/* Deposit to Goal Modal */}
       {contributingGoal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-modal-backdrop-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setContributingGoal(null);
-            }
-          }}
-        >
-          <form
-            onSubmit={handleContributeSubmit}
-            className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 text-xs animate-modal-slide-in"
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setContributingGoal(null);
+              }
+            }}
           >
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-              <h4 className="text-sm font-semibold text-zinc-900">
-                Deposit Funds to "{contributingGoal.name}"
-              </h4>
-              <button
-                type="button"
-                onClick={() => setContributingGoal(null)}
-                className="text-zinc-400 hover:text-zinc-600 text-xs"
-              >
-                ✕
-              </button>
-            </div>
+            <form
+              onSubmit={handleContributeSubmit}
+              className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-sm w-full shadow-lg space-y-3 text-xs my-auto animate-modal-slide-in"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                <h4 className="text-sm font-semibold text-zinc-900">
+                  Deposit Funds to "{contributingGoal.name}"
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setContributingGoal(null)}
+                  className="text-zinc-400 hover:text-zinc-600 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
 
-            <p className="text-zinc-500 text-xs">
-              Current earmarked:{' '}
-              <strong className="font-mono text-zinc-800">
-                {formatCurrency(contributingGoal.earmarkedAmount, currencySymbol)}
-              </strong>{' '}
-              of {formatCurrency(contributingGoal.targetPrice, currencySymbol)}.
-            </p>
+              <p className="text-zinc-500 text-xs">
+                Current earmarked:{' '}
+                <strong className="font-mono text-zinc-800">
+                  {formatCurrency(contributingGoal.earmarkedAmount, currencySymbol)}
+                </strong>{' '}
+                of {formatCurrency(contributingGoal.targetPrice, currencySymbol)}.
+              </p>
 
-            <div>
-              <label className="block text-zinc-500 font-medium mb-1">
-                Deposit Amount ({currencySymbol})
-              </label>
-              <input
-                type="number"
-                step="any"
-                required
-                min="0.01"
-                autoFocus
-                value={contributeAmount}
-                onChange={(e) => setContributeAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono font-semibold tabular-nums text-zinc-900 focus:outline-none focus:border-zinc-500"
-              />
-            </div>
+              <div>
+                <label className="block text-zinc-500 font-medium mb-1">
+                  Deposit Amount ({currencySymbol})
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  min="0.01"
+                  autoFocus
+                  value={contributeAmount}
+                  onChange={(e) => setContributeAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono font-semibold tabular-nums text-zinc-900 focus:outline-none focus:border-zinc-500"
+                />
+              </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
-              <button
-                type="button"
-                onClick={() => setContributingGoal(null)}
-                className="px-3 py-1.5 text-zinc-600 hover:text-zinc-800 rounded-[3px]"
-              >
-                Cancel
-              </button>
-              <SpecularButton
-                type="submit"
-                size="sm"
-                radius={3}
-                className="px-3.5 py-1.5 text-white font-semibold"
-              >
-                Confirm Deposit
-              </SpecularButton>
-            </div>
-          </form>
-        </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setContributingGoal(null)}
+                  className="px-3 py-1.5 text-zinc-600 hover:text-zinc-800 rounded-[3px]"
+                >
+                  Cancel
+                </button>
+                <SpecularButton
+                  type="submit"
+                  size="sm"
+                  radius={3}
+                  className="px-3.5 py-1.5 text-white font-semibold"
+                >
+                  Confirm Deposit
+                </SpecularButton>
+              </div>
+            </form>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );
