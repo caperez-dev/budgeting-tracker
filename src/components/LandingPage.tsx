@@ -401,12 +401,13 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
         {/* 6. Footer */}
         <footer className="mt-auto bg-white border-t border-zinc-200 py-6 px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <img
                 src={walloLogo}
                 alt="Wallo"
                 className="h-6 w-auto object-contain select-none"
               />
+              <span className="text-zinc-500 text-xs">© 2026 Wallo</span>
             </div>
 
             <div className="flex items-center gap-4">
