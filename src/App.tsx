@@ -38,6 +38,7 @@ import { TransferModal } from './components/TransferModal';
 import { DonateModal } from './components/DonateModal';
 import { SettingsPage } from './components/SettingsPage';
 import { Particles } from './components/ui/particles';
+import { ClickSpark } from './components/ui/ClickSpark';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { buildBudgetPdfDoc, exportPdfSaveAs } from './utils/pdfExport';
 import { getCurrent12HourTime, getTodayDateString, consolidateTransactions } from './utils/formatters';
@@ -2297,7 +2298,14 @@ export default function App() {
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-white text-[#18181B] font-sans antialiased overflow-x-hidden">
+    <ClickSpark
+      sparkColor="#18181b"
+      sparkSize={10}
+      sparkRadius={15}
+      sparkCount={8}
+      duration={400}
+    >
+      <div className="relative min-h-screen flex flex-col bg-white text-[#18181B] font-sans antialiased overflow-x-hidden">
       {/* Background Animated Particles (non-cursor tracking) */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-white" aria-hidden="true">
         <Particles
@@ -2589,5 +2597,6 @@ export default function App() {
       )}
       </div>
     </div>
+    </ClickSpark>
   );
 }

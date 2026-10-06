@@ -10,6 +10,7 @@ export interface ClickSparkProps {
   duration?: number;
   easing?: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | string;
   extraScale?: number;
+  enabled?: boolean;
   children?: React.ReactNode;
 }
 
@@ -28,6 +29,7 @@ export const ClickSpark: React.FC<ClickSparkProps> = ({
   duration = 400,
   easing = 'ease-out',
   extraScale = 1.0,
+  enabled = true,
   children,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -37,6 +39,7 @@ export const ClickSpark: React.FC<ClickSparkProps> = ({
   const lastClickRef = useRef<{ time: number; x: number; y: number }>({ time: 0, x: -1, y: -1 });
 
   useEffect(() => {
+    if (!enabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -164,6 +167,7 @@ export const ClickSpark: React.FC<ClickSparkProps> = ({
 
   // Global capture listener ensures it works across the entire website even if child events stop propagation
   useEffect(() => {
+    if (!enabled) return;
     const handleGlobalClick = (e: MouseEvent) => {
       const now = performance.now();
       if (
@@ -181,9 +185,10 @@ export const ClickSpark: React.FC<ClickSparkProps> = ({
     return () => {
       window.removeEventListener('click', handleGlobalClick, true);
     };
-  }, [createSparksAt]);
+  }, [enabled, createSparksAt]);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!enabled) return;
     const now = performance.now();
     if (
       Math.abs(now - lastClickRef.current.time) < 30 &&
@@ -203,6 +208,10 @@ export const ClickSpark: React.FC<ClickSparkProps> = ({
       }
     };
   }, []);
+
+  if (!enabled) {
+    return <>{children}</>;
+  }
 
   return (
     <div
