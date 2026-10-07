@@ -60,6 +60,12 @@ export function DebtTracker({
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const isFormValid =
+    person.trim().length > 0 &&
+    amount.trim().length > 0 &&
+    !isNaN(parseFloat(amount)) &&
+    parseFloat(amount) > 0;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPerson = person.trim().slice(0, 30);
@@ -454,7 +460,7 @@ export function DebtTracker({
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px]"
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] cursor-pointer"
               >
                 Cancel
               </button>
@@ -462,7 +468,13 @@ export function DebtTracker({
                 type="submit"
                 size="sm"
                 radius={3}
-                className="px-3.5 py-1.5 text-white text-xs font-semibold"
+                disabled={!isFormValid}
+                isMuted={!isFormValid}
+                className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  !isFormValid
+                    ? 'opacity-40 cursor-not-allowed bg-zinc-200 text-zinc-400 border border-zinc-200 shadow-none'
+                    : 'text-white cursor-pointer'
+                }`}
               >
                 Save Debt
               </SpecularButton>

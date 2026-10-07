@@ -149,6 +149,72 @@ export function TrackerView({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
+  // Mobile swipe-left and long-press revealed row actions
+  const [revealedMobileRowId, setRevealedMobileRowId] = useState<string | null>(null);
+  const touchStartXRef = useRef<number>(0);
+  const touchStartYRef = useRef<number>(0);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleRowTouchStart = (txId: string, e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      setRevealedMobileRowId((prev) => (prev === txId ? null : txId));
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(40);
+        } catch {}
+      }
+    }, 500);
+  };
+
+  const handleRowTouchMove = (e: React.TouchEvent) => {
+    const deltaX = e.touches[0].clientX - touchStartXRef.current;
+    const deltaY = e.touches[0].clientY - touchStartYRef.current;
+    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleRowTouchEnd = (txId: string, e: React.TouchEvent) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+
+    // Swipe left (more than 35px horizontally and minimal vertical deviation)
+    if (deltaX < -35 && Math.abs(deltaY) < 35) {
+      setRevealedMobileRowId(txId);
+    } else if (deltaX > 35 && Math.abs(deltaY) < 35) {
+      if (revealedMobileRowId === txId) {
+        setRevealedMobileRowId(null);
+      }
+    }
+  };
+
+  // Close revealed mobile actions on outside click
+  useEffect(() => {
+    if (!revealedMobileRowId) return;
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(`#tx-row-${revealedMobileRowId}`)) {
+        setRevealedMobileRowId(null);
+      }
+    };
+    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener('click', handleOutsideClick);
+    return () => {
+      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener('click', handleOutsideClick);
+    };
+  }, [revealedMobileRowId]);
+
   // In-App Calendar Popover State
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -1392,6 +1458,9 @@ export function TrackerView({
                                 <div
                                   key={tx.id}
                                   id={`tx-row-${tx.id}`}
+                                  onTouchStart={(e) => handleRowTouchStart(tx.id, e)}
+                                  onTouchMove={handleRowTouchMove}
+                                  onTouchEnd={(e) => handleRowTouchEnd(tx.id, e)}
                                   className="group flex items-center py-2.5 px-2.5 sm:px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-2 sm:gap-4 min-w-0 sm:min-w-[580px] w-full"
                                 >
                                   {/* Column 1: Responsive IN/OUT Indicator (Arrows on Mobile, Text on Normal View) */}
@@ -1454,21 +1523,89 @@ export function TrackerView({
                                     </div>
                                   </div>
 
-                                  {/* Column 3: Category Column (flexes and truncates gracefully on mobile) */}
-                                  <div className="flex-1 min-w-0 sm:flex-initial sm:w-36 md:w-40 sm:shrink-0 flex items-center">
+                                  {/* Mobile: Category column aligned to the right side with Time placed directly below it */}
+                                  <div className="sm:hidden ml-auto flex flex-col items-end justify-center min-w-0 text-right pr-3.5">
                                     {isTransfer ? (
                                       <span className="text-zinc-400 font-medium text-xs truncate">
                                         Transfer
                                       </span>
                                     ) : (
-                                      <span className="flex items-center gap-1 sm:gap-1.5 text-zinc-700 font-medium truncate text-xs">
-                                        <CategoryIcon name={catIcon} className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-zinc-400 shrink-0" />
+                                      <span className="flex items-center justify-end gap-1 text-zinc-700 font-medium truncate text-xs">
+                                        <span className="truncate">{catName}</span>
+                                        <CategoryIcon name={catIcon} className="w-3 h-3 text-zinc-400 shrink-0" />
+                                      </span>
+                                    )}
+
+                                    {/* Time placed below the category */}
+                                    <span className="font-mono text-[10px] text-zinc-400 tabular-nums flex items-center justify-end gap-1 mt-0.5">
+                                      <Clock className="w-2.5 h-2.5 text-zinc-300" />
+                                      {tx.time}
+                                    </span>
+                                  </div>
+
+                                  {/* Mobile Actions: Revealed only when user long presses or swipes this entry left */}
+                                  {revealedMobileRowId === tx.id && (
+                                    <div className="sm:hidden flex items-center gap-1 shrink-0 animate-in slide-in-from-right-3 fade-in duration-200">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingTx({
+                                            ...tx,
+                                            amount: tx.originalAmount !== undefined ? tx.originalAmount : tx.amount,
+                                            currency: tx.originalCurrency || tx.currency || selectedCurrency,
+                                          });
+                                          setRevealedMobileRowId(null);
+                                        }}
+                                        className="p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-[3px] cursor-pointer"
+                                        title="Edit transaction"
+                                        aria-label="Edit transaction"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteClick(tx.id);
+                                          setRevealedMobileRowId(null);
+                                        }}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-[3px] cursor-pointer"
+                                        title="Delete transaction"
+                                        aria-label="Delete transaction"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setRevealedMobileRowId(null);
+                                        }}
+                                        className="p-1 text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                                        title="Dismiss"
+                                        aria-label="Dismiss actions"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Column 3 (Desktop): Category Column */}
+                                  <div className="hidden sm:flex sm:w-36 md:w-40 sm:shrink-0 items-center min-w-0">
+                                    {isTransfer ? (
+                                      <span className="text-zinc-400 font-medium text-xs truncate">
+                                        Transfer
+                                      </span>
+                                    ) : (
+                                      <span className="flex items-center gap-1.5 text-zinc-700 font-medium truncate text-xs">
+                                        <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                                         <span className="truncate">{catName}</span>
                                       </span>
                                     )}
                                   </div>
 
-                                  {/* Column 4: Account Column (Desktop only, hidden on mobile) */}
+                                  {/* Column 4 (Desktop): Account Column */}
                                   <div className="hidden sm:flex sm:w-48 md:w-56 shrink-0 items-center min-w-0">
                                     {isTransfer ? (
                                       <div className="flex items-center gap-1 text-xs whitespace-nowrap truncate font-medium text-zinc-700">
@@ -1488,7 +1625,7 @@ export function TrackerView({
                                     )}
                                   </div>
 
-                                  {/* Column 5: Description Column (aligned, hidden on mobile view) */}
+                                  {/* Column 5 (Desktop): Description Column */}
                                   <div className="hidden sm:block flex-1 min-w-[80px] truncate">
                                     {tx.note ? (
                                       <span className="text-zinc-500 truncate block text-xs" title={tx.note}>
@@ -1499,14 +1636,14 @@ export function TrackerView({
                                     )}
                                   </div>
 
-                                  {/* Right: Subtle 12-hour timestamp and row actions */}
-                                  <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
-                                    <span className="font-mono text-[10px] sm:text-[11px] text-zinc-400 tabular-nums flex items-center gap-0.5 sm:gap-1">
-                                      <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-zinc-300" />
+                                  {/* Right (Desktop): Subtle 12-hour timestamp and hover row actions */}
+                                  <div className="hidden sm:flex items-center gap-3 shrink-0 ml-auto">
+                                    <span className="font-mono text-[11px] text-zinc-400 tabular-nums flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-zinc-300" />
                                       {tx.time}
                                     </span>
 
-                                    <div className="flex items-center opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity gap-0.5 sm:gap-1">
+                                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
                                       <button
                                         onClick={() =>
                                           setEditingTx({
