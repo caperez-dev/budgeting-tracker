@@ -101,6 +101,7 @@ export function Header({
 
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const monthPickerRef = useRef<HTMLDivElement>(null);
+  const monthPickerTriggerRef = useRef<HTMLButtonElement>(null);
 
   const [headerYear, headerMonth] = useMemo(() => {
     if (selectedYearMonth && selectedYearMonth.includes('-')) {
@@ -124,7 +125,13 @@ export function Header({
   useEffect(() => {
     if (!isMonthPickerOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        monthPickerRef.current &&
+        !monthPickerRef.current.contains(target) &&
+        monthPickerTriggerRef.current &&
+        !monthPickerTriggerRef.current.contains(target)
+      ) {
         setIsMonthPickerOpen(false);
       }
     };
@@ -211,9 +218,12 @@ export function Header({
   const monthHoverMessage = `Month of ${specificMonthName}`;
 
   return (
-    <header className="relative z-30">
-      {/* Top Banner: Global Financial Status & Branding (One-liner layout on mobile) */}
-      <div className="bg-white border-b border-zinc-200">
+    <>
+      {/* Top Banner: Global Financial Status & Branding (Header 1) */}
+      <header
+        id="header-1-top-banner"
+        className="relative z-40 bg-white border-b border-zinc-200"
+      >
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 relative">
         {/* Logo & Brand */}
         <div className="flex items-center shrink-0">
@@ -227,7 +237,7 @@ export function Header({
         {/* Centered Month & Year Component with Previous and Next Buttons */}
         <div
           id="header-month-year-navigator"
-          className="flex items-center justify-center gap-0.5 sm:gap-1 absolute left-1/2 -translate-x-1/2 shrink-0"
+          className="flex items-center justify-center gap-0.5 sm:gap-1 absolute left-1/2 -translate-x-1/2 shrink-0 z-50"
         >
           <button
             id="btn-prev-month"
@@ -242,6 +252,7 @@ export function Header({
 
           {/* Clickable Month and Year button */}
           <button
+            ref={monthPickerTriggerRef}
             id="btn-header-month-year-picker"
             type="button"
             onClick={() => setIsMonthPickerOpen((prev) => !prev)}
@@ -413,12 +424,12 @@ export function Header({
           />
         </div>
         </div>
-      </div>
+      </header>
 
       {/* Sub-bar: Navigation Tabs & Utilities (Header 2 sticks to top when scrolling) */}
       <div
         id="header-2-navigation-bar"
-        className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-200 shadow-2xs"
+        className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-zinc-200 shadow-2xs"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 overflow-x-auto">
           {/* Main Navigation Tabs */}
@@ -520,6 +531,6 @@ export function Header({
           </div>
         </div>
       </div>
-    </header>
+    </>
   );
 }
