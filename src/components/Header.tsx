@@ -211,9 +211,10 @@ export function Header({
   const monthHoverMessage = `Month of ${specificMonthName}`;
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xs border-b border-zinc-200 shadow-2xs">
+    <header className="relative z-30">
       {/* Top Banner: Global Financial Status & Branding (One-liner layout on mobile) */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 relative">
+      <div className="bg-white border-b border-zinc-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 relative">
         {/* Logo & Brand */}
         <div className="flex items-center shrink-0">
           <img
@@ -411,10 +412,14 @@ export function Header({
             onLogout={onLogout}
           />
         </div>
+        </div>
       </div>
 
-      {/* Sub-bar: Navigation Tabs & Utilities */}
-      <div className="bg-white border-t border-zinc-200">
+      {/* Sub-bar: Navigation Tabs & Utilities (Header 2 sticks to top when scrolling) */}
+      <div
+        id="header-2-navigation-bar"
+        className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-200 shadow-2xs"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 overflow-x-auto">
           {/* Main Navigation Tabs */}
           <nav className="flex space-x-1 py-1.5 shrink-0 select-none" aria-label="Tabs">

@@ -2407,7 +2407,7 @@ export default function App() {
       sparkCount={8}
       duration={400}
     >
-      <div className="relative min-h-screen flex flex-col bg-white text-[#18181B] font-sans antialiased overflow-x-hidden">
+      <div className="relative min-h-screen flex flex-col bg-white text-[#18181B] font-sans antialiased overflow-x-clip">
       {/* Background Animated Particles (non-cursor tracking) */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-white" aria-hidden="true">
         <Particles
