@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Upload, X, Check, Image as ImageIcon } from 'lucide-react';
-import { BANK_LOGOS, BANK_LOGOS_MAP } from '../data/bankLogos';
+import { BANK_LOGOS } from '../data/bankLogos';
 import { AccountIcon } from './CategoryIcon';
 
 export const STANDARD_ACCOUNT_ICONS = [
@@ -30,13 +30,13 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
     if (value && (value.startsWith('data:image/') || value.startsWith('blob:'))) {
       return 'upload';
     }
-    if (value && (value.startsWith('bank-') || Boolean(BANK_LOGOS_MAP[value]))) {
+    if (value && value.startsWith('bank-')) {
       return 'banks';
     }
     return 'banks';
   });
 
-  const selectedBankName = BANK_LOGOS_MAP[value]?.name || BANK_LOGOS.find((b) => b.id === value)?.name;
+  const selectedBankName = BANK_LOGOS.find((b) => b.id === value)?.name;
 
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -120,8 +120,8 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
         {value && (
           <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
             <span>Selected:</span>
-            <div className="w-5 h-5 rounded-[4px] border border-zinc-200 flex items-center justify-center shrink-0 overflow-hidden">
-              <AccountIcon name={value} className="w-full h-full" />
+            <div className="w-5 h-5 rounded-[4px] bg-zinc-100 border border-zinc-200 flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+              <AccountIcon name={value} className="w-4 h-4" />
             </div>
             {selectedBankName && (
               <span className="font-semibold text-zinc-800">{selectedBankName}</span>
@@ -173,7 +173,7 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
         <div className="space-y-1.5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-2 bg-zinc-50/50 rounded-[4px] border border-zinc-200">
             {BANK_LOGOS.map((bank) => {
-              const isSelected = value === bank.id || value === bank.name || BANK_LOGOS_MAP[value]?.id === bank.id;
+              const isSelected = value === bank.id;
               return (
                 <button
                   key={bank.id}
@@ -191,8 +191,8 @@ export function AccountIconPicker({ value, onChange }: AccountIconPickerProps) {
                       : 'bg-white text-zinc-800 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
                   }`}
                 >
-                  <div className="w-6 h-6 shrink-0 rounded-[4px] overflow-hidden flex items-center justify-center border border-zinc-200/60">
-                    {bank.render('w-full h-full')}
+                  <div className="w-6 h-6 shrink-0 rounded-[3px] overflow-hidden flex items-center justify-center">
+                    {bank.render('w-6 h-6')}
                   </div>
                   <span className="text-xs font-medium flex-1 break-words leading-snug">
                     {bank.name}

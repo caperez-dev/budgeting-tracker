@@ -268,13 +268,14 @@ export function ProfileDropdown({
           {onLogout && (
             <button
               type="button"
+              id="btn-profile-logout"
               onClick={() => {
                 setIsOpen(false);
                 onLogout();
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-[5px] text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors group cursor-pointer border border-transparent hover:border-red-100"
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-[5px] text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors group cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5 text-red-500 group-hover:text-red-600 transition-transform group-hover:-translate-x-0.5" />
+              <LogOut className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-800 transition-transform group-hover:-translate-x-0.5" />
               <span>Log Out</span>
             </button>
           )}

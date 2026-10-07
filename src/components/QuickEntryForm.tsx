@@ -350,15 +350,15 @@ export function QuickEntryForm({
             <div
               role="group"
               aria-label="Transaction Type"
-              className="h-9 grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 gap-0.5 box-border"
+              className="h-9 grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 text-xs font-medium"
             >
               <button
                 type="button"
                 id="btn-toggle-expense"
                 onClick={() => setType('expense')}
-                className={`h-full flex items-center justify-center gap-1.5 text-xs font-medium rounded-[3px] transition-colors ${
+                className={`h-full py-1 flex items-center justify-center gap-1.5 rounded-[3px] transition-colors cursor-pointer ${
                   type === 'expense'
-                    ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
+                    ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
                     : 'text-zinc-500 hover:text-zinc-800'
                 }`}
               >
@@ -369,9 +369,9 @@ export function QuickEntryForm({
                 type="button"
                 id="btn-toggle-income"
                 onClick={() => setType('income')}
-                className={`h-full flex items-center justify-center gap-1.5 text-xs font-medium rounded-[3px] transition-colors ${
+                className={`h-full py-1 flex items-center justify-center gap-1.5 rounded-[3px] transition-colors cursor-pointer ${
                   type === 'income'
-                    ? 'bg-white text-zinc-900 shadow-2xs border border-zinc-200 font-semibold'
+                    ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
                     : 'text-zinc-500 hover:text-zinc-800'
                 }`}
               >
@@ -446,20 +446,17 @@ export function QuickEntryForm({
               type="button"
               onClick={() => setIsDateTimeOpen((prev) => !prev)}
               aria-expanded={isDateTimeOpen}
-              className={`h-9 px-2.5 bg-white border rounded-[4px] flex items-center gap-1.5 text-xs transition-colors cursor-pointer select-none ${
+              className={`h-9 w-9 bg-white border rounded-[4px] flex items-center justify-center text-xs transition-colors cursor-pointer select-none ${
                 isDateTimeOpen
                   ? 'border-zinc-900 ring-1 ring-zinc-900 shadow-2xs'
                   : isCustomDateTime
-                  ? 'border-zinc-900 bg-zinc-50 text-zinc-900 font-semibold shadow-2xs'
+                  ? 'border-zinc-900 bg-zinc-50 text-zinc-900 shadow-2xs'
                   : 'border-zinc-200 hover:border-zinc-300 text-zinc-600 hover:text-zinc-900'
               }`}
               title={`Selected Date & Time: ${formatFriendlyDate(selectedDate)} at ${selectedTime}`}
               aria-label="Select date and time"
             >
               <CalendarDays className="w-4 h-4 text-zinc-500 shrink-0" />
-              <span className="hidden md:inline font-mono text-xs text-zinc-800">
-                {isCustomDateTime ? formatFriendlyDate(selectedDate) : 'Date & Time'}
-              </span>
             </button>
 
             {/* In-App Popover Calendar & Time Selector */}

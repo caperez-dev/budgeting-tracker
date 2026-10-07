@@ -355,8 +355,8 @@ export function TransferModal({
 
             {/* Validation warning if from account is empty or negative */}
             {!isSameAccount && isFromZeroOrNegative && (
-              <div className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-[4px] text-rose-800 text-xs">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex items-center gap-1.5 text-xs text-rose-600 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                 <span>The selected account has no available balance to transfer.</span>
               </div>
             )}
