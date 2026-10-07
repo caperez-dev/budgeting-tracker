@@ -231,7 +231,7 @@ export function SummaryPanel({
   return (
     <div id="summary-panel" className="space-y-6">
       {/* 1. SUMMARY CARDS WITH EXPENSES / INCOME TOGGLE */}
-      <div className="bg-white border border-zinc-200 rounded-[5px] p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="bg-white border border-zinc-200 rounded-[5px] p-3 sm:p-5 shadow-xs space-y-3 sm:space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100">
           <div>
             <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">
@@ -277,7 +277,7 @@ export function SummaryPanel({
         </div>
 
         {/* 5 Summary Cards for Active Selection */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           {(breakdownType === 'expense' ? expenseCards : incomeCards).map((card) => {
             const isSelected = selectedPeriod === card.id;
             const isMonthCard = card.id === 'month';
@@ -305,7 +305,7 @@ export function SummaryPanel({
                       handleCardClick();
                     }
                   }}
-                  className={`w-full h-full flex flex-col justify-between p-3.5 rounded-[5px] border transition-all cursor-pointer select-none ${
+                  className={`w-full h-full flex flex-col justify-between p-2 sm:p-3.5 rounded-[5px] border transition-all cursor-pointer select-none ${
                     isSelected
                       ? breakdownType === 'income'
                         ? 'bg-emerald-50/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
@@ -313,9 +313,9 @@ export function SummaryPanel({
                       : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between min-h-[26px] text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                  <div className="flex items-center justify-between min-h-[20px] sm:min-h-[26px] text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1 sm:mb-2">
                     <span className="truncate pr-1">{card.label}</span>
-                    <div className="flex items-center gap-1.5 shrink-0 min-h-[24px]">
+                    <div className="flex items-center gap-1.5 shrink-0 min-h-[20px] sm:min-h-[24px]">
                       {isMonthCard && (
                         <button
                           ref={monthCalBtnRef}
@@ -365,7 +365,7 @@ export function SummaryPanel({
                     </div>
                   </div>
                   <div
-                    className={`text-base sm:text-lg font-bold font-mono tabular-nums ${
+                    className={`text-sm sm:text-lg font-bold font-mono tabular-nums ${
                       breakdownType === 'income' ? 'text-emerald-700' : 'text-zinc-900'
                     }`}
                   >

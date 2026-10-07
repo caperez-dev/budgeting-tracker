@@ -1895,11 +1895,30 @@ async function startServer() {
     }
   } catch {}
 
-  const isProd =
-    process.env.NODE_ENV === "production" || Boolean(process.env.K_SERVICE);
+  const isProd = process.env.NODE_ENV === "production";
 
-  // In production (Cloud Run), serve static files from dist
-  if (isProd) {
+  if (!isProd) {
+    // In development mode (NODE_ENV=development): Mount Vite middleware
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      console.log("Vite development middleware mounted successfully");
+    } catch (err) {
+      console.warn("Could not start Vite dev middleware, falling back to static files:", err);
+      const distPath = path.resolve(process.cwd(), "dist");
+      if (fs.existsSync(path.join(distPath, "index.html"))) {
+        app.use(express.static(distPath));
+        app.get("*", (_req, res) => {
+          res.sendFile(path.join(distPath, "index.html"));
+        });
+      }
+    }
+  } else {
+    // In production mode (NODE_ENV=production): Serve static assets from dist
     const candidateDistPaths = [
       path.resolve(process.cwd(), "dist"),
       path.resolve(fileDir, "dist"),
@@ -1917,42 +1936,21 @@ async function startServer() {
       app.use(express.static(distPath));
       app.get("*", (_req, res) => {
         const indexPath = path.join(distPath, "index.html");
-        res.sendFile(indexPath, (err) => {
-          if (err) {
-            console.error("Error serving index.html:", err);
-            if (!res.headersSent) {
-              res
-                .status(200)
-                .send(
-                  "<!DOCTYPE html><html><head><title>Budget Tracker</title></head><body><div id='root'>Budget Tracker is starting...</div></body></html>"
-                );
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath, (err) => {
+            if (err && !res.headersSent) {
+              res.status(200).send("<!DOCTYPE html><html><head><title>Wallo</title></head><body><div id='root'></div></body></html>");
             }
-          }
-        });
+          });
+        } else {
+          res.status(200).send("<!DOCTYPE html><html><head><title>Wallo</title></head><body><div id='root'></div></body></html>");
+        }
       });
     } else {
-      console.warn(
-        "Production environment detected, but dist/index.html was not found. Serving fallback page."
-      );
+      console.warn("Production build dist/index.html not found, serving fallback.");
       app.get("*", (_req, res) => {
-        res
-          .status(200)
-          .send(
-            "<!DOCTYPE html><html><head><title>Budget Tracker</title></head><body><div id='root'>Budget Tracker is starting...</div></body></html>"
-          );
+        res.status(200).send("<!DOCTYPE html><html><head><title>Wallo</title></head><body><div id='root'></div></body></html>");
       });
-    }
-  } else {
-    // Only in local development: Vite middleware
-    try {
-      const { createServer: createViteServer } = await import("vite");
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-    } catch (err) {
-      console.error("Failed to start Vite dev middleware:", err);
     }
   }
 

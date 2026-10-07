@@ -91,7 +91,7 @@ export function CategorySelect({
         aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full h-full min-h-[32px] bg-white border border-zinc-200 hover:border-zinc-300 text-xs px-2.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500 flex items-center justify-between gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName}`}
+        className={`w-full h-full min-h-[32px] bg-white border border-zinc-200 hover:border-zinc-300 text-xs px-2.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500 flex items-center justify-between gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-200 disabled:hover:border-zinc-200 disabled:cursor-not-allowed ${buttonClassName}`}
       >
         <div className="flex items-center gap-2 min-w-0">
           {selectedCategory ? (
@@ -101,12 +101,12 @@ export function CategorySelect({
                 style={{ backgroundColor: selectedCategory.color }}
               />
               <CategoryIcon name={selectedCategory.icon} className="w-3.5 h-3.5 shrink-0 text-zinc-600" />
-              <span className="font-semibold text-zinc-900 tracking-tight truncate">
+              <span className={`font-semibold tracking-tight truncate ${disabled ? 'text-zinc-400' : 'text-zinc-900'}`}>
                 {selectedCategory.name}
               </span>
             </>
           ) : (
-            <span className="font-semibold text-zinc-900 tracking-tight truncate">
+            <span className={`font-semibold tracking-tight truncate ${disabled ? 'text-zinc-400' : 'text-zinc-900'}`}>
               {placeholder || (showAllOption ? 'All Categories' : 'Select Category')}
             </span>
           )}

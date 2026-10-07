@@ -1023,21 +1023,20 @@ export function TrackerView({
             </button>
           </div>
 
-          {/* Category Filter - custom styled matching CurrencySelect, hidden when viewing transfers */}
-          {filterType !== 'transfer' && (
-            <div className="h-8 w-44 shrink-0">
-              <CategorySelect
-                id="filter-category-select"
-                ariaLabel="Filter by category"
-                categories={availableFilterCategories}
-                value={filterCategory}
-                onChange={setFilterCategory}
-                showAllOption={true}
-                className="h-full"
-                buttonClassName="h-8 min-h-[32px]"
-              />
-            </div>
-          )}
+          {/* Category Filter - custom styled matching CurrencySelect, muted when viewing transfers */}
+          <div className="h-8 w-44 shrink-0">
+            <CategorySelect
+              id="filter-category-select"
+              ariaLabel="Filter by category"
+              categories={availableFilterCategories}
+              value={filterCategory}
+              onChange={setFilterCategory}
+              showAllOption={true}
+              disabled={filterType === 'transfer'}
+              className="h-full"
+              buttonClassName="h-8 min-h-[32px]"
+            />
+          </div>
         </div>
 
         <div className="text-xs font-mono text-zinc-500">
@@ -1290,22 +1289,12 @@ export function TrackerView({
             <p className="text-sm font-medium text-zinc-700">
               You have no transactions yet
             </p>
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => onSelectDate?.(null)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium rounded-[4px] transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Show full month</span>
-              </button>
-            )}
           </div>
         ) : (
           monthGroups.map((month) => (
-            <div key={month.yearMonth} className="p-4 sm:p-5 pt-3">
+            <div key={month.yearMonth} className="p-3 sm:p-5 pt-3">
               {/* Weeks within Month (Week headers hidden if filtering by a specific date) */}
-              <div className={`space-y-4 ${selectedDate ? 'ml-0' : 'ml-1 sm:ml-3'}`}>
+              <div className={`space-y-4 ${selectedDate ? 'ml-0' : 'ml-0 sm:ml-3'}`}>
                 {month.weeks.map((week) => (
                   <div key={`${month.yearMonth}-${week.weekNumber}`} className="space-y-2">
                     {/* Level 2: Week Header (e.g. "Week 1", "Week 2") - HIDDEN when date filter is active */}
@@ -1321,7 +1310,7 @@ export function TrackerView({
                     )}
 
                     {/* Days within Week */}
-                    <div className={`space-y-3 ${selectedDate ? 'ml-0' : 'ml-2 sm:ml-4'}`}>
+                    <div className={`space-y-3 ${selectedDate ? 'ml-0' : 'ml-0 sm:ml-4'}`}>
                       {week.days.map((day) => (
                         <div key={day.date} className="space-y-1">
                           {/* Level 3: Day Header (e.g. "Sep 1") */}
@@ -1335,7 +1324,7 @@ export function TrackerView({
                           </div>
 
                           {/* Chronological Row Entries */}
-                          <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-[4px] overflow-x-auto bg-white">
+                          <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-[4px] overflow-x-auto sm:overflow-x-visible bg-white">
                             {day.transactions.map((tx) => {
                               const isTransfer = tx.type === 'transfer';
                               const cat = tx.categoryId ? categoryMap.get(tx.categoryId) : undefined;
@@ -1361,10 +1350,10 @@ export function TrackerView({
                                 <div
                                   key={tx.id}
                                   id={`tx-row-${tx.id}`}
-                                  className="group flex items-center py-2.5 px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-2.5 sm:gap-4 min-w-0 sm:min-w-[580px]"
+                                  className="group flex items-center py-2.5 px-2.5 sm:px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-2 sm:gap-4 min-w-0 sm:min-w-[580px] w-full"
                                 >
                                   {/* Column 1: Responsive IN/OUT Indicator (Arrows on Mobile, Text on Normal View) */}
-                                  <div className="w-5 sm:w-8 shrink-0 flex items-center justify-center sm:justify-start">
+                                  <div className="w-4 sm:w-8 shrink-0 flex items-center justify-center sm:justify-start">
                                     {isTransfer ? (
                                       <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" title="Transfer" />
                                     ) : (
@@ -1390,10 +1379,10 @@ export function TrackerView({
                                     )}
                                   </div>
 
-                                  {/* Column 2: Amount (fixed width) */}
-                                  <div className="w-20 sm:w-28 shrink-0">
+                                  {/* Column 2: Amount (and Account beneath it on mobile) */}
+                                  <div className="shrink-0 flex flex-col justify-center min-w-0 sm:w-28">
                                     <span
-                                      className={`font-mono text-sm font-semibold tabular-nums ${
+                                      className={`font-mono text-xs sm:text-sm font-semibold tabular-nums leading-tight ${
                                         isTransfer
                                           ? 'text-zinc-900'
                                           : tx.type === 'expense'
@@ -1403,24 +1392,42 @@ export function TrackerView({
                                     >
                                       {formatCurrency(tx.amount, currencySymbol)}
                                     </span>
+
+                                    {/* Mobile: Account directly below amount */}
+                                    <div className="sm:hidden mt-0.5 min-w-0 max-w-[85px]">
+                                      {isTransfer ? (
+                                        <div className="flex items-center gap-0.5 text-[10px] text-zinc-500 font-medium truncate">
+                                          <AccountIcon name={fromIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
+                                          <span className="truncate max-w-[34px]">{fromName}</span>
+                                          <ArrowRight className="w-2 h-2 text-zinc-400 shrink-0" />
+                                          <AccountIcon name={toIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
+                                          <span className="truncate max-w-[34px]">{toName}</span>
+                                        </div>
+                                      ) : accName ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 truncate">
+                                          <AccountIcon name={accIcon} className="w-2.5 h-2.5 shrink-0 text-zinc-400" />
+                                          <span className="truncate max-w-[78px]">{accName}</span>
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   </div>
 
-                                  {/* Column 3: Category Column (aligned) */}
-                                  <div className="w-28 sm:w-36 md:w-40 shrink-0 flex items-center min-w-0">
+                                  {/* Column 3: Category Column (flexes and truncates gracefully on mobile) */}
+                                  <div className="flex-1 min-w-0 sm:flex-initial sm:w-36 md:w-40 sm:shrink-0 flex items-center">
                                     {isTransfer ? (
-                                      <span className="text-zinc-400 font-medium text-xs">
+                                      <span className="text-zinc-400 font-medium text-xs truncate">
                                         Transfer
                                       </span>
                                     ) : (
-                                      <span className="flex items-center gap-1.5 text-zinc-700 font-medium truncate text-xs">
-                                        <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                      <span className="flex items-center gap-1 sm:gap-1.5 text-zinc-700 font-medium truncate text-xs">
+                                        <CategoryIcon name={catIcon} className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-zinc-400 shrink-0" />
                                         <span className="truncate">{catName}</span>
                                       </span>
                                     )}
                                   </div>
 
-                                  {/* Column 4: Account Column (aligned, no wrappers) */}
-                                  <div className="w-32 sm:w-48 md:w-56 shrink-0 flex items-center min-w-0">
+                                  {/* Column 4: Account Column (Desktop only, hidden on mobile) */}
+                                  <div className="hidden sm:flex sm:w-48 md:w-56 shrink-0 items-center min-w-0">
                                     {isTransfer ? (
                                       <div className="flex items-center gap-1 text-xs whitespace-nowrap truncate font-medium text-zinc-700">
                                         <AccountIcon name={fromIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
@@ -1451,13 +1458,13 @@ export function TrackerView({
                                   </div>
 
                                   {/* Right: Subtle 12-hour timestamp and row actions */}
-                                  <div className="flex items-center gap-3 shrink-0 ml-auto">
-                                    <span className="font-mono text-[11px] text-zinc-400 tabular-nums flex items-center gap-1">
-                                      <Clock className="w-3 h-3 text-zinc-300" />
+                                  <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
+                                    <span className="font-mono text-[10px] sm:text-[11px] text-zinc-400 tabular-nums flex items-center gap-0.5 sm:gap-1">
+                                      <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-zinc-300" />
                                       {tx.time}
                                     </span>
 
-                                    <div className="flex items-center opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                    <div className="flex items-center opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity gap-0.5 sm:gap-1">
                                       <button
                                         onClick={() =>
                                           setEditingTx({

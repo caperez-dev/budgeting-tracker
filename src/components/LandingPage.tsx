@@ -6,7 +6,6 @@ import {
   Target,
   Zap,
   PiggyBank,
-  Sparkles,
   Lock,
   ArrowDownLeft,
   ArrowUpRight,
@@ -83,12 +82,6 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
 
         {/* 2. Hero Section */}
         <section className="pt-12 sm:pt-20 pb-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full text-center flex flex-col items-center">
-          {/* Subtle Tag */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] bg-zinc-100/90 text-zinc-700 text-xs font-medium border border-zinc-200/80 mb-5 animate-fade-in">
-            <Sparkles className="w-3.5 h-3.5 text-zinc-700" />
-            <span>Clean, intentional personal finance</span>
-          </div>
-
           {/* Headline - Stating the Core Value */}
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-zinc-900 max-w-3xl leading-[1.12]">
             Know exactly where your money goes
@@ -402,12 +395,7 @@ export function LandingPage({ onGetStarted, onSignIn, onSignUp }: LandingPagePro
         <footer className="mt-auto bg-white border-t border-zinc-200 py-6 px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
             <div className="flex items-center gap-3">
-              <img
-                src={walloLogo}
-                alt="Wallo"
-                className="h-6 w-auto object-contain select-none"
-              />
-              <span className="text-zinc-500 text-xs">© 2026 Wallo</span>
+              <span className="text-zinc-500 text-xs font-medium">© 2026 Wallo</span>
             </div>
 
             <div className="flex items-center gap-4">
