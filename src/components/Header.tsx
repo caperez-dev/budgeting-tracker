@@ -211,7 +211,7 @@ export function Header({
   const monthHoverMessage = `Month of ${specificMonthName}`;
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-zinc-200">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xs border-b border-zinc-200 shadow-2xs">
       {/* Top Banner: Global Financial Status & Branding (One-liner layout on mobile) */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 relative">
         {/* Logo & Brand */}
@@ -478,19 +478,8 @@ export function Header({
             </button>
           </nav>
 
-          {/* Secondary Utilities: Accounts, Transfer, Categories */}
+          {/* Secondary Utilities: Transfer, Accounts, Categories */}
           <div className="flex items-center gap-1 sm:gap-1.5 py-1.5 shrink-0">
-            <button
-              id="btn-manage-accounts"
-              onClick={onOpenAccounts}
-              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
-              title="Manage accounts and assets (Cash, E-Wallet, etc.)"
-              aria-label="Manage accounts"
-            >
-              <Wallet className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-              <span>Accounts</span>
-            </button>
-
             <button
               id="btn-transfer"
               onClick={onOpenTransfer}
@@ -500,6 +489,17 @@ export function Header({
             >
               <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
               <span>Transfer</span>
+            </button>
+
+            <button
+              id="btn-manage-accounts"
+              onClick={onOpenAccounts}
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 rounded-[4px] transition-colors whitespace-nowrap cursor-pointer"
+              title="Manage accounts and assets (Cash, E-Wallet, etc.)"
+              aria-label="Manage accounts"
+            >
+              <Wallet className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span>Accounts</span>
             </button>
 
             <button

@@ -59,7 +59,19 @@ export function QuickEntryForm({
   isModal = false,
   onClose,
 }: QuickEntryFormProps) {
-  const [type, setType] = useState<TransactionType>('expense');
+  const [type, setType] = useState<TransactionType>(() => {
+    try {
+      const saved = localStorage.getItem('budget_tracker_quick_entry_type_v1');
+      if (saved === 'expense' || saved === 'income') return saved as TransactionType;
+    } catch {}
+    return 'expense';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_quick_entry_type_v1', type);
+    } catch {}
+  }, [type]);
   const [amount, setAmount] = useState<string>('');
   const [currency, setCurrency] = useState<string>(selectedCurrency);
   const [categoryId, setCategoryId] = useState<string>('');

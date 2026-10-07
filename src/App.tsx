@@ -177,6 +177,11 @@ const STORAGE_KEYS = {
   SETTINGS: 'budget_tracker_settings_v1',
   USER_PROFILE: 'budget_tracker_user_profile_v1',
   CURRENT_USER: 'budget_tracker_current_user_v1',
+  ACTIVE_TAB_PREFIX: 'budget_tracker_active_tab_v2',
+  SELECTED_YEAR_MONTH_PREFIX: 'budget_tracker_selected_year_month_v2',
+  SELECTED_DATE_PREFIX: 'budget_tracker_selected_date_v2',
+  AUTH_VIEW: 'budget_tracker_auth_view_v1',
+  AUTH_INITIAL_MODE: 'budget_tracker_auth_initial_mode_v1',
 };
 
 const getUserStorageKey = (prefix: string, userId?: string | null) => {
@@ -198,8 +203,35 @@ export default function App() {
     }
   });
 
-  const [authView, setAuthView] = useState<'landing' | 'auth'>('landing');
-  const [authInitialMode, setAuthInitialMode] = useState<AuthScreenMode>('login');
+  const [authView, setAuthView] = useState<'landing' | 'auth'>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.AUTH_VIEW);
+      if (saved === 'auth' || saved === 'landing') return saved;
+    } catch {}
+    return 'landing';
+  });
+
+  const [authInitialMode, setAuthInitialMode] = useState<AuthScreenMode>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.AUTH_INITIAL_MODE);
+      if (saved === 'login' || saved === 'register' || saved === 'reset_request') {
+        return saved as AuthScreenMode;
+      }
+    } catch {}
+    return 'login';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTH_VIEW, authView);
+    } catch {}
+  }, [authView]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTH_INITIAL_MODE, authInitialMode);
+    } catch {}
+  }, [authInitialMode]);
 
   useEffect(() => {
     try {
@@ -533,7 +565,39 @@ export default function App() {
 
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('tracker');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      const userId = savedUser ? JSON.parse(savedUser)?.id : null;
+      const key = getUserStorageKey(STORAGE_KEYS.ACTIVE_TAB_PREFIX, userId);
+      const savedTab = localStorage.getItem(key);
+      const validTabs: ActiveTab[] = ['tracker', 'summary', 'debts', 'goals', 'settings'];
+      if (savedTab && validTabs.includes(savedTab as ActiveTab)) {
+        return savedTab as ActiveTab;
+      }
+    } catch {}
+    return 'tracker';
+  });
+
+  useEffect(() => {
+    try {
+      const key = getUserStorageKey(STORAGE_KEYS.ACTIVE_TAB_PREFIX, currentUser?.id);
+      localStorage.setItem(key, activeTab);
+    } catch {}
+  }, [activeTab, currentUser?.id]);
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        const key = getUserStorageKey(STORAGE_KEYS.ACTIVE_TAB_PREFIX, currentUser.id);
+        const savedTab = localStorage.getItem(key);
+        const validTabs: ActiveTab[] = ['tracker', 'summary', 'debts', 'goals', 'settings'];
+        if (savedTab && validTabs.includes(savedTab as ActiveTab)) {
+          setActiveTab(savedTab as ActiveTab);
+        }
+      } catch {}
+    }
+  }, [currentUser?.id]);
 
   // --- Modals State ---
   const [showQuickEntryModal, setShowQuickEntryModal] = useState(false);
@@ -1163,12 +1227,51 @@ export default function App() {
 
   // --- Month & Year Navigation State ---
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>(() => {
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      const userId = savedUser ? JSON.parse(savedUser)?.id : null;
+      const key = getUserStorageKey(STORAGE_KEYS.SELECTED_YEAR_MONTH_PREFIX, userId);
+      const savedYM = localStorage.getItem(key);
+      if (savedYM && /^\d{4}-\d{2}$/.test(savedYM)) {
+        return savedYM;
+      }
+    } catch {}
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`; // e.g. "2026-09"
+    return `${year}-${month}`; // e.g. "2026-10"
   });
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      const userId = savedUser ? JSON.parse(savedUser)?.id : null;
+      const key = getUserStorageKey(STORAGE_KEYS.SELECTED_DATE_PREFIX, userId);
+      const savedD = localStorage.getItem(key);
+      if (savedD && /^\d{4}-\d{2}-\d{2}$/.test(savedD)) {
+        return savedD;
+      }
+    } catch {}
+    return null;
+  });
+
+  useEffect(() => {
+    try {
+      const key = getUserStorageKey(STORAGE_KEYS.SELECTED_YEAR_MONTH_PREFIX, currentUser?.id);
+      localStorage.setItem(key, selectedYearMonth);
+    } catch {}
+  }, [selectedYearMonth, currentUser?.id]);
+
+  useEffect(() => {
+    try {
+      const key = getUserStorageKey(STORAGE_KEYS.SELECTED_DATE_PREFIX, currentUser?.id);
+      if (selectedDate) {
+        localStorage.setItem(key, selectedDate);
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch {}
+  }, [selectedDate, currentUser?.id]);
 
   const handleSelectDate = (date: string | null) => {
     setSelectedDate(date);

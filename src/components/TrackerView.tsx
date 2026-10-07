@@ -100,9 +100,51 @@ export function TrackerView({
   onUndoDelete,
   undoSecondsLeft,
 }: TrackerViewProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'expense' | 'income' | 'transfer'>('all');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState(() => {
+    try {
+      return localStorage.getItem('budget_tracker_search_query_v1') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [filterType, setFilterType] = useState<'all' | 'expense' | 'income' | 'transfer'>(() => {
+    try {
+      const saved = localStorage.getItem('budget_tracker_filter_type_v1');
+      if (saved && ['all', 'expense', 'income', 'transfer'].includes(saved)) {
+        return saved as 'all' | 'expense' | 'income' | 'transfer';
+      }
+    } catch {}
+    return 'all';
+  });
+  const [filterCategory, setFilterCategory] = useState<string>(() => {
+    try {
+      return localStorage.getItem('budget_tracker_filter_category_v1') || 'all';
+    } catch {
+      return 'all';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_filter_type_v1', filterType);
+    } catch {}
+  }, [filterType]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_filter_category_v1', filterCategory);
+    } catch {}
+  }, [filterCategory]);
+
+  useEffect(() => {
+    try {
+      if (searchQuery) {
+        localStorage.setItem('budget_tracker_search_query_v1', searchQuery);
+      } else {
+        localStorage.removeItem('budget_tracker_search_query_v1');
+      }
+    } catch {}
+  }, [searchQuery]);
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);

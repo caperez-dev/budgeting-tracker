@@ -108,7 +108,7 @@ export function AuthScreen({
 
   // Checkboxes
   const [rememberMe, setRememberMe] = useState(true);
-  const [agreedToTerms, setAgreedToTerms] = useState(true);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Status & Feedback messages
   const [isLoading, setIsLoading] = useState(false);

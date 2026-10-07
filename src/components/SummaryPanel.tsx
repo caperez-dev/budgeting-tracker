@@ -37,18 +37,77 @@ export function SummaryPanel({
   categories,
   currencySymbol,
 }: SummaryPanelProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('month');
-  const [breakdownType, setBreakdownType] = useState<MetricType>('expense');
-
   const todayStr = getTodayDateString();
   const [currentYearStr, currentMonthStr] = todayStr.split('-');
   const currentYearMonth = `${currentYearStr}-${currentMonthStr}`;
   const currentYearNum = parseInt(currentYearStr, 10);
 
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>(() => {
+    try {
+      const saved = localStorage.getItem('budget_tracker_summary_period_v1');
+      if (saved && ['today', 'week', 'month', 'year', 'all'].includes(saved)) {
+        return saved as Period;
+      }
+    } catch {}
+    return 'month';
+  });
+
+  const [breakdownType, setBreakdownType] = useState<MetricType>(() => {
+    try {
+      const saved = localStorage.getItem('budget_tracker_summary_breakdown_type_v1');
+      if (saved === 'expense' || saved === 'income') {
+        return saved as MetricType;
+      }
+    } catch {}
+    return 'expense';
+  });
+
   // Month and Year selector state
-  const [selectedYear, setSelectedYear] = useState<number>(currentYearNum);
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('budget_tracker_summary_year_v1');
+      if (saved && !isNaN(parseInt(saved, 10))) {
+        return parseInt(saved, 10);
+      }
+    } catch {}
+    return currentYearNum;
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('budget_tracker_summary_month_v1');
+      if (saved && /^\d{2}$/.test(saved)) {
+        return saved;
+      }
+    } catch {}
+    return currentMonthStr;
+  });
+
   const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_summary_period_v1', selectedPeriod);
+    } catch {}
+  }, [selectedPeriod]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_summary_breakdown_type_v1', breakdownType);
+    } catch {}
+  }, [breakdownType]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_summary_year_v1', String(selectedYear));
+    } catch {}
+  }, [selectedYear]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_summary_month_v1', selectedMonth);
+    } catch {}
+  }, [selectedMonth]);
 
   // Popover state for selecting month or year directly on the cards
   const [isMonthPopoverOpen, setIsMonthPopoverOpen] = useState(false);
