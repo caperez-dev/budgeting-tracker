@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getCurrencyFlag } from '../data/worldCurrencies';
 
 // Comprehensive Currency Code -> ISO 3166-1 alpha-2 Country Code mapping
 const CURRENCY_TO_COUNTRY: Record<string, string> = {
@@ -151,34 +152,54 @@ export function CurrencyFlag({
   className = '',
   size = 'md',
 }: CurrencyFlagProps) {
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const countryCode = getCountryCode(code, flag);
+  const fallbackEmoji = flag || getCurrencyFlag(code);
 
   const sizeClasses = {
-    sm: 'w-4 h-2.5',
-    md: 'w-4.5 h-3',
-    lg: 'w-6 h-4',
+    sm: 'w-4 h-2.5 text-xs',
+    md: 'w-4.5 h-3 text-xs',
+    lg: 'w-6 h-4 text-sm',
   }[size];
 
-  if (hasError) {
+  // If there's an error loading the image or invalid country code, render the emoji flag directly
+  if (hasError || !countryCode || countryCode === 'un') {
     return (
       <span
-        className={`inline-flex items-center justify-center bg-zinc-100 text-zinc-600 font-mono text-[9px] font-bold rounded-[2px] border border-zinc-300 uppercase shrink-0 ${sizeClasses} ${className}`}
+        className={`inline-flex items-center justify-center text-center select-none shrink-0 ${sizeClasses} ${className}`}
         title={`${code} flag`}
+        role="img"
+        aria-label={`${code} flag`}
       >
-        {countryCode.slice(0, 2)}
+        {fallbackEmoji}
       </span>
     );
   }
 
   return (
-    <img
-      src={`https://flagcdn.com/w40/${countryCode}.png`}
-      srcSet={`https://flagcdn.com/w80/${countryCode}.png 2x`}
-      alt={`${code} flag`}
-      loading="lazy"
-      onError={() => setHasError(true)}
-      className={`inline-block object-cover rounded-[2px] shadow-2xs border border-zinc-200/80 shrink-0 ${sizeClasses} ${className}`}
-    />
+    <span
+      className={`relative inline-flex items-center justify-center overflow-hidden rounded-[2px] shrink-0 select-none ${sizeClasses} ${className}`}
+      title={`${code} flag`}
+    >
+      {/* Visual flag emoji while the external image is loading or if it fails */}
+      {!imgLoaded && (
+        <span className="text-center leading-none" role="img" aria-label={`${code} flag`}>
+          {fallbackEmoji}
+        </span>
+      )}
+      <img
+        src={`https://flagcdn.com/w40/${countryCode}.png`}
+        srcSet={`https://flagcdn.com/w80/${countryCode}.png 2x`}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        onLoad={() => setImgLoaded(true)}
+        onError={() => setHasError(true)}
+        className={`absolute inset-0 w-full h-full object-cover rounded-[2px] transition-opacity duration-150 ${
+          imgLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+    </span>
   );
 }

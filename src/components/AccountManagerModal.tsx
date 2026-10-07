@@ -443,8 +443,8 @@ export function AccountManagerModal({
           </button>
         </div>
 
-        {/* Top Summary Bar (Hidden when editing an account) */}
-        {!editingAccount && (
+        {/* Top Summary Bar (Hidden when editing or adding an account) */}
+        {!editingAccount && !isAdding && (
           <div className="px-5 py-3 bg-white flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-zinc-600">Total in Accounts:</span>
@@ -488,11 +488,6 @@ export function AccountManagerModal({
               onSubmit={handleCreate}
               className="space-y-4 animate-in fade-in duration-150"
             >
-              <div className="flex items-center justify-between pb-1 border-b border-zinc-100">
-                <h3 className="text-xs font-semibold text-zinc-900">New Account</h3>
-                <span className="text-[11px] text-zinc-400">Fill details below</span>
-              </div>
-
               {/* Account Name */}
               <div>
                 <div className="flex items-center justify-between mb-1">

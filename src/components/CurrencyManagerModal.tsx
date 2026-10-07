@@ -13,7 +13,6 @@ import {
   fetchLiveExchangeRates,
 } from '../data/worldCurrencies';
 import { CurrencyFlag } from './CurrencyFlag';
-import { SpecularButton } from './ui/SpecularButton';
 import { useModalAnimation } from '../utils/useModalAnimation';
 
 interface CurrencyManagerModalProps {
@@ -103,6 +102,11 @@ export function CurrencyManagerModal({
 
   // Filtered world currencies based purely on search query, excluding already added currencies
   const query = searchQuery.trim().toLowerCase();
+  const [displayLimit, setDisplayLimit] = useState(25);
+
+  useEffect(() => {
+    setDisplayLimit(25);
+  }, [searchQuery]);
 
   const availableWorldCurrencies = WORLD_CURRENCIES.filter((wc) => {
     const isAlreadyAdded = currencies.some((c) => c.code === wc.code);
@@ -255,44 +259,55 @@ export function CurrencyManagerModal({
                     : 'All available currencies have been added.'}
                 </div>
               ) : (
-                availableWorldCurrencies.map((wc) => {
-                  return (
-                    <div
-                      key={wc.code}
-                      className="py-2 px-3 flex items-center justify-between text-xs hover:bg-zinc-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <CurrencyFlag code={wc.code} flag={wc.flag} size="lg" />
-                        <span className="w-7 h-7 rounded-[3px] bg-zinc-100 font-mono font-bold flex items-center justify-center text-zinc-800 text-xs shrink-0">
-                          {wc.symbol}
-                        </span>
-                        <div className="min-w-0 truncate">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-zinc-900 font-mono">
-                              {wc.code}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-zinc-500 truncate">
-                            {wc.name} &bull; <span className="text-zinc-400">{wc.country}</span>
+                <>
+                  {availableWorldCurrencies.slice(0, displayLimit).map((wc) => {
+                    return (
+                      <div
+                        key={wc.code}
+                        className="py-2 px-3 flex items-center justify-between text-xs hover:bg-zinc-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <CurrencyFlag code={wc.code} flag={wc.flag} size="lg" />
+                          <span className="w-7 h-7 rounded-[3px] bg-zinc-100 font-mono font-bold flex items-center justify-center text-zinc-800 text-xs shrink-0">
+                            {wc.symbol}
+                          </span>
+                          <div className="min-w-0 truncate">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-zinc-900 font-mono">
+                                {wc.code}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-zinc-500 truncate">
+                              {wc.name} &bull; <span className="text-zinc-400">{wc.country}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="shrink-0 pl-2">
-                        <SpecularButton
-                          type="button"
-                          size="sm"
-                          radius={3}
-                          onClick={() => handleAddWorldCurrency(wc)}
-                          className="px-2.5 py-1 text-white text-[11px] font-medium flex items-center gap-1"
-                        >
-                          <Plus className="w-3 h-3" />
-                          Add
-                        </SpecularButton>
+                        <div className="shrink-0 pl-2">
+                          <button
+                            type="button"
+                            onClick={() => handleAddWorldCurrency(wc)}
+                            className="px-2.5 py-1 text-white text-[11px] font-medium flex items-center gap-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3px] transition-colors cursor-pointer shadow-2xs shrink-0"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add</span>
+                          </button>
+                        </div>
                       </div>
+                    );
+                  })}
+                  {availableWorldCurrencies.length > displayLimit && (
+                    <div className="p-2 text-center bg-zinc-50/80 border-t border-zinc-100">
+                      <button
+                        type="button"
+                        onClick={() => setDisplayLimit((prev) => prev + 35)}
+                        className="text-xs text-zinc-600 hover:text-zinc-900 font-medium py-1 px-3 rounded hover:bg-zinc-100 transition-colors cursor-pointer"
+                      >
+                        Show more currencies ({availableWorldCurrencies.length - displayLimit} more)
+                      </button>
                     </div>
-                  );
-                })
+                  )}
+                </>
               )}
             </div>
           </div>
