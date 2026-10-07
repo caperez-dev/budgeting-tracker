@@ -792,23 +792,37 @@ export function QuickEntryForm({
 
                 return (
                   <div key={acc.id} className="relative group">
-                    <button
-                      type="button"
-                      id={`acc-chip-${acc.id}`}
-                      onClick={() => setAccountId(acc.id)}
-                      title={`${acc.name}: ${formattedBalance}`}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-medium transition-all border cursor-pointer select-none ${
-                        isSelected
-                          ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
-                          : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'
-                      }`}
-                    >
-                      <AccountIcon
-                        name={acc.icon}
-                        className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white' : 'text-zinc-500'}`}
-                      />
-                      <span>{acc.name}</span>
-                    </button>
+                    {isSelected ? (
+                      <SpecularButton
+                        type="button"
+                        id={`acc-chip-${acc.id}`}
+                        onClick={() => setAccountId(acc.id)}
+                        title={`${acc.name}: ${formattedBalance}`}
+                        size="custom"
+                        radius={4}
+                        className="inline-flex items-center h-[29px] gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-medium shadow-2xs cursor-pointer border border-zinc-900 text-white"
+                      >
+                        <AccountIcon
+                          name={acc.icon}
+                          className="w-3.5 h-3.5 shrink-0 text-white"
+                        />
+                        <span>{acc.name}</span>
+                      </SpecularButton>
+                    ) : (
+                      <button
+                        type="button"
+                        id={`acc-chip-${acc.id}`}
+                        onClick={() => setAccountId(acc.id)}
+                        title={`${acc.name}: ${formattedBalance}`}
+                        className="inline-flex items-center h-[29px] gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs transition-colors border cursor-pointer select-none bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300"
+                      >
+                        <AccountIcon
+                          name={acc.icon}
+                          className="w-3.5 h-3.5 shrink-0 text-zinc-500"
+                        />
+                        <span>{acc.name}</span>
+                      </button>
+                    )}
 
                     {/* Balance Tooltip on Hover */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-30 drop-shadow-md">

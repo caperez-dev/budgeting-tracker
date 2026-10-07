@@ -96,6 +96,11 @@
 
 .specular-button--custom {
   /* Dimensions controlled via className */
+  box-sizing: border-box;
+}
+
+.specular-button--custom .specular-button__label {
+  gap: 0.375rem;
 }
 
 /* Canvas extends past the button so the rim glow can bleed outside the edge */

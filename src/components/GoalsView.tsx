@@ -144,6 +144,12 @@ export function GoalsView({
     setShowAddModal(false);
   };
 
+  const isAddFormValid =
+    name.trim().length > 0 &&
+    targetPrice.trim().length > 0 &&
+    !isNaN(parseFloat(targetPrice)) &&
+    parseFloat(targetPrice) > 0;
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const price = parseFloat(targetPrice);
@@ -523,7 +529,7 @@ export function GoalsView({
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px]"
+                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] cursor-pointer"
               >
                 Cancel
               </button>
@@ -531,7 +537,13 @@ export function GoalsView({
                 type="submit"
                 size="sm"
                 radius={3}
-                className="px-3.5 py-1.5 text-white text-xs font-semibold"
+                disabled={!isAddFormValid}
+                isMuted={!isAddFormValid}
+                className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  !isAddFormValid
+                    ? 'opacity-40 cursor-not-allowed bg-zinc-200 text-zinc-400 border border-zinc-200 shadow-none'
+                    : 'text-white cursor-pointer'
+                }`}
               >
                 Save Goal
               </SpecularButton>
