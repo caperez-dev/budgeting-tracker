@@ -399,13 +399,39 @@ export function CategoryManagerModal({
                     style={{ backgroundColor: c }}
                   />
                 ))}
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-6 h-6 p-0 border-0 rounded cursor-pointer"
-                  title="Custom hex color"
-                />
+                {/* Custom Color Selector Button */}
+                <label
+                  className={`relative inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] border transition-all cursor-pointer shadow-2xs select-none ${
+                    !PRESET_COLORS.includes(color)
+                      ? 'border-zinc-900 bg-zinc-50 ring-2 ring-zinc-900 ring-offset-1'
+                      : 'border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900'
+                  }`}
+                  title="Choose custom hex color"
+                >
+                  <div
+                    className="w-4 h-4 rounded-[3px] border border-black/10 shrink-0 relative overflow-hidden flex items-center justify-center"
+                    style={{
+                      background: !PRESET_COLORS.includes(color)
+                        ? color
+                        : 'conic-gradient(from 180deg, #f43f5e, #f97316, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #f43f5e)',
+                    }}
+                  >
+                    {!PRESET_COLORS.includes(color) && (
+                      <Check className="w-2.5 h-2.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />
+                    )}
+                  </div>
+                  <span className="text-[11px] font-mono font-semibold">
+                    {!PRESET_COLORS.includes(color) ? color.toUpperCase() : 'Custom'}
+                  </span>
+                  <Palette className="w-3 h-3 text-zinc-400 shrink-0" />
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                    aria-label="Pick custom hex color"
+                  />
+                </label>
               </div>
             </div>
 
@@ -494,12 +520,41 @@ export function CategoryManagerModal({
                     style={{ backgroundColor: c }}
                   />
                 ))}
-                <input
-                  type="color"
-                  value={editingCat.color}
-                  onChange={(e) => setEditingCat({ ...editingCat, color: e.target.value })}
-                  className="w-6 h-6 p-0 border-0 rounded cursor-pointer"
-                />
+                {/* Custom Color Selector Button */}
+                <label
+                  className={`relative inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] border transition-all cursor-pointer shadow-2xs select-none ${
+                    !PRESET_COLORS.includes(editingCat.color)
+                      ? 'border-zinc-900 bg-zinc-50 ring-2 ring-zinc-900 ring-offset-1'
+                      : 'border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900'
+                  }`}
+                  title="Choose custom hex color"
+                >
+                  <div
+                    className="w-4 h-4 rounded-[3px] border border-black/10 shrink-0 relative overflow-hidden flex items-center justify-center"
+                    style={{
+                      background: !PRESET_COLORS.includes(editingCat.color)
+                        ? editingCat.color
+                        : 'conic-gradient(from 180deg, #f43f5e, #f97316, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #f43f5e)',
+                    }}
+                  >
+                    {!PRESET_COLORS.includes(editingCat.color) && (
+                      <Check className="w-2.5 h-2.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />
+                    )}
+                  </div>
+                  <span className="text-[11px] font-mono font-semibold">
+                    {!PRESET_COLORS.includes(editingCat.color)
+                      ? editingCat.color.toUpperCase()
+                      : 'Custom'}
+                  </span>
+                  <Palette className="w-3 h-3 text-zinc-400 shrink-0" />
+                  <input
+                    type="color"
+                    value={editingCat.color}
+                    onChange={(e) => setEditingCat({ ...editingCat, color: e.target.value })}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                    aria-label="Pick custom hex color"
+                  />
+                </label>
               </div>
             </div>
 

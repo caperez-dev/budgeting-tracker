@@ -111,7 +111,7 @@ export function DebtTracker({
     <div id="debt-tracker-view" className="space-y-5">
       {/* Top Header & Net Debt Overview */}
       <div className="bg-white border border-zinc-200 rounded-[5px] p-5 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-zinc-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-zinc-100">
           <div>
             <h2 className="text-base font-semibold text-zinc-900 tracking-tight">
               Debt & Liabilities Tracker
@@ -121,19 +121,21 @@ export function DebtTracker({
             </p>
           </div>
 
-          <SpecularButton
-            onClick={() => setShowAddModal(true)}
-            id="btn-add-debt"
-            size="sm"
-            radius={4}
-            className="px-3 py-1.5 text-white text-xs font-semibold shadow-xs"
-          >
-            <span>Add Debt Record</span>
-          </SpecularButton>
+          <div className="flex justify-end sm:justify-start shrink-0">
+            <SpecularButton
+              onClick={() => setShowAddModal(true)}
+              id="btn-add-debt"
+              size="sm"
+              radius={4}
+              className="px-3 py-1.5 text-white text-xs font-semibold shadow-xs"
+            >
+              <span>Add Debt Record</span>
+            </SpecularButton>
+          </div>
         </div>
 
         {/* 2 Metric Summary (Money You Owe & Money Owed to You) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {/* Money You Owe */}
           <div>
             <div className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
@@ -335,14 +337,14 @@ export function DebtTracker({
               {/* Type Toggle */}
               <div>
                 <label className="block text-zinc-500 font-medium mb-1">Type</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 w-full text-xs font-medium">
                   <button
                     type="button"
                     onClick={() => setType('owe')}
-                    className={`py-1.5 px-2 rounded-[3px] border text-xs font-medium transition-colors cursor-pointer ${
+                    className={`py-1 rounded-[3px] transition-colors cursor-pointer text-center ${
                       type === 'owe'
-                        ? 'bg-rose-50 border-rose-300 text-rose-800 font-semibold'
-                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+                        ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                        : 'text-zinc-500 hover:text-zinc-800'
                     }`}
                   >
                     Liability
@@ -350,10 +352,10 @@ export function DebtTracker({
                   <button
                     type="button"
                     onClick={() => setType('owed')}
-                    className={`py-1.5 px-2 rounded-[3px] border text-xs font-medium transition-colors cursor-pointer ${
+                    className={`py-1 rounded-[3px] transition-colors cursor-pointer text-center ${
                       type === 'owed'
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold'
-                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+                        ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                        : 'text-zinc-500 hover:text-zinc-800'
                     }`}
                   >
                     Receivables
@@ -378,7 +380,7 @@ export function DebtTracker({
                   value={person}
                   onChange={(e) => setPerson(e.target.value.slice(0, 30))}
                   placeholder="Person or company name"
-                  className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
+                  className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 
@@ -393,7 +395,7 @@ export function DebtTracker({
                     value={amount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                     placeholder="0.00"
-                    className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-800 focus:outline-none focus:border-zinc-500"
+                    className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                   />
                 </div>
                 <div>
@@ -417,7 +419,7 @@ export function DebtTracker({
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
+                  className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 
@@ -437,7 +439,7 @@ export function DebtTracker({
                   value={note}
                   onChange={(e) => setNote(e.target.value.slice(0, 100))}
                   placeholder="Reference or note (optional)"
-                  className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500"
+                  className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 

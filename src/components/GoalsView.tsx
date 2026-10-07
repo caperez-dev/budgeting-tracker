@@ -196,7 +196,7 @@ export function GoalsView({
   return (
     <div id="goals-view" className="space-y-5">
       {/* Top Banner */}
-      <div className="bg-white border border-zinc-200 rounded-[5px] p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white border border-zinc-200 rounded-[5px] p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-900 tracking-tight">
             Purchase & Savings Goals
@@ -206,7 +206,7 @@ export function GoalsView({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex justify-end sm:justify-start items-center gap-3 shrink-0">
           <SpecularButton
             onClick={() => setShowAddModal(true)}
             id="btn-add-goal"
@@ -415,7 +415,7 @@ export function GoalsView({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Goal or item name"
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-zinc-900 focus:outline-none focus:border-zinc-500"
+                  className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 
@@ -431,7 +431,7 @@ export function GoalsView({
                     value={targetPrice}
                     onChange={(e) => setTargetPrice(e.target.value)}
                     placeholder="0.00"
-                    className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-900 focus:outline-none focus:border-zinc-500"
+                    className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                   />
                 </div>
                 <div>
@@ -456,7 +456,7 @@ export function GoalsView({
                   required
                   value={plannedDate}
                   onChange={(e) => setPlannedDate(e.target.value)}
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono text-zinc-900"
+                  className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 
@@ -514,7 +514,7 @@ export function GoalsView({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Model, store, or target details (optional)"
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-zinc-800"
+                  className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                 />
               </div>
             </div>
@@ -590,7 +590,7 @@ export function GoalsView({
                   value={contributeAmount}
                   onChange={(e) => setContributeAmount(e.target.value)}
                   placeholder="0.00"
-                  className="w-full bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono font-semibold tabular-nums text-zinc-900 focus:outline-none focus:border-zinc-500"
+                  className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono font-semibold tabular-nums text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
                 />
               </div>
 
