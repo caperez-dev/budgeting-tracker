@@ -10,7 +10,6 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowDown,
-  RotateCcw,
   RotateCw,
   AlertCircle,
   Clock,
@@ -79,9 +78,6 @@ interface TrackerViewProps {
   allTransactionsCount?: number;
   onDeleteTransaction: (id: string) => void;
   onUpdateTransaction: (tx: Transaction) => void;
-  pendingUndoTx: Transaction | null;
-  onUndoDelete: () => void;
-  undoSecondsLeft: number;
 }
 
 export function TrackerView({
@@ -96,9 +92,6 @@ export function TrackerView({
   allTransactionsCount,
   onDeleteTransaction,
   onUpdateTransaction,
-  pendingUndoTx,
-  onUndoDelete,
-  undoSecondsLeft,
 }: TrackerViewProps) {
   // Tracker view local UI state without localStorage caching
   const [searchQuery, setSearchQuery] = useState('');
@@ -1142,7 +1135,7 @@ export function TrackerView({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search transactions (note, category, amount)..."
-              className="w-full h-8 bg-zinc-50 border border-zinc-200 text-xs pl-8 pr-3 rounded-[4px] text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-zinc-500"
+              className="w-full h-8 bg-zinc-50 border border-zinc-200 text-xs pl-8 pr-3 rounded-[4px] text-zinc-800 placeholder-zinc-400 placeholder:text-[11px] sm:placeholder:text-xs focus:outline-none focus:border-zinc-500"
             />
           </div>
 
@@ -1217,51 +1210,6 @@ export function TrackerView({
           )}
         </div>
       </div>
-
-      {/* Undo Delete Toast / Snackbar (as mandated in §5) */}
-      {pendingUndoTx && (
-        <div
-          id="undo-toast"
-          className="bg-zinc-900 text-white px-4 py-2.5 rounded-[4px] shadow-lg flex items-center justify-between gap-3 border border-zinc-800 animate-slide-up"
-        >
-          <div className="flex items-center gap-2 text-xs">
-            <RotateCcw className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
-            <span>
-              {pendingUndoTx.type === 'transfer' ? (
-                (() => {
-                  const undoFromId = pendingUndoTx.fromAccountId || pendingUndoTx.accountId;
-                  const undoAcc = undoFromId
-                    ? accounts.find((a) => a.id === undoFromId)
-                    : (pendingUndoTx.fromAccountName ? accounts.find((a) => a.name.toLowerCase() === pendingUndoTx.fromAccountName?.toLowerCase()) : undefined);
-                  const destName = undoAcc ? undoAcc.name : 'Cash';
-                  return (
-                    <>
-                      Deleted transfer ({formatCurrency(pendingUndoTx.amount, currencySymbol)}) — amount transferred back to{' '}
-                      <strong className="font-medium text-zinc-100">{destName}</strong>.
-                    </>
-                  );
-                })()
-              ) : (
-                <>
-                  Deleted transaction &quot;
-                  <strong className="font-medium text-zinc-100">{pendingUndoTx.note || 'Untitled'}</strong>&quot; (
-                  {formatCurrency(pendingUndoTx.amount, currencySymbol)}).
-                </>
-              )}
-            </span>
-            <span className="text-[11px] text-zinc-400 font-mono">
-              Auto-finalizing in {undoSecondsLeft}s
-            </span>
-          </div>
-          <button
-            onClick={onUndoDelete}
-            id="btn-undo-delete"
-            className="px-2.5 py-1 bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-semibold rounded-[3px] transition-colors"
-          >
-            Undo Delete
-          </button>
-        </div>
-      )}
 
       {/* Transactions Container */}
       <div
@@ -1621,19 +1569,19 @@ export function TrackerView({
                                       </span>
 
                                       {/* Mobile: Account directly below amount */}
-                                      <div className="sm:hidden mt-0.5 min-w-0 max-w-[85px]">
+                                      <div className="sm:hidden mt-0.5 min-w-0 max-w-full">
                                         {isTransfer ? (
-                                          <div className="flex items-center gap-0.5 text-[10px] text-zinc-500 font-medium truncate">
+                                          <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-medium">
                                             <AccountIcon name={fromIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
-                                            <span className="truncate max-w-[34px]">{fromName}</span>
+                                            <span className="whitespace-nowrap">{fromName}</span>
                                             <ArrowRight className="w-2 h-2 text-zinc-400 shrink-0" />
                                             <AccountIcon name={toIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
-                                            <span className="truncate max-w-[34px]">{toName}</span>
+                                            <span className="whitespace-nowrap">{toName}</span>
                                           </div>
                                         ) : accName ? (
-                                          <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 truncate">
+                                          <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500">
                                             <AccountIcon name={accIcon} className="w-2.5 h-2.5 shrink-0 text-zinc-400" />
-                                            <span className="truncate max-w-[78px]">{accName}</span>
+                                            <span className="whitespace-nowrap">{accName}</span>
                                           </span>
                                         ) : null}
                                       </div>
@@ -1793,7 +1741,7 @@ export function TrackerView({
                 )
               ) : (
                 <p className="text-xs text-zinc-600 leading-relaxed">
-                  Delete this transaction? This can be undone immediately from the notification banner.
+                  Are you sure you want to delete this transaction?
                 </p>
               )}
 

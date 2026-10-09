@@ -845,10 +845,7 @@ export default function App() {
         if (json.success && json.data) {
           if (Array.isArray(json.data.transactions)) {
             const consolidated = consolidateTransactions(json.data.transactions, json.data.accounts || accounts).map(ensureTxOriginals);
-            const activeList = pendingUndoTxRef.current
-              ? consolidated.filter((t) => t.id !== pendingUndoTxRef.current?.id)
-              : consolidated;
-            setTransactions(activeList);
+            setTransactions(consolidated);
             try {
               localStorage.removeItem(getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid));
             } catch {}
@@ -1123,12 +1120,6 @@ export default function App() {
     };
   }, [currentUser?.id]);
 
-  // --- Undo Delete State (§5 Requirement) ---
-  const [pendingUndoTx, setPendingUndoTx] = useState<Transaction | null>(null);
-  const pendingUndoTxRef = useRef<Transaction | null>(null);
-  const [undoSecondsLeft, setUndoSecondsLeft] = useState<number>(6);
-  const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
-
   // Purge any legacy localStorage transaction cache so tracker state is purely cloud-synced
   useEffect(() => {
     try {
@@ -1296,13 +1287,6 @@ export default function App() {
       } catch {}
     }
   }, [userProfile, currentUser?.id]);
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (undoTimerRef.current) clearInterval(undoTimerRef.current);
-    };
-  }, []);
 
   // Automatically fetch live exchange rates on mount and sync currencies
   useEffect(() => {
@@ -1688,14 +1672,6 @@ export default function App() {
     const txToDelete = transactions.find((t) => t.id === id);
     if (!txToDelete) return;
 
-    // Clear any previous timer
-    if (undoTimerRef.current) clearInterval(undoTimerRef.current);
-
-    // Set pending undo state
-    pendingUndoTxRef.current = txToDelete;
-    setPendingUndoTx(txToDelete);
-    setUndoSecondsLeft(6);
-
     // If deleting a transfer whose source account no longer exists, add amount back to Cash
     if (txToDelete.type === 'transfer') {
       const fromId = txToDelete.fromAccountId || txToDelete.accountId;
@@ -1788,111 +1764,6 @@ export default function App() {
           setLastSyncedTime(nowStr);
         })
         .catch(() => {});
-    }
-
-    // Start 6-second timer for undo option
-    let secondsRemaining = 6;
-    undoTimerRef.current = setInterval(() => {
-      secondsRemaining -= 1;
-      setUndoSecondsLeft(secondsRemaining);
-      if (secondsRemaining <= 0) {
-        if (undoTimerRef.current) clearInterval(undoTimerRef.current);
-        pendingUndoTxRef.current = null;
-        setPendingUndoTx(null);
-      }
-    }, 1000);
-  };
-
-  const handleUndoDelete = () => {
-    if (undoTimerRef.current) clearInterval(undoTimerRef.current);
-    if (pendingUndoTx) {
-      // If undoing a deleted transfer whose source account does not exist, revert the addition to Cash
-      if (pendingUndoTx.type === 'transfer') {
-        const fromId = pendingUndoTx.fromAccountId || pendingUndoTx.accountId;
-        const fromAccountExists = fromId
-          ? accounts.some((a) => a.id === fromId)
-          : (pendingUndoTx.fromAccountName ? accounts.some((a) => a.name.toLowerCase() === pendingUndoTx.fromAccountName?.toLowerCase()) : false);
-
-        if (!fromAccountExists) {
-          setAccounts((prevAccounts) => {
-            const cashAcc = prevAccounts.find(isCashAccount) || prevAccounts[0];
-            if (!cashAcc) return prevAccounts;
-
-            const cashCurr = cashAcc.originalCurrency || cashAcc.currency || settings.defaultCurrency || 'PHP';
-            const txCurr = pendingUndoTx.originalCurrency || pendingUndoTx.currency || settings.defaultCurrency || 'PHP';
-            const amtToSubtract =
-              txCurr === cashCurr
-                ? pendingUndoTx.amount
-                : roundToCurrency(convertCurrency(pendingUndoTx.amount, txCurr, cashCurr, ratesMap));
-
-            const updated = prevAccounts.map((a) =>
-              a.id === cashAcc.id
-                ? {
-                    ...a,
-                    initialBalance: roundToCurrency((a.initialBalance || 0) - amtToSubtract),
-                    originalInitialBalance: roundToCurrency(
-                      (a.originalInitialBalance !== undefined ? a.originalInitialBalance : (a.initialBalance || 0)) - amtToSubtract
-                    ),
-                  }
-                : a
-            );
-
-            if (currentUser?.id) {
-              try {
-                localStorage.setItem(
-                  getUserStorageKey(STORAGE_KEYS.ACCOUNTS_PREFIX, currentUser.id),
-                  JSON.stringify(updated)
-                );
-              } catch {}
-
-              fetch(`/api/db/accounts?userId=${encodeURIComponent(currentUser.id)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-                body: JSON.stringify({ userId: currentUser.id, accounts: updated }),
-              }).catch(() => {});
-            } else {
-              try {
-                localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(updated));
-              } catch {}
-            }
-            return updated;
-          });
-        }
-      }
-
-      const restored = [pendingUndoTx, ...transactions];
-      setTransactions(restored);
-      pendingUndoTxRef.current = null;
-      setPendingUndoTx(null);
-
-      if (currentUser?.id) {
-        fetch('/api/db/sync', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': currentUser.id,
-          },
-          body: JSON.stringify({
-            userId: currentUser.id,
-            transactions: restored.map((t) => ({ ...t, userId: currentUser.id })),
-            categories,
-            currencies,
-            accounts,
-            debts,
-            goals,
-            settings,
-            profile: userProfile,
-          }),
-        })
-          .then(() => {
-            const nowStr = new Date().toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-            });
-            setLastSyncedTime(nowStr);
-          })
-          .catch(() => {});
-      }
     }
   };
 
@@ -2691,9 +2562,6 @@ export default function App() {
               selectedCurrency={settings.defaultCurrency}
               onDeleteTransaction={handleDeleteTransaction}
               onUpdateTransaction={handleUpdateTransaction}
-              pendingUndoTx={pendingUndoTx}
-              onUndoDelete={handleUndoDelete}
-              undoSecondsLeft={undoSecondsLeft}
             />
           )}
 

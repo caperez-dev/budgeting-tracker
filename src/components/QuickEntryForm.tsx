@@ -442,7 +442,7 @@ export function QuickEntryForm({
                   }
                 }}
                 placeholder="Enter amount"
-                className={`w-full h-full bg-white border text-sm font-mono font-medium px-3 rounded-[4px] text-zinc-900 focus:outline-none tabular-nums placeholder:text-zinc-400 placeholder:font-normal ${
+                className={`w-full h-full bg-white border text-sm font-mono font-medium px-3 rounded-[4px] text-zinc-900 focus:outline-none tabular-nums placeholder:text-zinc-400 placeholder:font-normal placeholder:text-xs placeholder:font-sans ${
                   amountError
                     ? 'border-rose-300 focus:border-rose-500'
                     : 'border-zinc-200 focus:border-zinc-500'
@@ -462,7 +462,7 @@ export function QuickEntryForm({
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Description (optional)"
-                className="w-full h-full bg-white border border-zinc-200 text-xs pl-3 pr-14 rounded-[4px] text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+                className="w-full h-full bg-white border border-zinc-200 text-xs pl-3 pr-14 rounded-[4px] text-zinc-900 placeholder:text-zinc-400 placeholder:text-[11px] sm:placeholder:text-xs focus:outline-none focus:border-zinc-500"
               />
               <span className="absolute right-2.5 top-2.5 text-[10px] font-mono text-zinc-400 pointer-events-none select-none">
                 {note.length}/100
