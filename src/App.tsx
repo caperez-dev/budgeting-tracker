@@ -617,6 +617,7 @@ export default function App() {
   });
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
+  const hasInitialSyncCompletedRef = useRef<boolean>(false);
 
   // Check connection status
   const checkDBStatus = async (): Promise<DBStatus | null> => {
@@ -967,6 +968,7 @@ export default function App() {
       console.error('Failed to sync records:', err);
     } finally {
       setIsSyncing(false);
+      hasInitialSyncCompletedRef.current = true;
     }
   };
 
@@ -996,6 +998,8 @@ export default function App() {
       isFirstSyncRender.current = false;
       return;
     }
+    // Prevent uninitialized client state from overwriting cloud database before first fetch completes!
+    if (!hasInitialSyncCompletedRef.current) return;
     if (!dbStatus.connected || !currentUser?.id) return;
 
     const timer = setTimeout(() => {
@@ -1029,6 +1033,21 @@ export default function App() {
 
     return () => clearTimeout(timer);
   }, [transactions, categories, currencies, accounts, debts, goals, settings, userProfile, dbStatus.connected, currentUser?.id]);
+
+  // Cross-device synchronization: auto-refresh when tab gains focus or becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && currentUser?.id) {
+        handleSyncWithDB(currentUser.id);
+      }
+    };
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [currentUser?.id]);
 
   // --- Undo Delete State (§5 Requirement) ---
   const [pendingUndoTx, setPendingUndoTx] = useState<Transaction | null>(null);
@@ -1554,7 +1573,7 @@ export default function App() {
       currency: txCurrency,
       originalAmount: newTxData.amount,
       originalCurrency: txCurrency,
-      id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       userId: currentUser?.id,
       timestamp: new Date(`${newTxData.date}T${new Date().toTimeString().slice(0, 8)}`).getTime(),
       createdAt: Date.now(),
@@ -1564,11 +1583,55 @@ export default function App() {
       accountName: matchedAccount?.name || (newTxData as any).accountName,
       accountIcon: matchedAccount?.icon || (newTxData as any).accountIcon,
     };
-    setTransactions((prev) => [newTx, ...prev]);
+
+    const updatedTransactions = [newTx, ...transactions];
+    setTransactions(updatedTransactions);
+
+    // Immediately persist to localStorage so any immediate reload preserves it
+    try {
+      localStorage.setItem(
+        getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser?.id),
+        JSON.stringify(updatedTransactions)
+      );
+    } catch {}
+
+    // Immediately sync with cloud database so other devices get it immediately
+    if (currentUser?.id) {
+      fetch('/api/db/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          transactions: updatedTransactions.map((t) => ({ ...t, userId: currentUser.id })),
+          categories,
+          currencies,
+          accounts,
+          debts,
+          goals,
+          settings,
+          profile: userProfile,
+        }),
+      })
+        .then(() => {
+          const nowStr = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          setLastSyncedTime(nowStr);
+        })
+        .catch(() => {});
+    }
 
     const txYearMonth = newTxData.date.slice(0, 7);
     if (txYearMonth && txYearMonth !== selectedYearMonth) {
       setSelectedYearMonth(txYearMonth);
+    }
+    // If a different date filter is currently selected, clear it so the newly saved transaction is visible
+    if (selectedDate && selectedDate !== newTxData.date) {
+      setSelectedDate(null);
     }
   };
 

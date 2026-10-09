@@ -1513,10 +1513,12 @@ app.post("/api/db/sync", async (req, res) => {
     // Transactions: enforce user-scoping so transactions are strictly unique to each user
     if (userId && Array.isArray(transactions)) {
       const userTxList = transactions.map((t: any) => ({ ...t, userId }));
-      const activeIds = userTxList.map((t: any) => t.id);
+      const activeIds = userTxList.map((t: any) => t.id).filter(Boolean);
 
-      // Remove any transactions for this user that are no longer present
-      await (TransactionModel as any).deleteMany({ userId, id: { $nin: activeIds } });
+      // Only clean up removed transactions when an active transaction list is explicitly provided
+      if (activeIds.length > 0 && req.body.isFullReplace) {
+        await (TransactionModel as any).deleteMany({ userId, id: { $nin: activeIds } });
+      }
 
       if (userTxList.length > 0) {
         promises.push(
@@ -1545,13 +1547,15 @@ app.post("/api/db/sync", async (req, res) => {
       );
     }
 
-    if (Array.isArray(categories)) {
-      const activeCatIds = categories.map((c: any) => c.id);
+    if (Array.isArray(categories) && categories.length > 0) {
+      const activeCatIds = categories.map((c: any) => c.id).filter(Boolean);
       if (userId) {
-        await (CategoryModel as any).deleteMany({
-          userId,
-          id: { $nin: activeCatIds },
-        });
+        if (activeCatIds.length > 0 && req.body.isFullReplace) {
+          await (CategoryModel as any).deleteMany({
+            userId,
+            id: { $nin: activeCatIds },
+          });
+        }
 
         if (categories.length > 0) {
           promises.push(
@@ -1571,7 +1575,9 @@ app.post("/api/db/sync", async (req, res) => {
           );
         }
       } else {
-        await (CategoryModel as any).deleteMany({ id: { $nin: activeCatIds } });
+        if (activeCatIds.length > 0 && req.body.isFullReplace) {
+          await (CategoryModel as any).deleteMany({ id: { $nin: activeCatIds } });
+        }
         if (categories.length > 0) {
           promises.push(
             (CategoryModel as any).bulkWrite(
@@ -1592,13 +1598,15 @@ app.post("/api/db/sync", async (req, res) => {
       }
     }
 
-    if (Array.isArray(accounts)) {
-      const activeAccIds = accounts.map((a: any) => a.id);
-      const accDelFilter: any = { id: { $nin: activeAccIds } };
-      if (userId) {
-        accDelFilter.$or = [{ userId }, { userId: "" }, { userId: { $exists: false } }];
+    if (Array.isArray(accounts) && accounts.length > 0) {
+      const activeAccIds = accounts.map((a: any) => a.id).filter(Boolean);
+      if (activeAccIds.length > 0 && req.body.isFullReplace) {
+        const accDelFilter: any = { id: { $nin: activeAccIds } };
+        if (userId) {
+          accDelFilter.$or = [{ userId }, { userId: "" }, { userId: { $exists: false } }];
+        }
+        await (AccountModel as any).deleteMany(accDelFilter);
       }
-      await (AccountModel as any).deleteMany(accDelFilter);
 
       if (accounts.length > 0) {
         promises.push(

@@ -314,21 +314,22 @@ export function QuickEntryForm({
     const txDate = selectedDate || getTodayDateString();
     const txTime = selectedTime || getCurrent12HourTime();
 
-    // Trigger full-screen frosted whitish blurred backdrop with LatticeLoader (saving phase only)
+    // Immediately commit transaction so it is instantly persisted to state, localStorage, and database
+    onSave({
+      type,
+      amount: numAmount,
+      currency,
+      categoryId: categoryId || (availableCategories[0]?.id ?? 'other'),
+      accountId: accountId || (accounts[0]?.id ?? undefined),
+      note: note.slice(0, 100).trim(),
+      date: txDate,
+      time: txTime,
+    });
+
+    // Show the LatticeLoader saving animation overlay
     setIsSaving(true);
 
     savingTimeoutRef.current = setTimeout(() => {
-      onSave({
-        type,
-        amount: numAmount,
-        currency,
-        categoryId: categoryId || (availableCategories[0]?.id ?? 'other'),
-        accountId: accountId || (accounts[0]?.id ?? undefined),
-        note: note.slice(0, 100).trim(),
-        date: txDate,
-        time: txTime,
-      });
-
       // Reset form for next entry
       setAmount('');
       setNote('');
@@ -342,7 +343,7 @@ export function QuickEntryForm({
       if (isModal && onClose) {
         onClose();
       }
-    }, 750);
+    }, 700);
   };
 
   return (
