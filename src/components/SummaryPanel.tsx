@@ -83,6 +83,17 @@ export function SummaryPanel({
     return currentMonthStr;
   });
 
+  // Specific date selector for Today / Date panel
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('budget_tracker_summary_date_v1');
+      if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
+        return saved;
+      }
+    } catch {}
+    return todayStr;
+  });
+
   const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
 
   useEffect(() => {
@@ -109,18 +120,64 @@ export function SummaryPanel({
     } catch {}
   }, [selectedMonth]);
 
-  // Popover state for selecting month or year directly on the cards
+  useEffect(() => {
+    try {
+      localStorage.setItem('budget_tracker_summary_date_v1', selectedDate);
+    } catch {}
+  }, [selectedDate]);
+
+  // Popover state for selecting date, month or year directly on the cards
+  const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
   const [isMonthPopoverOpen, setIsMonthPopoverOpen] = useState(false);
   const [isYearPopoverOpen, setIsYearPopoverOpen] = useState(false);
+  const datePopoverRef = useRef<HTMLDivElement>(null);
   const monthPopoverRef = useRef<HTMLDivElement>(null);
   const yearPopoverRef = useRef<HTMLDivElement>(null);
+  const dateCalBtnRef = useRef<HTMLButtonElement>(null);
   const monthCalBtnRef = useRef<HTMLButtonElement>(null);
   const yearCalBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Calendar month view state for the date picker popover
+  const [dateCalViewYear, setDateCalViewYear] = useState<number>(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const y = parseInt(selectedDate.split('-')[0], 10);
+      if (!isNaN(y)) return y;
+    }
+    return currentYearNum;
+  });
+
+  const [dateCalViewMonth, setDateCalViewMonth] = useState<number>(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const m = parseInt(selectedDate.split('-')[1], 10);
+      if (!isNaN(m)) return m - 1;
+    }
+    return parseInt(currentMonthStr, 10) - 1;
+  });
+
+  // Sync calendar view month when selectedDate changes
   useEffect(() => {
-    if (!isMonthPopoverOpen && !isYearPopoverOpen) return;
+    if (selectedDate && selectedDate.includes('-')) {
+      const [y, m] = selectedDate.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m)) {
+        setDateCalViewYear(y);
+        setDateCalViewMonth(m - 1);
+      }
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (!isDatePopoverOpen && !isMonthPopoverOpen && !isYearPopoverOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
+      if (
+        isDatePopoverOpen &&
+        datePopoverRef.current &&
+        !datePopoverRef.current.contains(target) &&
+        dateCalBtnRef.current &&
+        !dateCalBtnRef.current.contains(target)
+      ) {
+        setIsDatePopoverOpen(false);
+      }
       if (
         isMonthPopoverOpen &&
         monthPopoverRef.current &&
@@ -142,6 +199,7 @@ export function SummaryPanel({
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        setIsDatePopoverOpen(false);
         setIsMonthPopoverOpen(false);
         setIsYearPopoverOpen(false);
       }
@@ -152,7 +210,77 @@ export function SummaryPanel({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isMonthPopoverOpen, isYearPopoverOpen]);
+  }, [isDatePopoverOpen, isMonthPopoverOpen, isYearPopoverOpen]);
+
+  // Calendar calculation for date picker popover
+  const dateCalMonthTitle = useMemo(() => {
+    const d = new Date(dateCalViewYear, dateCalViewMonth, 1);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      year: 'numeric',
+    }).format(d);
+  }, [dateCalViewYear, dateCalViewMonth]);
+
+  const handleDateCalPrevMonth = () => {
+    setDateCalViewMonth((prev) => {
+      if (prev === 0) {
+        setDateCalViewYear((y) => y - 1);
+        return 11;
+      }
+      return prev - 1;
+    });
+  };
+
+  const handleDateCalNextMonth = () => {
+    setDateCalViewMonth((prev) => {
+      if (prev === 11) {
+        setDateCalViewYear((y) => y + 1);
+        return 0;
+      }
+      return prev + 1;
+    });
+  };
+
+  const dateCalGrid = useMemo(() => {
+    const firstDayIndex = new Date(dateCalViewYear, dateCalViewMonth, 1).getDay();
+    const daysInCurrentMonth = new Date(dateCalViewYear, dateCalViewMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(dateCalViewYear, dateCalViewMonth, 0).getDate();
+
+    const leadingDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const prevD = daysInPrevMonth - i;
+      const prevM = dateCalViewMonth === 0 ? 12 : dateCalViewMonth;
+      const prevY = dateCalViewMonth === 0 ? dateCalViewYear - 1 : dateCalViewYear;
+      const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(prevD).padStart(2, '0')}`;
+      leadingDays.push({ day: prevD, isCurrentMonth: false, dateStr: dStr });
+    }
+
+    const currentDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      const dStr = `${dateCalViewYear}-${String(dateCalViewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      currentDays.push({ day: d, isCurrentMonth: true, dateStr: dStr });
+    }
+
+    const totalSlots = leadingDays.length + currentDays.length > 35 ? 42 : 35;
+    const trailingCount = totalSlots - (leadingDays.length + currentDays.length);
+    const trailingDays: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let t = 1; t <= trailingCount; t++) {
+      const nextM = dateCalViewMonth === 11 ? 1 : dateCalViewMonth + 2;
+      const nextY = dateCalViewMonth === 11 ? dateCalViewYear + 1 : dateCalViewYear;
+      const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(t).padStart(2, '0')}`;
+      trailingDays.push({ day: t, isCurrentMonth: false, dateStr: dStr });
+    }
+
+    return [...leadingDays, ...currentDays, ...trailingDays];
+  }, [dateCalViewYear, dateCalViewMonth]);
+
+  const datesWithTransactions = useMemo(() => {
+    const dates = new Set<string>();
+    transactions.forEach((tx) => {
+      if (tx.date) dates.add(tx.date);
+    });
+    return dates;
+  }, [transactions]);
 
   // Available years from transactions
   const availableYears = useMemo(() => {
@@ -186,7 +314,7 @@ export function SummaryPanel({
     return d >= sunday && d <= saturday;
   };
 
-  const isToday = (dateStr: string) => dateStr === todayStr;
+  const isSelectedDate = (dateStr: string) => dateStr === selectedDate;
   const isSelectedMonth = (dateStr: string) => dateStr.startsWith(selectedYearMonth);
   const isSelectedYear = (dateStr: string) => dateStr.startsWith(String(selectedYear));
 
@@ -195,14 +323,14 @@ export function SummaryPanel({
   const incomeTxs = transactions.filter((t) => t.type === 'income');
 
   // Expense Totals
-  const expenseToday = expenseTxs.filter((t) => isToday(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const expenseDate = expenseTxs.filter((t) => isSelectedDate(t.date)).reduce((sum, t) => sum + t.amount, 0);
   const expenseThisWeek = expenseTxs.filter((t) => isThisWeek(t.date)).reduce((sum, t) => sum + t.amount, 0);
   const expenseSelectedMonth = expenseTxs.filter((t) => isSelectedMonth(t.date)).reduce((sum, t) => sum + t.amount, 0);
   const expenseSelectedYear = expenseTxs.filter((t) => isSelectedYear(t.date)).reduce((sum, t) => sum + t.amount, 0);
   const expenseAllTime = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
 
   // Income Totals
-  const incomeToday = incomeTxs.filter((t) => isToday(t.date)).reduce((sum, t) => sum + t.amount, 0);
+  const incomeDate = incomeTxs.filter((t) => isSelectedDate(t.date)).reduce((sum, t) => sum + t.amount, 0);
   const incomeThisWeek = incomeTxs.filter((t) => isThisWeek(t.date)).reduce((sum, t) => sum + t.amount, 0);
   const incomeSelectedMonth = incomeTxs.filter((t) => isSelectedMonth(t.date)).reduce((sum, t) => sum + t.amount, 0);
   const incomeSelectedYear = incomeTxs.filter((t) => isSelectedYear(t.date)).reduce((sum, t) => sum + t.amount, 0);
@@ -213,6 +341,23 @@ export function SummaryPanel({
   const selectedMonthShort = selectedMonthObj?.short || 'Month';
   const isCurrentMonthSelected = selectedYearMonth === currentYearMonth;
   const isCurrentYearSelected = selectedYear === currentYearNum;
+  const isActualToday = selectedDate === todayStr;
+
+  // Format selected date nicely (e.g. Oct 10, 2026 or Oct 10)
+  const formattedSelectedDate = useMemo(() => {
+    if (!selectedDate) return todayStr;
+    const parts = selectedDate.split('-');
+    if (parts.length !== 3) return selectedDate;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const dt = new Date(y, m, d);
+    if (isNaN(dt.getTime())) return selectedDate;
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [selectedDate, todayStr]);
+
+  const dateCardLabel = isActualToday ? 'Today' : formattedSelectedDate;
+  const dateCardSublabel = isActualToday ? todayStr : 'Selected Date';
 
   // Descriptive card labels displaying what month and what year it is
   const monthCardLabel = isCurrentMonthSelected
@@ -230,7 +375,7 @@ export function SummaryPanel({
     : `Selected Year`;
 
   const expenseCards = [
-    { id: 'today' as Period, label: 'Today', sublabel: todayStr, total: expenseToday },
+    { id: 'today' as Period, label: dateCardLabel, sublabel: dateCardSublabel, total: expenseDate },
     { id: 'week' as Period, label: 'This Week', sublabel: 'Current 7-day cycle', total: expenseThisWeek },
     { id: 'month' as Period, label: monthCardLabel, sublabel: monthCardSublabel, total: expenseSelectedMonth },
     { id: 'year' as Period, label: yearCardLabel, sublabel: yearCardSublabel, total: expenseSelectedYear },
@@ -238,7 +383,7 @@ export function SummaryPanel({
   ];
 
   const incomeCards = [
-    { id: 'today' as Period, label: 'Today', sublabel: todayStr, total: incomeToday },
+    { id: 'today' as Period, label: dateCardLabel, sublabel: dateCardSublabel, total: incomeDate },
     { id: 'week' as Period, label: 'This Week', sublabel: 'Current 7-day cycle', total: incomeThisWeek },
     { id: 'month' as Period, label: monthCardLabel, sublabel: monthCardSublabel, total: incomeSelectedMonth },
     { id: 'year' as Period, label: yearCardLabel, sublabel: yearCardSublabel, total: incomeSelectedYear },
@@ -248,7 +393,7 @@ export function SummaryPanel({
   // Active breakdown transactions based on selected type and period
   const activeSourceTxs = breakdownType === 'expense' ? expenseTxs : incomeTxs;
   const activePeriodTxs = activeSourceTxs.filter((t) => {
-    if (selectedPeriod === 'today') return isToday(t.date);
+    if (selectedPeriod === 'today') return isSelectedDate(t.date);
     if (selectedPeriod === 'week') return isThisWeek(t.date);
     if (selectedPeriod === 'month') return isSelectedMonth(t.date);
     if (selectedPeriod === 'year') return isSelectedYear(t.date);
@@ -280,7 +425,7 @@ export function SummaryPanel({
     .sort((a, b) => b.amount - a.amount);
 
   const periodLabels: Record<Period, string> = {
-    today: 'Today',
+    today: isActualToday ? 'Today' : formattedSelectedDate,
     week: 'This Week',
     month: `${selectedMonthName} ${selectedYear}`,
     year: `Year ${selectedYear}`,
@@ -339,11 +484,13 @@ export function SummaryPanel({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           {(breakdownType === 'expense' ? expenseCards : incomeCards).map((card) => {
             const isSelected = selectedPeriod === card.id;
+            const isTodayCard = card.id === 'today';
             const isMonthCard = card.id === 'month';
             const isYearCard = card.id === 'year';
 
             const handleCardClick = () => {
               setSelectedPeriod(card.id);
+              setIsDatePopoverOpen(false);
               setIsMonthPopoverOpen(false);
               setIsYearPopoverOpen(false);
             };
@@ -375,6 +522,30 @@ export function SummaryPanel({
                   <div className="flex items-center justify-between min-h-[20px] sm:min-h-[26px] text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1 sm:mb-2">
                     <span className="truncate pr-1">{card.label}</span>
                     <div className="flex items-center gap-1.5 shrink-0 min-h-[20px] sm:min-h-[24px]">
+                      {isTodayCard && (
+                        <button
+                          ref={dateCalBtnRef}
+                          type="button"
+                          id="btn-summary-today-calendar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPeriod('today');
+                            setIsDatePopoverOpen((prev) => !prev);
+                            setIsMonthPopoverOpen(false);
+                            setIsYearPopoverOpen(false);
+                          }}
+                          title="Select specific date"
+                          aria-label="Select specific date"
+                          aria-expanded={isDatePopoverOpen}
+                          className={`p-1 transition-colors cursor-pointer flex items-center justify-center ${
+                            isDatePopoverOpen
+                              ? 'text-zinc-900'
+                              : 'text-zinc-400 hover:text-zinc-700'
+                          }`}
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {isMonthCard && (
                         <button
                           ref={monthCalBtnRef}
@@ -384,6 +555,7 @@ export function SummaryPanel({
                             e.stopPropagation();
                             setSelectedPeriod('month');
                             setIsMonthPopoverOpen((prev) => !prev);
+                            setIsDatePopoverOpen(false);
                             setIsYearPopoverOpen(false);
                           }}
                           title="Select month"
@@ -407,6 +579,7 @@ export function SummaryPanel({
                             e.stopPropagation();
                             setSelectedPeriod('year');
                             setIsYearPopoverOpen((prev) => !prev);
+                            setIsDatePopoverOpen(false);
                             setIsMonthPopoverOpen(false);
                           }}
                           title="Select year"
@@ -431,6 +604,130 @@ export function SummaryPanel({
                     {formatCurrency(card.total, currencySymbol)}
                   </div>
                 </div>
+
+                {/* Popover Date Selector directly on the Today panel */}
+                {isTodayCard && isDatePopoverOpen && (
+                  <div
+                    ref={datePopoverRef}
+                    className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3.5 w-72 animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-2rem)]"
+                  >
+                    {/* Month Navigation inside calendar */}
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDateCalPrevMonth();
+                        }}
+                        className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                        title="Previous month"
+                        aria-label="Previous month"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      <span className="text-xs font-bold text-zinc-900 tracking-wide">
+                        {dateCalMonthTitle}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDateCalNextMonth();
+                        }}
+                        className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                        title="Next month"
+                        aria-label="Next month"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Days of Week Header */}
+                    <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                        <span key={d} className="text-[10px] font-semibold text-zinc-400 py-0.5">
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Day Cells Grid */}
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {dateCalGrid.map((item, idx) => {
+                        const isDateActive = selectedDate === item.dateStr;
+                        const isCurrentToday = item.dateStr === todayStr;
+                        const hasTx = datesWithTransactions.has(item.dateStr);
+
+                        if (!item.isCurrentMonth) {
+                          return (
+                            <div
+                              key={`summary-date-pad-${idx}`}
+                              className="h-8 flex items-center justify-center text-[11px] text-zinc-300 pointer-events-none select-none"
+                            >
+                              {item.day}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={`summary-date-${item.dateStr}`}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDate(item.dateStr);
+                              setIsDatePopoverOpen(false);
+                            }}
+                            className={`h-8 flex flex-col items-center justify-center rounded-[4px] text-xs transition-colors cursor-pointer relative ${
+                              isDateActive
+                                ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                                : isCurrentToday
+                                ? 'text-zinc-900 font-bold border border-zinc-400 hover:bg-zinc-100'
+                                : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                            }`}
+                          >
+                            <span>{item.day}</span>
+                            {hasTx && (
+                              <span
+                                className={`w-1 h-1 rounded-full absolute bottom-1 ${
+                                  isDateActive ? 'bg-white' : 'bg-emerald-500'
+                                }`}
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="pt-2 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDate(todayStr);
+                          setIsDatePopoverOpen(false);
+                        }}
+                        className="text-zinc-700 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                      >
+                        Today
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDatePopoverOpen(false);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-600 px-2 py-1 rounded-[3px] transition-colors cursor-pointer ml-auto"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Popover Month Selector directly on the Month panel */}
                 {isMonthCard && isMonthPopoverOpen && (
