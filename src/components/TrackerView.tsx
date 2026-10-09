@@ -100,19 +100,10 @@ export function TrackerView({
   onUndoDelete,
   undoSecondsLeft,
 }: TrackerViewProps) {
-  // Active filter states - in-memory only (no persistence to prevent hiding newly added entries)
+  // Tracker view local UI state without localStorage caching
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'expense' | 'income' | 'transfer'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-
-  // Purge any legacy sticky filter keys from localStorage on mount
-  useEffect(() => {
-    try {
-      localStorage.removeItem('budget_tracker_search_query_v1');
-      localStorage.removeItem('budget_tracker_filter_type_v1');
-      localStorage.removeItem('budget_tracker_filter_category_v1');
-    } catch {}
-  }, []);
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -1463,23 +1454,8 @@ export function TrackerView({
         {monthGroups.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 space-y-3">
             <p className="text-sm font-medium text-zinc-700">
-              {transactions.length > 0
-                ? 'No transactions found matching your active filter or search.'
-                : 'You have no transactions yet'}
+              You have no transactions yet
             </p>
-            {transactions.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFilterType('all');
-                  setFilterCategory('all');
-                  setSearchQuery('');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-[4px] cursor-pointer transition-colors"
-              >
-                Reset Filters
-              </button>
-            )}
           </div>
         ) : (
           monthGroups.map((month) => (

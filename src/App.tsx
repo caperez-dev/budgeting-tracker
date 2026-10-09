@@ -263,6 +263,25 @@ export default function App() {
     }
   }, []);
 
+  // Remove any legacy transaction history or tracker filter persistence from localStorage
+  useEffect(() => {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (
+          k &&
+          (k.startsWith('budget_tracker_transactions') ||
+            k.startsWith('budget_tracker_filter') ||
+            k.startsWith('budget_tracker_search'))
+        ) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch {}
+  }, []);
+
   // Helpers to ensure underlying financial data preserves original values and recovers from corrupted state
   const ensureTxOriginals = (tx: Transaction): Transaction => {
     const rawAmt = tx.originalAmount !== undefined ? tx.originalAmount : tx.amount;
@@ -325,29 +344,8 @@ export default function App() {
     };
   };
 
-  // --- Persistent State loaded from LocalStorage (isolated per user) ---
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      // Discard deprecated shared v1 key
-      localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS_V1);
-      const user = (() => {
-        try {
-          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-          return saved ? JSON.parse(saved) : null;
-        } catch {
-          return null;
-        }
-      })();
-      if (!user?.id) return [];
-      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
-      const saved = localStorage.getItem(userKey);
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? consolidateTransactions(parsed).map(ensureTxOriginals) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Transactions are maintained in memory and directly synced with the database (no localStorage persistence on tracker navigation)
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const [categories, setCategories] = useState<Category[]>(() => {
     try {
@@ -722,14 +720,11 @@ export default function App() {
       }
     } catch {}
 
-    // 3. Transactions
+    // 3. Transactions: strictly loaded from cloud database, no localStorage persistence
     try {
       const txKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
-      const savedTx = localStorage.getItem(txKey);
-      setTransactions(savedTx ? (JSON.parse(savedTx) as Transaction[]).map(ensureTxOriginals) : []);
-    } catch {
-      setTransactions([]);
-    }
+      localStorage.removeItem(txKey);
+    } catch {}
 
     // 4. Debts
     try {
@@ -852,10 +847,7 @@ export default function App() {
             const consolidated = consolidateTransactions(json.data.transactions, json.data.accounts || accounts).map(ensureTxOriginals);
             setTransactions(consolidated);
             try {
-              localStorage.setItem(
-                getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid),
-                JSON.stringify(consolidated)
-              );
+              localStorage.removeItem(getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid));
             } catch {}
           }
           if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
@@ -1086,13 +1078,13 @@ export default function App() {
   const [undoSecondsLeft, setUndoSecondsLeft] = useState<number>(6);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync to localStorage
+  // Purge any legacy localStorage transaction cache so tracker state is purely cloud-synced
   useEffect(() => {
     try {
       const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser?.id);
-      localStorage.setItem(userKey, JSON.stringify(transactions));
+      localStorage.removeItem(userKey);
     } catch {}
-  }, [transactions, currentUser?.id]);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (currentUser?.id) {
@@ -1608,14 +1600,6 @@ export default function App() {
     const updatedTransactions = [newTx, ...transactions];
     setTransactions(updatedTransactions);
 
-    // Immediately persist to localStorage so any immediate reload preserves it
-    try {
-      localStorage.setItem(
-        getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser?.id),
-        JSON.stringify(updatedTransactions)
-      );
-    } catch {}
-
     // Immediately sync with cloud database so other devices get it immediately
     if (currentUser?.id) {
       fetch('/api/db/sync', {
@@ -1801,12 +1785,43 @@ export default function App() {
         }
       }
 
-      setTransactions((prev) => [pendingUndoTx, ...prev]);
+      const restored = [pendingUndoTx, ...transactions];
+      setTransactions(restored);
       setPendingUndoTx(null);
+
+      if (currentUser?.id) {
+        fetch('/api/db/sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+          },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            transactions: restored.map((t) => ({ ...t, userId: currentUser.id })),
+            categories,
+            currencies,
+            accounts,
+            debts,
+            goals,
+            settings,
+            profile: userProfile,
+          }),
+        })
+          .then(() => {
+            const nowStr = new Date().toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+            });
+            setLastSyncedTime(nowStr);
+          })
+          .catch(() => {});
+      }
     }
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
+    let enrichedTx: Transaction;
     if (updatedTx.type === 'transfer') {
       const fromAcc = updatedTx.fromAccountId
         ? accounts.find((a) => a.id === updatedTx.fromAccountId)
@@ -1815,7 +1830,7 @@ export default function App() {
         ? accounts.find((a) => a.id === updatedTx.toAccountId)
         : undefined;
 
-      const enrichedTx: Transaction = {
+      enrichedTx = {
         ...updatedTx,
         amount: updatedTx.amount,
         currency: updatedTx.currency,
@@ -1832,25 +1847,55 @@ export default function App() {
         accountIcon: fromAcc?.icon,
         note: (updatedTx.note || '').trim(),
       };
-      setTransactions((prev) => prev.map((t) => (t.id === enrichedTx.id ? enrichedTx : t)));
-      return;
+    } else {
+      const cat = categories.find((c) => c.id === updatedTx.categoryId);
+      const acc = updatedTx.accountId ? accounts.find((a) => a.id === updatedTx.accountId) : undefined;
+      enrichedTx = {
+        ...updatedTx,
+        amount: updatedTx.amount,
+        currency: updatedTx.currency,
+        originalAmount: updatedTx.amount,
+        originalCurrency: updatedTx.currency,
+        categoryName: cat?.name || updatedTx.categoryName || 'Other',
+        categoryIcon: cat?.icon || updatedTx.categoryIcon || 'Tag',
+        categoryColor: cat?.color || updatedTx.categoryColor || '#52525B',
+        accountName: acc?.name || updatedTx.accountName,
+        accountIcon: acc?.icon || updatedTx.accountIcon,
+      };
     }
 
-    const cat = categories.find((c) => c.id === updatedTx.categoryId);
-    const acc = updatedTx.accountId ? accounts.find((a) => a.id === updatedTx.accountId) : undefined;
-    const enrichedTx: Transaction = {
-      ...updatedTx,
-      amount: updatedTx.amount,
-      currency: updatedTx.currency,
-      originalAmount: updatedTx.amount,
-      originalCurrency: updatedTx.currency,
-      categoryName: cat?.name || updatedTx.categoryName || 'Other',
-      categoryIcon: cat?.icon || updatedTx.categoryIcon || 'Tag',
-      categoryColor: cat?.color || updatedTx.categoryColor || '#52525B',
-      accountName: acc?.name || updatedTx.accountName,
-      accountIcon: acc?.icon || updatedTx.accountIcon,
-    };
-    setTransactions((prev) => prev.map((t) => (t.id === enrichedTx.id ? enrichedTx : t)));
+    const updatedTransactionsList = transactions.map((t) => (t.id === enrichedTx.id ? enrichedTx : t));
+    setTransactions(updatedTransactionsList);
+
+    // Immediately synchronize updated transaction with cloud database without localStorage persistence
+    if (currentUser?.id) {
+      fetch('/api/db/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          transactions: updatedTransactionsList.map((t) => ({ ...t, userId: currentUser.id })),
+          categories,
+          currencies,
+          accounts,
+          debts,
+          goals,
+          settings,
+          profile: userProfile,
+        }),
+      })
+        .then(() => {
+          const nowStr = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          setLastSyncedTime(nowStr);
+        })
+        .catch(() => {});
+    }
   };
 
   // --- Handlers: Debts ---
@@ -2332,10 +2377,7 @@ export default function App() {
           getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, currentUser.id),
           JSON.stringify(currencies)
         );
-        localStorage.setItem(
-          getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id),
-          JSON.stringify(transactions)
-        );
+        localStorage.removeItem(getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id));
         localStorage.setItem(
           getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, currentUser.id),
           JSON.stringify(debts)
