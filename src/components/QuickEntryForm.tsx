@@ -22,6 +22,8 @@ import {
 } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
 import { SpecularButton } from './ui/SpecularButton';
+import { ModalPortal } from './ui/ModalPortal';
+import LatticeLoader from './ui/LatticeLoader';
 
 interface QuickEntryFormProps {
   currencies: Currency[];
@@ -86,6 +88,16 @@ export function QuickEntryForm({
   const [note, setNote] = useState<string>('');
   const [amountError, setAmountError] = useState<string>('');
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
+
+  // Saving lattice loader overlay state
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const savingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (savingTimeoutRef.current) clearTimeout(savingTimeoutRef.current);
+    };
+  }, []);
 
   // Date and Time picker state
   const [selectedDate, setSelectedDate] = useState<string>(() => getTodayDateString());
@@ -284,6 +296,7 @@ export function QuickEntryForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     const numAmount = parseFloat(amount);
     if (!amount || isNaN(numAmount) || numAmount <= 0) {
       setAmountError('Please enter an amount greater than 0.');
@@ -301,29 +314,35 @@ export function QuickEntryForm({
     const txDate = selectedDate || getTodayDateString();
     const txTime = selectedTime || getCurrent12HourTime();
 
-    onSave({
-      type,
-      amount: numAmount,
-      currency,
-      categoryId: categoryId || (availableCategories[0]?.id ?? 'other'),
-      accountId: accountId || (accounts[0]?.id ?? undefined),
-      note: note.slice(0, 100).trim(),
-      date: txDate,
-      time: txTime,
-    });
+    // Trigger full-screen frosted whitish blurred backdrop with LatticeLoader (saving phase only)
+    setIsSaving(true);
 
-    // Reset form for next entry
-    setAmount('');
-    setNote('');
-    setSelectedDate(getTodayDateString());
-    setSelectedTime(getCurrent12HourTime());
-    setAmountError('');
-    setShowSuccessToast(true);
-    setTimeout(() => setShowSuccessToast(false), 2000);
+    savingTimeoutRef.current = setTimeout(() => {
+      onSave({
+        type,
+        amount: numAmount,
+        currency,
+        categoryId: categoryId || (availableCategories[0]?.id ?? 'other'),
+        accountId: accountId || (accounts[0]?.id ?? undefined),
+        note: note.slice(0, 100).trim(),
+        date: txDate,
+        time: txTime,
+      });
 
-    if (isModal && onClose) {
-      onClose();
-    }
+      // Reset form for next entry
+      setAmount('');
+      setNote('');
+      setSelectedDate(getTodayDateString());
+      setSelectedTime(getCurrent12HourTime());
+      setAmountError('');
+      setIsSaving(false);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 2000);
+
+      if (isModal && onClose) {
+        onClose();
+      }
+    }, 750);
   };
 
   return (
@@ -857,13 +876,42 @@ export function QuickEntryForm({
             id="btn-save-transaction"
             size="sm"
             radius={4}
-            disabled={!isAmountFilled}
+            disabled={!isAmountFilled || isSaving}
             className="px-4 py-1.5 text-xs font-semibold shadow-xs"
           >
             <span>Save Transaction</span>
           </SpecularButton>
         </div>
       </form>
+
+      {/* Full-screen Loading Overlay with LatticeLoader */}
+      {isSaving && (
+        <ModalPortal>
+          <div
+            id="quick-entry-saving-backdrop"
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-white/60 backdrop-blur-xs animate-fade-in select-none cursor-wait"
+            aria-live="assertive"
+            role="status"
+          >
+            <LatticeLoader
+              status="working"
+              label="Saving"
+              pattern="orbit"
+              grid={3}
+              shape="square"
+              cellSize={7}
+              gap={2}
+              fontSize={14}
+              step={90}
+              idleOpacity={0.15}
+              glow
+              glowColor="#10B981"
+              showTimer={false}
+              color="#10B981"
+            />
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }
