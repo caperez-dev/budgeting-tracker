@@ -17,6 +17,7 @@ interface AccountManagerModalProps {
   onDeleteAccount: (id: string) => void;
   onReorderAccounts?: (accounts: Account[]) => void;
   onClose: () => void;
+  initialAdd?: boolean;
 }
 
 const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
@@ -108,11 +109,12 @@ export function AccountManagerModal({
   onDeleteAccount,
   onReorderAccounts,
   onClose,
+  initialAdd = false,
 }: AccountManagerModalProps) {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAdding, setIsAdding] = useState(initialAdd);
 
   // New Account State
   const [name, setName] = useState('GCash');

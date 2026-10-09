@@ -3,6 +3,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   X,
+  Plus,
   PlusCircle,
   Check,
   CalendarDays,
@@ -41,8 +42,8 @@ interface QuickEntryFormProps {
     date: string;
     time: string;
   }) => void;
-  onOpenAddCategory: (type: TransactionType) => void;
-  onOpenAddAccount?: () => void;
+  onOpenAddCategory: (type: TransactionType, initialAdd?: boolean) => void;
+  onOpenAddAccount?: (initialAdd?: boolean) => void;
   onOpenCurrencyManager?: () => void;
   isModal?: boolean;
   onClose?: () => void;
@@ -781,6 +782,18 @@ export function QuickEntryForm({
                 </button>
               );
             })}
+
+            {/* Circle Add Button for Category */}
+            <button
+              type="button"
+              id="btn-add-category-circle"
+              onClick={() => onOpenAddCategory(type, true)}
+              title="Add new category"
+              aria-label="Add new category"
+              className="inline-flex items-center justify-center w-[29px] h-[29px] rounded-full border border-dashed border-zinc-300 hover:border-zinc-900 bg-zinc-50/70 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
@@ -795,7 +808,7 @@ export function QuickEntryForm({
                 <button
                   type="button"
                   id="btn-add-account-inline"
-                  onClick={onOpenAddAccount}
+                  onClick={() => onOpenAddAccount(false)}
                   className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 cursor-pointer"
                 >
                   <PlusCircle className="w-3 h-3" />
@@ -857,6 +870,20 @@ export function QuickEntryForm({
                   </div>
                 );
               })}
+
+              {/* Circle Add Button for Account */}
+              {onOpenAddAccount && (
+                <button
+                  type="button"
+                  id="btn-add-account-circle"
+                  onClick={() => onOpenAddAccount(true)}
+                  title="Add new account"
+                  aria-label="Add new account"
+                  className="inline-flex items-center justify-center w-[29px] h-[29px] rounded-full border border-dashed border-zinc-300 hover:border-zinc-900 bg-zinc-50/70 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         )}

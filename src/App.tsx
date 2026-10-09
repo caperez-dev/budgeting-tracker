@@ -611,7 +611,9 @@ export default function App() {
   const [showQuickEntryModal, setShowQuickEntryModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [categoriesInitialType, setCategoriesInitialType] = useState<TransactionType>('expense');
+  const [categoriesInitialAdd, setCategoriesInitialAdd] = useState(false);
   const [showAccountsModal, setShowAccountsModal] = useState(false);
+  const [accountsInitialAdd, setAccountsInitialAdd] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showCurrenciesModal, setShowCurrenciesModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -2539,11 +2541,15 @@ export default function App() {
               transactions={displayTransactions}
               selectedCurrency={settings.defaultCurrency}
               onSave={handleSaveTransaction}
-              onOpenAddCategory={(type) => {
+              onOpenAddCategory={(type, initialAdd = false) => {
                 setCategoriesInitialType(type);
+                setCategoriesInitialAdd(initialAdd);
                 setShowCategoriesModal(true);
               }}
-              onOpenAddAccount={() => setShowAccountsModal(true)}
+              onOpenAddAccount={(initialAdd = false) => {
+                setAccountsInitialAdd(initialAdd);
+                setShowAccountsModal(true);
+              }}
               onOpenCurrencyManager={() => setShowCurrenciesModal(true)}
             />
           )}
@@ -2649,12 +2655,14 @@ export default function App() {
                 transactions={displayTransactions}
                 selectedCurrency={settings.defaultCurrency}
                 onSave={handleSaveTransaction}
-                onOpenAddCategory={(type) => {
+                onOpenAddCategory={(type, initialAdd = false) => {
                   setCategoriesInitialType(type);
+                  setCategoriesInitialAdd(initialAdd);
                   setShowCategoriesModal(true);
                 }}
-                onOpenAddAccount={() => {
+                onOpenAddAccount={(initialAdd = false) => {
                   setShowQuickEntryModal(false);
+                  setAccountsInitialAdd(initialAdd);
                   setShowAccountsModal(true);
                 }}
                 onOpenCurrencyManager={() => {
@@ -2679,7 +2687,11 @@ export default function App() {
           onUpdateAccount={handleUpdateAccount}
           onDeleteAccount={handleDeleteAccount}
           onReorderAccounts={handleReorderAccounts}
-          onClose={() => setShowAccountsModal(false)}
+          onClose={() => {
+            setShowAccountsModal(false);
+            setAccountsInitialAdd(false);
+          }}
+          initialAdd={accountsInitialAdd}
         />
       )}
 
@@ -2703,8 +2715,12 @@ export default function App() {
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}
           onReorderCategories={handleReorderCategories}
-          onClose={() => setShowCategoriesModal(false)}
+          onClose={() => {
+            setShowCategoriesModal(false);
+            setCategoriesInitialAdd(false);
+          }}
           initialType={categoriesInitialType}
+          initialAdd={categoriesInitialAdd}
         />
       )}
 

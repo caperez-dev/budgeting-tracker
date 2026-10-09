@@ -13,6 +13,7 @@ interface CategoryManagerModalProps {
   onReorderCategories?: (categories: Category[]) => void;
   onClose: () => void;
   initialType?: TransactionType;
+  initialAdd?: boolean;
 }
 
 const PRESET_COLORS = [
@@ -40,6 +41,7 @@ export function CategoryManagerModal({
   onReorderCategories,
   onClose,
   initialType = 'expense',
+  initialAdd = false,
 }: CategoryManagerModalProps) {
   const [activeTab, setActiveTab] = useState<TransactionType>(initialType);
   const [categoryType, setCategoryType] = useState<TransactionType>(initialType);
@@ -50,7 +52,7 @@ export function CategoryManagerModal({
   const [name, setName] = useState('');
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [icon, setIcon] = useState('Tag');
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAdding, setIsAdding] = useState(initialAdd);
 
   // Close on Escape key
   useEffect(() => {
