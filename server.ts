@@ -1223,6 +1223,10 @@ app.get("/api/db/status", async (_req, res) => {
 
 // Full Sync - Retrieve data from MongoDB
 app.get("/api/db/sync", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
   const connected = await connectDB();
   if (!connected) {
     res.status(503).json({ error: "Storage not connected", status: getDBStatus() });
@@ -1235,24 +1239,34 @@ app.get("/api/db/sync", async (req, res) => {
     "";
 
   try {
-    // Unique user scoping for transactions:
-    // If a userId is supplied, fetch only this user's transactions.
-    // If no userId is supplied, return empty transactions (never leak other users' transactions).
-    const txQuery: any = userId ? { userId } : { userId: "__none__" };
-    const debtQuery: any = userId
-      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
+    // Canonical user scoping: match both user ID and email
+    let userIds: string[] = userId ? [userId] : [];
+    let userDoc: any = null;
+    if (userId) {
+      userDoc = await (UserModel as any).findOne({
+        $or: [{ id: userId }, { email: userId.toLowerCase().trim() }]
+      }).lean().exec();
+      if (userDoc) {
+        if (userDoc.id && !userIds.includes(userDoc.id)) userIds.push(userDoc.id);
+        if (userDoc.email && !userIds.includes(userDoc.email)) userIds.push(userDoc.email);
+      }
+    }
+
+    const txQuery: any = userIds.length > 0 ? { userId: { $in: userIds } } : { userId: "__none__" };
+    const debtQuery: any = userIds.length > 0
+      ? { $or: [{ userId: { $in: userIds } }, { userId: "" }, { userId: { $exists: false } }] }
       : { userId: "__none__" };
-    const goalQuery: any = userId
-      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
+    const goalQuery: any = userIds.length > 0
+      ? { $or: [{ userId: { $in: userIds } }, { userId: "" }, { userId: { $exists: false } }] }
       : { userId: "__none__" };
-    const catQuery: any = userId ? { userId } : { userId: "__none__" };
-    const accQuery: any = userId
-      ? { $or: [{ userId }, { userId: "" }, { userId: { $exists: false } }] }
+    const catQuery: any = userIds.length > 0 ? { userId: { $in: userIds } } : { userId: "__none__" };
+    const accQuery: any = userIds.length > 0
+      ? { $or: [{ userId: { $in: userIds } }, { userId: "" }, { userId: { $exists: false } }] }
       : {};
 
     const [transactions, fetchedCategories, accounts, currencies, debts, goals, profileDocFromDb] =
       await Promise.all([
-        (TransactionModel as any).find(txQuery).sort({ date: -1 }).lean().exec(),
+        (TransactionModel as any).find(txQuery).sort({ date: -1, timestamp: -1, _id: -1 }).lean().exec(),
         (CategoryModel as any).find(catQuery).sort({ order: 1, _id: 1 }).lean().exec(),
         (AccountModel as any).find(accQuery).sort({ order: 1, _id: 1 }).lean().exec(),
         (CurrencyModel as any).find({}).lean().exec(),
@@ -1260,8 +1274,8 @@ app.get("/api/db/sync", async (req, res) => {
         (GoalModel as any).find(goalQuery).lean().exec(),
         (UserProfileModel as any)
           .findOne(
-            userId
-              ? { $or: [{ userId }, { singletonId: `profile_${userId}` }] }
+            userIds.length > 0
+              ? { $or: [{ userId: { $in: userIds } }, ...userIds.map((uid) => ({ singletonId: `profile_${uid}` }))] }
               : { singletonId: "default_profile" }
           )
           .lean()
@@ -1500,7 +1514,7 @@ app.post("/api/db/sync", async (req, res) => {
     return;
   }
 
-  const userId =
+  const rawUserId =
     req.body.userId ||
     (req.headers["x-user-id"] as string) ||
     (req.query.userId as string) ||
@@ -1508,16 +1522,37 @@ app.post("/api/db/sync", async (req, res) => {
   const { transactions, categories, accounts, currencies, debts, goals, settings, profile } = req.body;
 
   try {
+    let canonicalUserId = rawUserId;
+    if (rawUserId) {
+      const userDoc = await (UserModel as any).findOne({
+        $or: [{ id: rawUserId }, { email: rawUserId.toLowerCase().trim() }]
+      }).lean().exec();
+      if (userDoc?.id) {
+        canonicalUserId = userDoc.id;
+      }
+    }
+    const userId = canonicalUserId;
+
     const promises: Promise<any>[] = [];
 
     // Transactions: enforce user-scoping so transactions are strictly unique to each user
     if (userId && Array.isArray(transactions)) {
-      const userTxList = transactions.map((t: any) => ({ ...t, userId }));
+      const userTxList = transactions.map((t: any) => {
+        const { _id, ...cleanTx } = t;
+        return {
+          ...cleanTx,
+          userId,
+          timestamp: typeof cleanTx.timestamp === 'number' && !isNaN(cleanTx.timestamp) ? cleanTx.timestamp : Date.now(),
+        };
+      });
       const activeIds = userTxList.map((t: any) => t.id).filter(Boolean);
 
       // Only clean up removed transactions when an active transaction list is explicitly provided
       if (activeIds.length > 0 && req.body.isFullReplace) {
-        await (TransactionModel as any).deleteMany({ userId, id: { $nin: activeIds } });
+        await (TransactionModel as any).deleteMany({
+          userId: { $in: [userId, rawUserId] },
+          id: { $nin: activeIds }
+        });
       }
 
       if (userTxList.length > 0) {
@@ -1525,7 +1560,7 @@ app.post("/api/db/sync", async (req, res) => {
           (TransactionModel as any).bulkWrite(
             userTxList.map((t: any) => ({
               updateOne: {
-                filter: { id: t.id, userId },
+                filter: { id: t.id },
                 update: { $set: t },
                 upsert: true,
               },

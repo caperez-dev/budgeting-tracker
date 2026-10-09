@@ -41,7 +41,12 @@ import { ClickSpark } from './components/ui/ClickSpark';
 import { ModalPortal } from './components/ui/ModalPortal';
 import { FileDown, Plus, AlertCircle } from 'lucide-react';
 import { buildBudgetPdfDoc, exportPdfSaveAs } from './utils/pdfExport';
-import { getCurrent12HourTime, getTodayDateString, consolidateTransactions } from './utils/formatters';
+import {
+  getCurrent12HourTime,
+  getTodayDateString,
+  consolidateTransactions,
+  calculateTimestamp,
+} from './utils/formatters';
 import {
   convertCurrency,
   roundToCurrency,
@@ -177,7 +182,6 @@ const STORAGE_KEYS = {
   SETTINGS: 'budget_tracker_settings_v1',
   USER_PROFILE: 'budget_tracker_user_profile_v1',
   CURRENT_USER: 'budget_tracker_current_user_v1',
-  ACTIVE_TAB: 'budget_tracker_active_tab_fallback',
   ACTIVE_TAB_PREFIX: 'budget_tracker_active_tab_v2',
   SELECTED_YEAR_MONTH_PREFIX: 'budget_tracker_selected_year_month_v2',
   SELECTED_DATE_PREFIX: 'budget_tracker_selected_date_v2',
@@ -264,12 +268,17 @@ export default function App() {
     const rawAmt = tx.originalAmount !== undefined ? tx.originalAmount : tx.amount;
     const origAmt = typeof rawAmt === 'number' ? rawAmt : parseFloat(String(rawAmt)) || 0;
     const origCurr = tx.originalCurrency || tx.currency || 'PHP';
+    const validTimestamp =
+      typeof tx.timestamp === 'number' && !isNaN(tx.timestamp)
+        ? tx.timestamp
+        : calculateTimestamp(tx.date, tx.time);
     return {
       ...tx,
       amount: origAmt,
       currency: origCurr,
       originalAmount: origAmt,
       originalCurrency: origCurr,
+      timestamp: validTimestamp,
     };
   };
 
@@ -316,8 +325,29 @@ export default function App() {
     };
   };
 
-  // --- Transactions State (in-memory session state; persistence disabled per user request) ---
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // --- Persistent State loaded from LocalStorage (isolated per user) ---
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    try {
+      // Discard deprecated shared v1 key
+      localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS_V1);
+      const user = (() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+          return saved ? JSON.parse(saved) : null;
+        } catch {
+          return null;
+        }
+      })();
+      if (!user?.id) return [];
+      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
+      const saved = localStorage.getItem(userKey);
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? consolidateTransactions(parsed).map(ensureTxOriginals) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [categories, setCategories] = useState<Category[]>(() => {
     try {
@@ -550,7 +580,7 @@ export default function App() {
       const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       const userId = savedUser ? JSON.parse(savedUser)?.id : null;
       const key = getUserStorageKey(STORAGE_KEYS.ACTIVE_TAB_PREFIX, userId);
-      const savedTab = localStorage.getItem(key) || localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB);
+      const savedTab = localStorage.getItem(key);
       const validTabs: ActiveTab[] = ['tracker', 'summary', 'debts', 'goals', 'settings'];
       if (savedTab && validTabs.includes(savedTab as ActiveTab)) {
         return savedTab as ActiveTab;
@@ -563,7 +593,6 @@ export default function App() {
     try {
       const key = getUserStorageKey(STORAGE_KEYS.ACTIVE_TAB_PREFIX, currentUser?.id);
       localStorage.setItem(key, activeTab);
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
     } catch {}
   }, [activeTab, currentUser?.id]);
 
@@ -597,6 +626,8 @@ export default function App() {
     connected: false,
   });
   const [isSyncing, setIsSyncing] = useState(false);
+  const isSyncingRef = useRef<boolean>(false);
+  const lastSyncedTimeRef = useRef<string | null>(null);
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
   const hasInitialSyncCompletedRef = useRef<boolean>(false);
 
@@ -691,7 +722,14 @@ export default function App() {
       }
     } catch {}
 
-    // 3. Transactions (in-memory state; no persistent storage loading per user request)
+    // 3. Transactions
+    try {
+      const txKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, user.id);
+      const savedTx = localStorage.getItem(txKey);
+      setTransactions(savedTx ? (JSON.parse(savedTx) as Transaction[]).map(ensureTxOriginals) : []);
+    } catch {
+      setTransactions([]);
+    }
 
     // 4. Debts
     try {
@@ -787,23 +825,39 @@ export default function App() {
   const handleSyncWithDB = async (targetUserId?: string) => {
     const uid = targetUserId || currentUser?.id;
     if (!uid) return;
-    if (isSyncing) return;
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
     setIsSyncing(true);
     try {
-      const status = await checkDBStatus();
-      if (!status?.connected) {
-        setIsSyncing(false);
-        return;
-      }
-
-      // Fetch user's records from storage
-      const res = await fetch(`/api/db/sync?userId=${encodeURIComponent(uid)}`, {
-        headers: { 'x-user-id': uid },
+      // Direct, non-cached fetch to ensure fresh server records are received across devices
+      const res = await fetch(`/api/db/sync?userId=${encodeURIComponent(uid)}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'x-user-id': uid,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
       });
       if (res.ok) {
+        setDbStatus({
+          configured: true,
+          hasPlaceholder: false,
+          connected: true,
+          readyState: 1,
+          error: null,
+        });
         const json = await res.json();
         if (json.success && json.data) {
-          // Note: Transactions are kept in-memory without database/storage overwrite per user request
+          if (Array.isArray(json.data.transactions)) {
+            const consolidated = consolidateTransactions(json.data.transactions, json.data.accounts || accounts).map(ensureTxOriginals);
+            setTransactions(consolidated);
+            try {
+              localStorage.setItem(
+                getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid),
+                JSON.stringify(consolidated)
+              );
+            } catch {}
+          }
           if (Array.isArray(json.data.categories) && json.data.categories.length > 0) {
             const seen = new Set<string>();
             const cleaned: Category[] = [];
@@ -932,6 +986,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to sync records:', err);
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
       hasInitialSyncCompletedRef.current = true;
     }
@@ -956,31 +1011,88 @@ export default function App() {
     });
   }, []);
 
+  // Background sync whenever state changes
+  const isFirstSyncRender = useRef(true);
+  useEffect(() => {
+    if (isFirstSyncRender.current) {
+      isFirstSyncRender.current = false;
+      return;
+    }
+    // Prevent uninitialized client state from overwriting cloud database before first fetch completes!
+    if (!hasInitialSyncCompletedRef.current) return;
+    if (!dbStatus.connected || !currentUser?.id) return;
+
+    const timer = setTimeout(() => {
+      fetch('/api/db/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          transactions: transactions.map((t) => ({ ...t, userId: currentUser.id })),
+          categories,
+          currencies,
+          accounts,
+          debts,
+          goals,
+          settings,
+          profile: userProfile,
+        }),
+      })
+        .then(() => {
+          const nowStr = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          setLastSyncedTime(nowStr);
+        })
+        .catch(() => {});
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [transactions, categories, currencies, accounts, debts, goals, settings, userProfile, dbStatus.connected, currentUser?.id]);
+
+  // Cross-device synchronization: auto-refresh when tab gains focus, becomes visible, or periodically while active
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && currentUser?.id && !isSyncingRef.current) {
+        handleSyncWithDB(currentUser.id);
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    // Periodically poll for changes made on other devices (e.g. MacBook vs Phone) while dashboard is open
+    const pollTimer = setInterval(() => {
+      if (document.visibilityState === 'visible' && !isSyncingRef.current && currentUser?.id) {
+        handleSyncWithDB(currentUser.id);
+      }
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+      clearInterval(pollTimer);
+    };
+  }, [currentUser?.id]);
+
   // --- Undo Delete State (§5 Requirement) ---
   const [pendingUndoTx, setPendingUndoTx] = useState<Transaction | null>(null);
   const [undoSecondsLeft, setUndoSecondsLeft] = useState<number>(6);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Purge legacy persisted transactions & sticky filters so they do not interfere with live session entries
+  // Sync to localStorage
   useEffect(() => {
     try {
-      localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS_V1);
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (
-          key &&
-          (key.startsWith('budget_tracker_transactions') ||
-            key.startsWith('budget_tracker_filter') ||
-            key === 'budget_tracker_search_query_v1')
-        ) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      const userKey = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser?.id);
+      localStorage.setItem(userKey, JSON.stringify(transactions));
     } catch {}
-  }, []);
-
+  }, [transactions, currentUser?.id]);
 
   useEffect(() => {
     if (currentUser?.id) {
@@ -1181,18 +1293,7 @@ export default function App() {
     return `${year}-${month}`; // e.g. "2026-10"
   });
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
-    try {
-      const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-      const userId = savedUser ? JSON.parse(savedUser)?.id : null;
-      const key = getUserStorageKey(STORAGE_KEYS.SELECTED_DATE_PREFIX, userId);
-      const savedD = localStorage.getItem(key);
-      if (savedD && /^\d{4}-\d{2}-\d{2}$/.test(savedD)) {
-        return savedD;
-      }
-    } catch {}
-    return null;
-  });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -1487,16 +1588,6 @@ export default function App() {
       ? accounts.find((a) => a.id === (newTxData as any).accountId)
       : undefined;
 
-    let txTimestamp = Date.now();
-    try {
-      if (newTxData.date) {
-        const [y, m, d] = newTxData.date.split('-').map(Number);
-        txTimestamp = new Date(y, m - 1, d, new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()).getTime();
-      }
-    } catch {
-      txTimestamp = Date.now();
-    }
-
     const newTx: Transaction = {
       ...newTxData,
       amount: newTxData.amount,
@@ -1505,7 +1596,7 @@ export default function App() {
       originalCurrency: txCurrency,
       id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       userId: currentUser?.id,
-      timestamp: txTimestamp,
+      timestamp: calculateTimestamp(newTxData.date, newTxData.time),
       createdAt: Date.now(),
       categoryName: matchedCategory?.name || (newTxData as any).categoryName || 'Other',
       categoryIcon: matchedCategory?.icon || (newTxData as any).categoryIcon || 'Tag',
@@ -1514,14 +1605,55 @@ export default function App() {
       accountIcon: matchedAccount?.icon || (newTxData as any).accountIcon,
     };
 
-    setTransactions((prev) => [newTx, ...prev]);
+    const updatedTransactions = [newTx, ...transactions];
+    setTransactions(updatedTransactions);
+
+    // Immediately persist to localStorage so any immediate reload preserves it
+    try {
+      localStorage.setItem(
+        getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser?.id),
+        JSON.stringify(updatedTransactions)
+      );
+    } catch {}
+
+    // Immediately sync with cloud database so other devices get it immediately
+    if (currentUser?.id) {
+      fetch('/api/db/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          transactions: updatedTransactions.map((t) => ({ ...t, userId: currentUser.id })),
+          categories,
+          currencies,
+          accounts,
+          debts,
+          goals,
+          settings,
+          profile: userProfile,
+        }),
+      })
+        .then(() => {
+          const nowStr = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          setLastSyncedTime(nowStr);
+        })
+        .catch(() => {});
+    }
 
     const txYearMonth = newTxData.date.slice(0, 7);
-    if (txYearMonth) {
+    if (txYearMonth && txYearMonth !== selectedYearMonth) {
       setSelectedYearMonth(txYearMonth);
     }
-    // Clear any date filter locking the view so the newly saved transaction displays automatically
-    setSelectedDate(null);
+    // If a different date filter is currently selected, clear it so the newly saved transaction is visible
+    if (selectedDate && selectedDate !== newTxData.date) {
+      setSelectedDate(null);
+    }
   };
 
   const handleDeleteTransaction = (id: string) => {
@@ -1589,8 +1721,16 @@ export default function App() {
       }
     }
 
-    // Remove row from list immediately in state (no storage persistence per user request)
+    // Remove row from list
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+
+    // Request deletion on server if authenticated
+    if (currentUser?.id) {
+      fetch(`/api/db/transactions/${id}?userId=${encodeURIComponent(currentUser.id)}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': currentUser.id },
+      }).catch(() => {});
+    }
 
     // Start 6-second timer to finalize deletion
     let secondsRemaining = 6;
@@ -2011,7 +2151,13 @@ export default function App() {
 
     setTransactions((prev) => [transferTx, ...prev]);
 
-
+    if (currentUser?.id) {
+      fetch(`/api/db/transactions?userId=${encodeURIComponent(currentUser.id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+        body: JSON.stringify(transferTx),
+      }).catch(() => {});
+    }
   };
 
   const handleAddCurrency = (newCurr: Currency) => {
@@ -2186,7 +2332,10 @@ export default function App() {
           getUserStorageKey(STORAGE_KEYS.CURRENCIES_PREFIX, currentUser.id),
           JSON.stringify(currencies)
         );
-
+        localStorage.setItem(
+          getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, currentUser.id),
+          JSON.stringify(transactions)
+        );
         localStorage.setItem(
           getUserStorageKey(STORAGE_KEYS.DEBTS_PREFIX, currentUser.id),
           JSON.stringify(debts)
