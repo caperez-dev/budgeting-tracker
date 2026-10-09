@@ -1548,10 +1548,10 @@ app.post("/api/db/sync", async (req, res) => {
       const activeIds = userTxList.map((t: any) => t.id).filter(Boolean);
 
       // Only clean up removed transactions when an active transaction list is explicitly provided
-      if (activeIds.length > 0 && req.body.isFullReplace) {
+      if (req.body.isFullReplace) {
         await (TransactionModel as any).deleteMany({
           userId: { $in: [userId, rawUserId] },
-          id: { $nin: activeIds }
+          ...(activeIds.length > 0 ? { id: { $nin: activeIds } } : {}),
         });
       }
 
@@ -1773,14 +1773,38 @@ app.post("/api/db/sync", async (req, res) => {
 
 // Single Transaction Deletion
 app.delete("/api/db/transactions/:id", async (req, res) => {
-  const userId = (req.query.userId as string) || (req.headers["x-user-id"] as string) || "";
+  const rawUserId = (req.query.userId as string) || (req.headers["x-user-id"] as string) || "";
   const connected = await connectDB();
-  if (connected) {
-    const filter: any = { id: req.params.id };
-    if (userId) filter.userId = userId;
-    await TransactionModel.deleteOne(filter).catch(() => {});
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Database not connected" });
+    return;
   }
-  res.json({ success: true });
+
+  try {
+    let userIds: string[] = rawUserId ? [rawUserId] : [];
+    if (rawUserId) {
+      const userDoc = await (UserModel as any).findOne({
+        $or: [{ id: rawUserId }, { email: rawUserId.toLowerCase().trim() }]
+      }).lean().exec();
+      if (userDoc) {
+        if (userDoc.id && !userIds.includes(userDoc.id)) userIds.push(userDoc.id);
+        if (userDoc.email && !userIds.includes(userDoc.email)) userIds.push(userDoc.email);
+      }
+    }
+
+    const filter: any = { id: req.params.id };
+    if (userIds.length > 0) {
+      filter.userId = { $in: userIds };
+    }
+
+    const result = await (TransactionModel as any).deleteOne(filter);
+    if (result.deletedCount === 0) {
+      await (TransactionModel as any).deleteOne({ id: req.params.id });
+    }
+    res.json({ success: true, deletedId: req.params.id });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Bulk Delete / Reset transactions for a user

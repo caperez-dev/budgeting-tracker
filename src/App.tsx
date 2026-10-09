@@ -845,7 +845,10 @@ export default function App() {
         if (json.success && json.data) {
           if (Array.isArray(json.data.transactions)) {
             const consolidated = consolidateTransactions(json.data.transactions, json.data.accounts || accounts).map(ensureTxOriginals);
-            setTransactions(consolidated);
+            const activeList = pendingUndoTxRef.current
+              ? consolidated.filter((t) => t.id !== pendingUndoTxRef.current?.id)
+              : consolidated;
+            setTransactions(activeList);
             try {
               localStorage.removeItem(getUserStorageKey(STORAGE_KEYS.TRANSACTIONS_PREFIX, uid));
             } catch {}
@@ -1075,6 +1078,7 @@ export default function App() {
 
   // --- Undo Delete State (§5 Requirement) ---
   const [pendingUndoTx, setPendingUndoTx] = useState<Transaction | null>(null);
+  const pendingUndoTxRef = useRef<Transaction | null>(null);
   const [undoSecondsLeft, setUndoSecondsLeft] = useState<number>(6);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1648,6 +1652,7 @@ export default function App() {
     if (undoTimerRef.current) clearInterval(undoTimerRef.current);
 
     // Set pending undo state
+    pendingUndoTxRef.current = txToDelete;
     setPendingUndoTx(txToDelete);
     setUndoSecondsLeft(6);
 
@@ -1705,24 +1710,54 @@ export default function App() {
       }
     }
 
-    // Remove row from list
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    // Immediately remove row from local state
+    const remainingTransactions = transactions.filter((t) => t.id !== id);
+    setTransactions(remainingTransactions);
 
-    // Request deletion on server if authenticated
+    // Request deletion on server directly
     if (currentUser?.id) {
       fetch(`/api/db/transactions/${id}?userId=${encodeURIComponent(currentUser.id)}`, {
         method: 'DELETE',
         headers: { 'x-user-id': currentUser.id },
       }).catch(() => {});
+
+      fetch('/api/db/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          isFullReplace: true,
+          transactions: remainingTransactions.map((t) => ({ ...t, userId: currentUser.id })),
+          categories,
+          currencies,
+          accounts,
+          debts,
+          goals,
+          settings,
+          profile: userProfile,
+        }),
+      })
+        .then(() => {
+          const nowStr = new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          setLastSyncedTime(nowStr);
+        })
+        .catch(() => {});
     }
 
-    // Start 6-second timer to finalize deletion
+    // Start 6-second timer for undo option
     let secondsRemaining = 6;
     undoTimerRef.current = setInterval(() => {
       secondsRemaining -= 1;
       setUndoSecondsLeft(secondsRemaining);
       if (secondsRemaining <= 0) {
         if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+        pendingUndoTxRef.current = null;
         setPendingUndoTx(null);
       }
     }, 1000);
@@ -1787,6 +1822,7 @@ export default function App() {
 
       const restored = [pendingUndoTx, ...transactions];
       setTransactions(restored);
+      pendingUndoTxRef.current = null;
       setPendingUndoTx(null);
 
       if (currentUser?.id) {
