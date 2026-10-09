@@ -151,51 +151,151 @@ export function TrackerView({
 
   // Mobile swipe-left and long-press revealed row actions
   const [revealedMobileRowId, setRevealedMobileRowId] = useState<string | null>(null);
+  const [swipingRow, setSwipingRow] = useState<{ id: string; offset: number } | null>(null);
+  const [isMobileScreen, setIsMobileScreen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 640;
+    }
+    return false;
+  });
+
   const touchStartXRef = useRef<number>(0);
   const touchStartYRef = useRef<number>(0);
+  const activeTouchTxIdRef = useRef<string | null>(null);
+  const gestureDirectionRef = useRef<'none' | 'horizontal' | 'vertical'>('none');
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleRowTouchStart = (txId: string, e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX;
-    touchStartYRef.current = e.touches[0].clientY;
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = setTimeout(() => {
-      setRevealedMobileRowId((prev) => (prev === txId ? null : txId));
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        try {
-          navigator.vibrate(40);
-        } catch {}
-      }
-    }, 500);
-  };
+  // Keep mobile screen size flag updated
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileScreen(window.innerWidth < 640);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  const handleRowTouchMove = (e: React.TouchEvent) => {
-    const deltaX = e.touches[0].clientX - touchStartXRef.current;
-    const deltaY = e.touches[0].clientY - touchStartYRef.current;
-    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+  // Direction-locked native touchmove listener to eliminate downward scrolling during horizontal swipe
+  useEffect(() => {
+    const handleNativeTouchMove = (e: TouchEvent) => {
+      if (!activeTouchTxIdRef.current || e.touches.length === 0) return;
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const deltaX = currentX - touchStartXRef.current;
+      const deltaY = currentY - touchStartYRef.current;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      if (gestureDirectionRef.current === 'none') {
+        // If movement exceeds minimal slop threshold (6px), determine user intention
+        if (absX >= 6 && absX > absY) {
+          gestureDirectionRef.current = 'horizontal';
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        } else if (absY >= 6 && absY >= absX) {
+          gestureDirectionRef.current = 'vertical';
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+      }
+
+      if (gestureDirectionRef.current === 'horizontal') {
+        // Critical: Prevent browser from scrolling down while user is swiping horizontally!
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+
+        const txId = activeTouchTxIdRef.current;
+        const isAlreadyRevealed = revealedMobileRowId === txId;
+        const baseOffset = isAlreadyRevealed ? -80 : 0;
+        let newOffset = baseOffset + deltaX;
+
+        // Clamp between -88px (revealed) and 0px (closed) with smooth resistance
+        if (newOffset > 0) newOffset = 0;
+        if (newOffset < -88) newOffset = -88 - (absX - 88) * 0.15;
+
+        setSwipingRow({ id: txId, offset: newOffset });
+      }
+    };
+
+    const handleNativeTouchEnd = (e: TouchEvent) => {
+      const txId = activeTouchTxIdRef.current;
+      if (!txId) return;
+
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;
       }
-    }
-  };
 
-  const handleRowTouchEnd = (txId: string, e: React.TouchEvent) => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+      if (gestureDirectionRef.current === 'horizontal') {
+        const changedTouch = e.changedTouches[0];
+        const deltaX = changedTouch ? changedTouch.clientX - touchStartXRef.current : 0;
+        const isAlreadyRevealed = revealedMobileRowId === txId;
 
-    // Swipe left (more than 35px horizontally and minimal vertical deviation)
-    if (deltaX < -35 && Math.abs(deltaY) < 35) {
-      setRevealedMobileRowId(txId);
-    } else if (deltaX > 35 && Math.abs(deltaY) < 35) {
-      if (revealedMobileRowId === txId) {
-        setRevealedMobileRowId(null);
+        if (isAlreadyRevealed) {
+          if (deltaX > 25) {
+            setRevealedMobileRowId(null);
+          } else {
+            setRevealedMobileRowId(txId);
+          }
+        } else {
+          // If swiped left by at least 30px, snap open
+          if (deltaX < -30) {
+            setRevealedMobileRowId(txId);
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              try {
+                navigator.vibrate(30);
+              } catch {}
+            }
+          } else {
+            setRevealedMobileRowId(null);
+          }
+        }
       }
+
+      setSwipingRow(null);
+      activeTouchTxIdRef.current = null;
+      gestureDirectionRef.current = 'none';
+    };
+
+    window.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    window.addEventListener('touchend', handleNativeTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleNativeTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchmove', handleNativeTouchMove);
+      window.removeEventListener('touchend', handleNativeTouchEnd);
+      window.removeEventListener('touchcancel', handleNativeTouchEnd);
+    };
+  }, [revealedMobileRowId]);
+
+  const handleRowTouchStart = (txId: string, e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    activeTouchTxIdRef.current = txId;
+    gestureDirectionRef.current = 'none';
+
+    // If another row is open, close it
+    if (revealedMobileRowId && revealedMobileRowId !== txId) {
+      setRevealedMobileRowId(null);
     }
+
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      if (gestureDirectionRef.current === 'none') {
+        setRevealedMobileRowId((prev) => (prev === txId ? null : txId));
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try {
+            navigator.vibrate(40);
+          } catch {}
+        }
+      }
+    }, 500);
   };
 
   // Close revealed mobile actions on outside click
@@ -1454,216 +1554,226 @@ export function TrackerView({
                               const accName = acc ? acc.name : tx.accountName;
                               const accIcon = acc ? acc.icon : tx.accountIcon || 'Wallet';
 
+                              const isRevealed = revealedMobileRowId === tx.id;
+                              const isDraggingThisRow = swipingRow?.id === tx.id;
+                              const mobileTransformOffset = isMobileScreen
+                                ? isDraggingThisRow
+                                  ? swipingRow.offset
+                                  : isRevealed
+                                  ? -80
+                                  : 0
+                                : 0;
+
                               return (
                                 <div
                                   key={tx.id}
                                   id={`tx-row-${tx.id}`}
                                   onTouchStart={(e) => handleRowTouchStart(tx.id, e)}
-                                  onTouchMove={handleRowTouchMove}
-                                  onTouchEnd={(e) => handleRowTouchEnd(tx.id, e)}
-                                  className="group flex items-center py-2.5 px-2.5 sm:px-3 hover:bg-zinc-50/80 transition-colors text-xs gap-2 sm:gap-4 min-w-0 sm:min-w-[580px] w-full"
+                                  className="group relative overflow-hidden bg-white hover:bg-zinc-50/80 transition-colors text-xs min-w-0 sm:min-w-[580px] w-full select-none"
+                                  style={{ touchAction: 'pan-y' }}
                                 >
-                                  {/* Column 1: Responsive IN/OUT Indicator (Arrows on Mobile, Text on Normal View) */}
-                                  <div className="w-4 sm:w-8 shrink-0 flex items-center justify-center sm:justify-start">
-                                    {isTransfer ? (
-                                      <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" title="Transfer" />
-                                    ) : (
-                                      <>
-                                        {/* Mobile view: Arrow Up for Income, Arrow Down for Expense/Fees */}
-                                        <span className="sm:hidden flex items-center justify-center">
-                                          {tx.type === 'income' ? (
-                                            <ArrowUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="Income" />
-                                          ) : (
-                                            <ArrowDown className="w-3.5 h-3.5 text-rose-600 shrink-0" title="Expense" />
-                                          )}
-                                        </span>
-
-                                        {/* Normal view: Text IN and OUT */}
-                                        <span
-                                          className={`hidden sm:inline font-mono text-[11px] font-semibold tracking-tight ${
-                                            tx.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'
-                                          }`}
-                                        >
-                                          {tx.type === 'expense' ? 'OUT' : 'IN'}
-                                        </span>
-                                      </>
-                                    )}
+                                  {/* Mobile Actions Drawer (Anchored in background layer on the right) */}
+                                  <div className="sm:hidden absolute inset-y-0 right-0 flex items-center pr-2.5 gap-1.5 z-0">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingTx({
+                                          ...tx,
+                                          amount: tx.originalAmount !== undefined ? tx.originalAmount : tx.amount,
+                                          currency: tx.originalCurrency || tx.currency || selectedCurrency,
+                                        });
+                                        setRevealedMobileRowId(null);
+                                      }}
+                                      className="w-8 h-8 flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white rounded-[4px] shadow-2xs active:scale-95 transition-transform cursor-pointer"
+                                      title="Edit transaction"
+                                      aria-label="Edit transaction"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(tx.id);
+                                        setRevealedMobileRowId(null);
+                                      }}
+                                      className="w-8 h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white rounded-[4px] shadow-2xs active:scale-95 transition-transform cursor-pointer"
+                                      title="Delete transaction"
+                                      aria-label="Delete transaction"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
 
-                                  {/* Column 2: Amount (and Account beneath it on mobile) */}
-                                  <div className="shrink-0 flex flex-col justify-center min-w-0 sm:w-28">
-                                    <span
-                                      className={`font-mono text-xs sm:text-sm font-semibold tabular-nums leading-tight ${
-                                        isTransfer
-                                          ? 'text-zinc-900'
-                                          : tx.type === 'expense'
-                                          ? 'text-zinc-900'
-                                          : 'text-emerald-600'
-                                      }`}
-                                    >
-                                      {formatCurrency(tx.amount, currencySymbol)}
-                                    </span>
-
-                                    {/* Mobile: Account directly below amount */}
-                                    <div className="sm:hidden mt-0.5 min-w-0 max-w-[85px]">
+                                  {/* Foreground Content Card (Slides left on mobile to reveal actions, standard on desktop) */}
+                                  <div
+                                    className={`relative z-10 flex items-center py-2.5 px-2.5 sm:px-3 gap-2 sm:gap-4 w-full bg-white ${
+                                      isDraggingThisRow ? '' : 'transition-transform duration-200 ease-out'
+                                    }`}
+                                    style={{
+                                      transform: mobileTransformOffset !== 0 ? `translateX(${mobileTransformOffset}px)` : undefined,
+                                    }}
+                                    onClick={() => {
+                                      if (isRevealed) {
+                                        setRevealedMobileRowId(null);
+                                      }
+                                    }}
+                                  >
+                                    {/* Column 1: Responsive IN/OUT Indicator (Arrows on Mobile, Text on Normal View) */}
+                                    <div className="w-4 sm:w-8 shrink-0 flex items-center justify-center sm:justify-start">
                                       {isTransfer ? (
-                                        <div className="flex items-center gap-0.5 text-[10px] text-zinc-500 font-medium truncate">
-                                          <AccountIcon name={fromIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
-                                          <span className="truncate max-w-[34px]">{fromName}</span>
-                                          <ArrowRight className="w-2 h-2 text-zinc-400 shrink-0" />
-                                          <AccountIcon name={toIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
-                                          <span className="truncate max-w-[34px]">{toName}</span>
+                                        <ArrowLeftRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" title="Transfer" />
+                                      ) : (
+                                        <>
+                                          {/* Mobile view: Arrow Up for Income, Arrow Down for Expense/Fees */}
+                                          <span className="sm:hidden flex items-center justify-center">
+                                            {tx.type === 'income' ? (
+                                              <ArrowUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="Income" />
+                                            ) : (
+                                              <ArrowDown className="w-3.5 h-3.5 text-rose-600 shrink-0" title="Expense" />
+                                            )}
+                                          </span>
+
+                                          {/* Normal view: Text IN and OUT */}
+                                          <span
+                                            className={`hidden sm:inline font-mono text-[11px] font-semibold tracking-tight ${
+                                              tx.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'
+                                            }`}
+                                          >
+                                            {tx.type === 'expense' ? 'OUT' : 'IN'}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+
+                                    {/* Column 2: Amount (and Account beneath it on mobile) */}
+                                    <div className="shrink-0 flex flex-col justify-center min-w-0 sm:w-28">
+                                      <span
+                                        className={`font-mono text-xs sm:text-sm font-semibold tabular-nums leading-tight ${
+                                          isTransfer
+                                            ? 'text-zinc-900'
+                                            : tx.type === 'expense'
+                                            ? 'text-zinc-900'
+                                            : 'text-emerald-600'
+                                        }`}
+                                      >
+                                        {formatCurrency(tx.amount, currencySymbol)}
+                                      </span>
+
+                                      {/* Mobile: Account directly below amount */}
+                                      <div className="sm:hidden mt-0.5 min-w-0 max-w-[85px]">
+                                        {isTransfer ? (
+                                          <div className="flex items-center gap-0.5 text-[10px] text-zinc-500 font-medium truncate">
+                                            <AccountIcon name={fromIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
+                                            <span className="truncate max-w-[34px]">{fromName}</span>
+                                            <ArrowRight className="w-2 h-2 text-zinc-400 shrink-0" />
+                                            <AccountIcon name={toIcon} className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
+                                            <span className="truncate max-w-[34px]">{toName}</span>
+                                          </div>
+                                        ) : accName ? (
+                                          <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 truncate">
+                                            <AccountIcon name={accIcon} className="w-2.5 h-2.5 shrink-0 text-zinc-400" />
+                                            <span className="truncate max-w-[78px]">{accName}</span>
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+
+                                    {/* Mobile: Category column aligned to the right side with Time placed directly below it */}
+                                    <div className="sm:hidden ml-auto flex flex-col items-end justify-center min-w-0 text-right pr-3.5">
+                                      {isTransfer ? (
+                                        <span className="text-zinc-400 font-medium text-xs truncate">
+                                          Transfer
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center justify-end gap-1 text-zinc-700 font-medium truncate text-xs">
+                                          <span className="truncate">{catName}</span>
+                                          <CategoryIcon name={catIcon} className="w-3 h-3 text-zinc-400 shrink-0" />
+                                        </span>
+                                      )}
+
+                                      {/* Time placed below the category */}
+                                      <span className="font-mono text-[10px] text-zinc-400 tabular-nums flex items-center justify-end gap-1 mt-0.5">
+                                        <Clock className="w-2.5 h-2.5 text-zinc-300" />
+                                        {tx.time}
+                                      </span>
+                                    </div>
+
+                                    {/* Column 3 (Desktop): Category Column */}
+                                    <div className="hidden sm:flex sm:w-36 md:w-40 sm:shrink-0 items-center min-w-0">
+                                      {isTransfer ? (
+                                        <span className="text-zinc-400 font-medium text-xs truncate">
+                                          Transfer
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center gap-1.5 text-zinc-700 font-medium truncate text-xs">
+                                          <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                          <span className="truncate">{catName}</span>
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Column 4 (Desktop): Account Column */}
+                                    <div className="hidden sm:flex sm:w-48 md:w-56 shrink-0 items-center min-w-0">
+                                      {isTransfer ? (
+                                        <div className="flex items-center gap-1 text-xs whitespace-nowrap truncate font-medium text-zinc-700">
+                                          <AccountIcon name={fromIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                          <span className="truncate max-w-[80px] sm:max-w-[95px]">{fromName}</span>
+                                          <ArrowRight className="w-3 h-3 text-zinc-400 shrink-0 mx-0.5" />
+                                          <AccountIcon name={toIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                          <span className="truncate max-w-[80px] sm:max-w-[95px]">{toName}</span>
                                         </div>
                                       ) : accName ? (
-                                        <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 truncate">
-                                          <AccountIcon name={accIcon} className="w-2.5 h-2.5 shrink-0 text-zinc-400" />
-                                          <span className="truncate max-w-[78px]">{accName}</span>
+                                        <span className="flex items-center gap-1.5 font-medium text-zinc-600 truncate text-xs">
+                                          <AccountIcon name={accIcon} className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+                                          <span className="truncate">{accName}</span>
                                         </span>
-                                      ) : null}
+                                      ) : (
+                                        <span className="text-zinc-300 text-xs">—</span>
+                                      )}
                                     </div>
-                                  </div>
 
-                                  {/* Mobile: Category column aligned to the right side with Time placed directly below it */}
-                                  <div className="sm:hidden ml-auto flex flex-col items-end justify-center min-w-0 text-right pr-3.5">
-                                    {isTransfer ? (
-                                      <span className="text-zinc-400 font-medium text-xs truncate">
-                                        Transfer
-                                      </span>
-                                    ) : (
-                                      <span className="flex items-center justify-end gap-1 text-zinc-700 font-medium truncate text-xs">
-                                        <span className="truncate">{catName}</span>
-                                        <CategoryIcon name={catIcon} className="w-3 h-3 text-zinc-400 shrink-0" />
-                                      </span>
-                                    )}
-
-                                    {/* Time placed below the category */}
-                                    <span className="font-mono text-[10px] text-zinc-400 tabular-nums flex items-center justify-end gap-1 mt-0.5">
-                                      <Clock className="w-2.5 h-2.5 text-zinc-300" />
-                                      {tx.time}
-                                    </span>
-                                  </div>
-
-                                  {/* Mobile Actions: Revealed only when user long presses or swipes this entry left */}
-                                  {revealedMobileRowId === tx.id && (
-                                    <div className="sm:hidden flex items-center gap-1 shrink-0 animate-in slide-in-from-right-3 fade-in duration-200">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingTx({
-                                            ...tx,
-                                            amount: tx.originalAmount !== undefined ? tx.originalAmount : tx.amount,
-                                            currency: tx.originalCurrency || tx.currency || selectedCurrency,
-                                          });
-                                          setRevealedMobileRowId(null);
-                                        }}
-                                        className="p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-[3px] cursor-pointer"
-                                        title="Edit transaction"
-                                        aria-label="Edit transaction"
-                                      >
-                                        <Edit3 className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDeleteClick(tx.id);
-                                          setRevealedMobileRowId(null);
-                                        }}
-                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-[3px] cursor-pointer"
-                                        title="Delete transaction"
-                                        aria-label="Delete transaction"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setRevealedMobileRowId(null);
-                                        }}
-                                        className="p-1 text-zinc-400 hover:text-zinc-600 cursor-pointer"
-                                        title="Dismiss"
-                                        aria-label="Dismiss actions"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
+                                    {/* Column 5 (Desktop): Description Column */}
+                                    <div className="hidden sm:block flex-1 min-w-[80px] truncate">
+                                      {tx.note ? (
+                                        <span className="text-zinc-500 truncate block text-xs" title={tx.note}>
+                                          {tx.note}
+                                        </span>
+                                      ) : (
+                                        <span className="text-zinc-300 text-xs select-none">—</span>
+                                      )}
                                     </div>
-                                  )}
 
-                                  {/* Column 3 (Desktop): Category Column */}
-                                  <div className="hidden sm:flex sm:w-36 md:w-40 sm:shrink-0 items-center min-w-0">
-                                    {isTransfer ? (
-                                      <span className="text-zinc-400 font-medium text-xs truncate">
-                                        Transfer
+                                    {/* Right (Desktop): Subtle 12-hour timestamp and hover row actions */}
+                                    <div className="hidden sm:flex items-center gap-3 shrink-0 ml-auto">
+                                      <span className="font-mono text-[11px] text-zinc-400 tabular-nums flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-zinc-300" />
+                                        {tx.time}
                                       </span>
-                                    ) : (
-                                      <span className="flex items-center gap-1.5 text-zinc-700 font-medium truncate text-xs">
-                                        <CategoryIcon name={catIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                        <span className="truncate">{catName}</span>
-                                      </span>
-                                    )}
-                                  </div>
 
-                                  {/* Column 4 (Desktop): Account Column */}
-                                  <div className="hidden sm:flex sm:w-48 md:w-56 shrink-0 items-center min-w-0">
-                                    {isTransfer ? (
-                                      <div className="flex items-center gap-1 text-xs whitespace-nowrap truncate font-medium text-zinc-700">
-                                        <AccountIcon name={fromIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                        <span className="truncate max-w-[80px] sm:max-w-[95px]">{fromName}</span>
-                                        <ArrowRight className="w-3 h-3 text-zinc-400 shrink-0 mx-0.5" />
-                                        <AccountIcon name={toIcon} className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                        <span className="truncate max-w-[80px] sm:max-w-[95px]">{toName}</span>
+                                      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                        <button
+                                          onClick={() =>
+                                            setEditingTx({
+                                              ...tx,
+                                              amount: tx.originalAmount !== undefined ? tx.originalAmount : tx.amount,
+                                              currency: tx.originalCurrency || tx.currency || selectedCurrency,
+                                            })
+                                          }
+                                          className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] hover:bg-zinc-200/60 cursor-pointer"
+                                          title={isTransfer ? 'Edit transfer' : 'Edit transaction'}
+                                        >
+                                          <Edit3 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteClick(tx.id)}
+                                          className="p-1 text-zinc-400 hover:text-rose-600 rounded-[3px] hover:bg-rose-50 cursor-pointer"
+                                          title={isTransfer ? 'Delete transfer' : 'Delete transaction'}
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
                                       </div>
-                                    ) : accName ? (
-                                      <span className="flex items-center gap-1.5 font-medium text-zinc-600 truncate text-xs">
-                                        <AccountIcon name={accIcon} className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
-                                        <span className="truncate">{accName}</span>
-                                      </span>
-                                    ) : (
-                                      <span className="text-zinc-300 text-xs">—</span>
-                                    )}
-                                  </div>
-
-                                  {/* Column 5 (Desktop): Description Column */}
-                                  <div className="hidden sm:block flex-1 min-w-[80px] truncate">
-                                    {tx.note ? (
-                                      <span className="text-zinc-500 truncate block text-xs" title={tx.note}>
-                                        {tx.note}
-                                      </span>
-                                    ) : (
-                                      <span className="text-zinc-300 text-xs select-none">—</span>
-                                    )}
-                                  </div>
-
-                                  {/* Right (Desktop): Subtle 12-hour timestamp and hover row actions */}
-                                  <div className="hidden sm:flex items-center gap-3 shrink-0 ml-auto">
-                                    <span className="font-mono text-[11px] text-zinc-400 tabular-nums flex items-center gap-1">
-                                      <Clock className="w-3 h-3 text-zinc-300" />
-                                      {tx.time}
-                                    </span>
-
-                                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                                      <button
-                                        onClick={() =>
-                                          setEditingTx({
-                                            ...tx,
-                                            amount: tx.originalAmount !== undefined ? tx.originalAmount : tx.amount,
-                                            currency: tx.originalCurrency || tx.currency || selectedCurrency,
-                                          })
-                                        }
-                                        className="p-1 text-zinc-400 hover:text-zinc-700 rounded-[3px] hover:bg-zinc-200/60 cursor-pointer"
-                                        title={isTransfer ? 'Edit transfer' : 'Edit transaction'}
-                                      >
-                                        <Edit3 className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteClick(tx.id)}
-                                        className="p-1 text-zinc-400 hover:text-rose-600 rounded-[3px] hover:bg-rose-50 cursor-pointer"
-                                        title={isTransfer ? 'Delete transfer' : 'Delete transaction'}
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
                                     </div>
                                   </div>
                                 </div>

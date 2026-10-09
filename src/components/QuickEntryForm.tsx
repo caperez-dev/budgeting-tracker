@@ -431,9 +431,9 @@ export function QuickEntryForm({
             </div>
           </div>
 
-          {/* Description Input (beside Enter Amount - max 100 characters) */}
-          <div className="flex-1 w-full min-w-0 sm:min-w-[160px]">
-            <div className="relative h-9">
+          {/* Description Input & Calendar Selector (Calendar selector placed on the right side of Description) */}
+          <div className="flex-1 w-full min-w-0 sm:min-w-[160px] flex items-center gap-2">
+            <div className="relative flex-1 h-9 min-w-0">
               <input
                 id="input-note"
                 aria-label="Description"
@@ -448,35 +448,34 @@ export function QuickEntryForm({
                 {note.length}/100
               </span>
             </div>
-          </div>
 
-          {/* Calendar Button (Date & Time selector) */}
-          <div className="relative shrink-0">
-            <button
-              ref={dateTimeButtonRef}
-              id="btn-quick-entry-calendar"
-              type="button"
-              onClick={() => setIsDateTimeOpen((prev) => !prev)}
-              aria-expanded={isDateTimeOpen}
-              className={`h-9 w-9 bg-white border rounded-[4px] flex items-center justify-center text-xs transition-colors cursor-pointer select-none ${
-                isDateTimeOpen
-                  ? 'border-zinc-900 ring-1 ring-zinc-900 shadow-2xs'
-                  : isCustomDateTime
-                  ? 'border-zinc-900 bg-zinc-50 text-zinc-900 shadow-2xs'
-                  : 'border-zinc-200 hover:border-zinc-300 text-zinc-600 hover:text-zinc-900'
-              }`}
-              title={`Selected Date & Time: ${formatFriendlyDate(selectedDate)} at ${selectedTime}`}
-              aria-label="Select date and time"
-            >
-              <CalendarDays className="w-4 h-4 text-zinc-500 shrink-0" />
-            </button>
-
-            {/* In-App Popover Calendar & Time Selector */}
-            {isDateTimeOpen && (
-              <div
-                ref={dateTimePickerRef}
-                className="absolute right-0 top-full mt-2 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3.5 w-72 sm:w-80 animate-in fade-in zoom-in-95 duration-100 cursor-default"
+            {/* Calendar Button (Date & Time selector) */}
+            <div className="relative shrink-0">
+              <button
+                ref={dateTimeButtonRef}
+                id="btn-quick-entry-calendar"
+                type="button"
+                onClick={() => setIsDateTimeOpen((prev) => !prev)}
+                aria-expanded={isDateTimeOpen}
+                className={`h-9 w-9 bg-white border rounded-[4px] flex items-center justify-center text-xs transition-colors cursor-pointer select-none ${
+                  isDateTimeOpen
+                    ? 'border-zinc-900 ring-1 ring-zinc-900 shadow-2xs'
+                    : isCustomDateTime
+                    ? 'border-zinc-900 bg-zinc-50 text-zinc-900 shadow-2xs'
+                    : 'border-zinc-200 hover:border-zinc-300 text-zinc-600 hover:text-zinc-900'
+                }`}
+                title={`Selected Date & Time: ${formatFriendlyDate(selectedDate)} at ${selectedTime}`}
+                aria-label="Select date and time"
               >
+                <CalendarDays className="w-4 h-4 text-zinc-500 shrink-0" />
+              </button>
+
+              {/* In-App Popover Calendar & Time Selector */}
+              {isDateTimeOpen && (
+                <div
+                  ref={dateTimePickerRef}
+                  className="absolute right-0 top-full mt-2 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3.5 w-72 sm:w-80 max-w-[calc(100vw-32px)] animate-in fade-in zoom-in-95 duration-100 cursor-default"
+                >
                 {/* Header Tabs: Date & Time */}
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
                   <div className="flex items-center gap-1 bg-zinc-100 p-0.5 rounded-[4px]">
@@ -694,6 +693,7 @@ export function QuickEntryForm({
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
 
