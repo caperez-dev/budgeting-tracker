@@ -1006,7 +1006,7 @@ export default function App() {
     });
   }, []);
 
-  // Background sync whenever state changes
+  // Background sync for user settings, categories, currencies, accounts, debts, and goals
   const isFirstSyncRender = useRef(true);
   useEffect(() => {
     if (isFirstSyncRender.current) {
@@ -1026,7 +1026,6 @@ export default function App() {
         },
         body: JSON.stringify({
           userId: currentUser.id,
-          transactions: transactions.map((t) => ({ ...t, userId: currentUser.id })),
           categories,
           currencies,
           accounts,
@@ -1047,9 +1046,65 @@ export default function App() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [transactions, categories, currencies, accounts, debts, goals, settings, userProfile, dbStatus.connected, currentUser?.id]);
+  }, [categories, currencies, accounts, debts, goals, settings, userProfile, dbStatus.connected, currentUser?.id]);
 
-  // Cross-device synchronization: auto-refresh when tab gains focus, becomes visible, or periodically while active
+  // Real-Time Cross-Device Synchronization via Server-Sent Events (SSE)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const uid = currentUser.id;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let isDisposed = false;
+
+    const connectSSE = () => {
+      if (isDisposed) return;
+      try {
+        eventSource = new EventSource(`/api/db/events?userId=${encodeURIComponent(uid)}`);
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'transaction_saved' && data.transaction) {
+              const tx = ensureTxOriginals(data.transaction);
+              setTransactions((prev) => {
+                if (prev.some((t) => t.id === tx.id)) {
+                  return prev.map((t) => (t.id === tx.id ? tx : t));
+                }
+                return [tx, ...prev];
+              });
+            } else if (data.type === 'transaction_updated' && data.transaction) {
+              const tx = ensureTxOriginals(data.transaction);
+              setTransactions((prev) => prev.map((t) => (t.id === tx.id ? tx : t)));
+            } else if (data.type === 'transaction_deleted' && data.id) {
+              setTransactions((prev) => prev.filter((t) => t.id !== data.id));
+            } else if (data.type === 'sync_updated') {
+              handleSyncWithDB(uid);
+            }
+          } catch {}
+        };
+
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          if (!isDisposed) {
+            reconnectTimer = setTimeout(connectSSE, 2500);
+          }
+        };
+      } catch {}
+    };
+
+    connectSSE();
+
+    return () => {
+      isDisposed = true;
+      if (eventSource) eventSource.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, [currentUser?.id]);
+
+  // Tab visibility synchronization: refresh when tab gains focus
   useEffect(() => {
     if (!currentUser?.id) return;
 
@@ -1062,17 +1117,9 @@ export default function App() {
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
 
-    // Periodically poll for changes made on other devices (e.g. MacBook vs Phone) while dashboard is open
-    const pollTimer = setInterval(() => {
-      if (document.visibilityState === 'visible' && !isSyncingRef.current && currentUser?.id) {
-        handleSyncWithDB(currentUser.id);
-      }
-    }, 5000);
-
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);
-      clearInterval(pollTimer);
     };
   }, [currentUser?.id]);
 
@@ -1604,24 +1651,17 @@ export default function App() {
     const updatedTransactions = [newTx, ...transactions];
     setTransactions(updatedTransactions);
 
-    // Immediately sync with cloud database so other devices get it immediately
+    // Immediately broadcast and persist transaction to cloud database
     if (currentUser?.id) {
-      fetch('/api/db/sync', {
+      fetch('/api/db/transactions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
         body: JSON.stringify({
+          ...newTx,
           userId: currentUser.id,
-          transactions: updatedTransactions.map((t) => ({ ...t, userId: currentUser.id })),
-          categories,
-          currencies,
-          accounts,
-          debts,
-          goals,
-          settings,
-          profile: userProfile,
         }),
       })
         .then(() => {
@@ -1903,24 +1943,17 @@ export default function App() {
     const updatedTransactionsList = transactions.map((t) => (t.id === enrichedTx.id ? enrichedTx : t));
     setTransactions(updatedTransactionsList);
 
-    // Immediately synchronize updated transaction with cloud database without localStorage persistence
+    // Immediately broadcast and update transaction in cloud database
     if (currentUser?.id) {
-      fetch('/api/db/sync', {
-        method: 'POST',
+      fetch(`/api/db/transactions/${encodeURIComponent(enrichedTx.id)}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
         body: JSON.stringify({
+          ...enrichedTx,
           userId: currentUser.id,
-          transactions: updatedTransactionsList.map((t) => ({ ...t, userId: currentUser.id })),
-          categories,
-          currencies,
-          accounts,
-          debts,
-          goals,
-          settings,
-          profile: userProfile,
         }),
       })
         .then(() => {

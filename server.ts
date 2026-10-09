@@ -1765,13 +1765,198 @@ app.post("/api/db/sync", async (req, res) => {
     }
 
     await Promise.all(promises);
+    broadcastToUser(rawUserId, { type: "sync_updated" });
     res.json({ success: true, message: "Records synchronized successfully" });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to sync data" });
   }
 });
 
-// Single Transaction Deletion
+// Real-time Server-Sent Events (SSE) Client Registry
+const sseClients = new Map<string, Set<any>>();
+
+function broadcastToUser(rawUserId: string, payload: any) {
+  if (!rawUserId) return;
+  const targetIds: string[] = [rawUserId.toLowerCase().trim()];
+  if (Array.isArray(payload.userIds)) {
+    payload.userIds.forEach((id: string) => {
+      if (id) targetIds.push(id.toLowerCase().trim());
+    });
+  }
+  const msg = `data: ${JSON.stringify(payload)}\n\n`;
+  for (const tid of targetIds) {
+    const clients = sseClients.get(tid);
+    if (clients) {
+      for (const client of clients) {
+        try {
+          client.write(msg);
+        } catch {
+          clients.delete(client);
+        }
+      }
+    }
+  }
+}
+
+// Real-Time SSE Stream Endpoint
+app.get("/api/db/events", async (req, res) => {
+  const rawUserId =
+    (req.query.userId as string) ||
+    (req.headers["x-user-id"] as string) ||
+    "";
+  if (!rawUserId) {
+    res.status(400).end();
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const userKey = rawUserId.toLowerCase().trim();
+  if (!sseClients.has(userKey)) {
+    sseClients.set(userKey, new Set());
+  }
+  sseClients.get(userKey)!.add(res);
+
+  // Link canonical user ID and email
+  try {
+    await connectDB();
+    const userDoc = await (UserModel as any).findOne({
+      $or: [{ id: rawUserId }, { email: rawUserId.toLowerCase().trim() }]
+    }).lean().exec();
+    if (userDoc) {
+      if (userDoc.id && userDoc.id.toLowerCase().trim() !== userKey) {
+        const k = userDoc.id.toLowerCase().trim();
+        if (!sseClients.has(k)) sseClients.set(k, new Set());
+        sseClients.get(k)!.add(res);
+      }
+      if (userDoc.email && userDoc.email.toLowerCase().trim() !== userKey) {
+        const k = userDoc.email.toLowerCase().trim();
+        if (!sseClients.has(k)) sseClients.set(k, new Set());
+        sseClients.get(k)!.add(res);
+      }
+    }
+  } catch {}
+
+  // Initial connection handshake
+  res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+
+  // Heartbeat ping every 15s to keep connection alive
+  const pingInterval = setInterval(() => {
+    try {
+      res.write(": ping\n\n");
+    } catch {
+      clearInterval(pingInterval);
+    }
+  }, 15000);
+
+  req.on("close", () => {
+    clearInterval(pingInterval);
+    for (const [, clients] of sseClients.entries()) {
+      clients.delete(res);
+    }
+  });
+});
+
+// Single Transaction Creation (Real-time Broadcast)
+app.post("/api/db/transactions", async (req, res) => {
+  const rawUserId = (req.body.userId as string) || (req.headers["x-user-id"] as string) || "";
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Database not connected" });
+    return;
+  }
+
+  try {
+    let canonicalUserId = rawUserId;
+    let userIds: string[] = rawUserId ? [rawUserId] : [];
+    if (rawUserId) {
+      const userDoc = await (UserModel as any).findOne({
+        $or: [{ id: rawUserId }, { email: rawUserId.toLowerCase().trim() }]
+      }).lean().exec();
+      if (userDoc) {
+        if (userDoc.id) {
+          canonicalUserId = userDoc.id;
+          if (!userIds.includes(userDoc.id)) userIds.push(userDoc.id);
+        }
+        if (userDoc.email && !userIds.includes(userDoc.email)) userIds.push(userDoc.email);
+      }
+    }
+
+    const { _id, ...cleanTx } = req.body;
+    cleanTx.userId = canonicalUserId;
+    cleanTx.timestamp = typeof cleanTx.timestamp === 'number' && !isNaN(cleanTx.timestamp) ? cleanTx.timestamp : Date.now();
+
+    const savedDoc = await (TransactionModel as any).findOneAndUpdate(
+      { id: cleanTx.id },
+      { $set: cleanTx },
+      { upsert: true, new: true }
+    ).lean().exec();
+
+    // Broadcast in real-time to all other devices for this user
+    broadcastToUser(rawUserId, {
+      type: "transaction_saved",
+      transaction: savedDoc || cleanTx,
+      userIds,
+    });
+
+    res.json({ success: true, transaction: savedDoc || cleanTx });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Single Transaction Update (Real-time Broadcast)
+app.put("/api/db/transactions/:id", async (req, res) => {
+  const rawUserId = (req.body.userId as string) || (req.headers["x-user-id"] as string) || (req.query.userId as string) || "";
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Database not connected" });
+    return;
+  }
+
+  try {
+    let canonicalUserId = rawUserId;
+    let userIds: string[] = rawUserId ? [rawUserId] : [];
+    if (rawUserId) {
+      const userDoc = await (UserModel as any).findOne({
+        $or: [{ id: rawUserId }, { email: rawUserId.toLowerCase().trim() }]
+      }).lean().exec();
+      if (userDoc) {
+        if (userDoc.id) {
+          canonicalUserId = userDoc.id;
+          if (!userIds.includes(userDoc.id)) userIds.push(userDoc.id);
+        }
+        if (userDoc.email && !userIds.includes(userDoc.email)) userIds.push(userDoc.email);
+      }
+    }
+
+    const { _id, ...cleanTx } = req.body;
+    cleanTx.userId = canonicalUserId || cleanTx.userId;
+
+    const updatedDoc = await (TransactionModel as any).findOneAndUpdate(
+      { id: req.params.id },
+      { $set: cleanTx },
+      { upsert: true, new: true }
+    ).lean().exec();
+
+    // Broadcast in real-time to all devices
+    broadcastToUser(rawUserId, {
+      type: "transaction_updated",
+      transaction: updatedDoc || cleanTx,
+      userIds,
+    });
+
+    res.json({ success: true, transaction: updatedDoc || cleanTx });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Single Transaction Deletion (Real-time Broadcast)
 app.delete("/api/db/transactions/:id", async (req, res) => {
   const rawUserId = (req.query.userId as string) || (req.headers["x-user-id"] as string) || "";
   const connected = await connectDB();
@@ -1801,6 +1986,14 @@ app.delete("/api/db/transactions/:id", async (req, res) => {
     if (result.deletedCount === 0) {
       await (TransactionModel as any).deleteOne({ id: req.params.id });
     }
+
+    // Broadcast deletion in real-time to all connected devices!
+    broadcastToUser(rawUserId, {
+      type: "transaction_deleted",
+      id: req.params.id,
+      userIds,
+    });
+
     res.json({ success: true, deletedId: req.params.id });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
