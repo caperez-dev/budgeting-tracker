@@ -684,7 +684,7 @@ export function SettingsPage({
                     }}
                     title="Edit username"
                     aria-label="Edit username"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-800 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -779,7 +779,7 @@ export function SettingsPage({
                   }}
                   title="Edit email address"
                   aria-label="Edit email address"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-800 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
