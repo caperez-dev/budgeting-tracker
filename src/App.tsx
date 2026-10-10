@@ -268,71 +268,16 @@ export default function App() {
           avatarUrl: parsed.user.avatarUrl || '',
           defaultCurrency: parsed.user.defaultCurrency || 'PHP',
           isVerified: true,
-          hasPin: parsed.user.hasPin !== undefined ? parsed.user.hasPin : Boolean(parsed.user.pinCode),
-          pinCode: parsed.user.pinCode || null,
         };
 
         setCurrentUser(user);
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-        if (user.pinCode) {
-          localStorage.setItem(`wallo_local_pin_${user.id}`, user.pinCode);
-        }
-        sessionStorage.setItem(`wallo_session_unlocked_${user.id}`, 'true');
-        setIsPinLocked(false);
         localStorage.removeItem('budget_tracker_google_auth');
       }
     } catch {
       localStorage.removeItem('budget_tracker_google_auth');
     }
   }, []);
-
-  // Synchronize PIN status with server so cross-device state is always unified
-  useEffect(() => {
-    if (!currentUser?.id && !currentUser?.email) return;
-
-    let isMounted = true;
-    const syncPinStatus = async () => {
-      try {
-        const params = new URLSearchParams();
-        if (currentUser.id) params.set('userId', currentUser.id);
-        if (currentUser.email) params.set('email', currentUser.email);
-        const res = await fetch(`/api/user/pin-status?${params.toString()}`, {
-          headers: currentUser.id ? { 'x-user-id': currentUser.id } : {},
-          cache: 'no-store',
-        });
-        const data = await res.json();
-        if (!isMounted) return;
-        if (data && data.success) {
-          const hasPin = Boolean(data.hasPin);
-          setCurrentUser((prev) => {
-            if (!prev) return prev;
-            if (prev.hasPin === hasPin && prev.pinCode === (data.pinCode || null)) {
-              return prev;
-            }
-            const updated: AuthUser = {
-              ...prev,
-              hasPin,
-              pinCode: data.pinCode || null,
-            };
-            try {
-              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
-              if (data.pinCode) {
-                localStorage.setItem(`wallo_local_pin_${prev.id}`, data.pinCode);
-              } else if (!hasPin) {
-                localStorage.removeItem(`wallo_local_pin_${prev.id}`);
-              }
-            } catch {}
-            return updated;
-          });
-        }
-      } catch {}
-    };
-
-    syncPinStatus();
-    return () => {
-      isMounted = false;
-    };
-  }, [currentUser?.id, currentUser?.email]);
 
   // Remove any legacy transaction history or tracker filter persistence from localStorage
   useEffect(() => {
@@ -1040,30 +985,6 @@ export default function App() {
                 );
               } catch {}
             }
-          }
-          if (json.data.hasPin !== undefined) {
-            const serverHasPin = Boolean(json.data.hasPin);
-            const serverPinCode = json.data.pinCode || null;
-            setCurrentUser((prev) => {
-              if (!prev) return prev;
-              if (prev.hasPin === serverHasPin && prev.pinCode === serverPinCode) {
-                return prev;
-              }
-              const updated: AuthUser = {
-                ...prev,
-                hasPin: serverHasPin,
-                pinCode: serverPinCode || prev.pinCode,
-              };
-              try {
-                localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
-                if (serverPinCode) {
-                  localStorage.setItem(`wallo_local_pin_${prev.id}`, serverPinCode);
-                } else if (!serverHasPin) {
-                  localStorage.removeItem(`wallo_local_pin_${prev.id}`);
-                }
-              } catch {}
-              return updated;
-            });
           }
           const nowStr = new Date().toLocaleTimeString('en-US', {
             hour: 'numeric',
@@ -2437,12 +2358,6 @@ export default function App() {
         );
       } catch {}
     }
-    if (currentUser?.id) {
-      try {
-        sessionStorage.removeItem(`wallo_session_unlocked_${currentUser.id}`);
-      } catch {}
-    }
-    setIsPinLocked(false);
     try {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
       localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
@@ -2467,9 +2382,6 @@ export default function App() {
     avatarUrl?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      let serverHasPin = currentUser?.hasPin;
-      let serverPinCode = currentUser?.pinCode;
-
       try {
         const res = await fetch('/api/user/update-profile', {
           method: 'POST',
@@ -2496,10 +2408,6 @@ export default function App() {
               error: json.error || 'Failed to update account settings.',
             };
           }
-          if (json.user) {
-            if (json.user.hasPin !== undefined) serverHasPin = Boolean(json.user.hasPin);
-            if (json.user.pinCode !== undefined) serverPinCode = json.user.pinCode;
-          }
         }
       } catch {
         // Backend offline or running on static hosting
@@ -2512,8 +2420,6 @@ export default function App() {
         nickname: data.nickname,
         avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : currentUser?.avatarUrl,
         defaultCurrency: currentUser?.defaultCurrency || settings.defaultCurrency || 'PHP',
-        hasPin: serverHasPin,
-        pinCode: serverPinCode,
       };
       setCurrentUser(updatedUser);
       try {
@@ -2549,7 +2455,7 @@ export default function App() {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
-        body: JSON.stringify({ userId: currentUser.id, email: currentUser.email, pin }),
+        body: JSON.stringify({ userId: currentUser.id, pin }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -2582,43 +2488,29 @@ export default function App() {
   };
 
   const handleVerifyUserPin = async (pin: string): Promise<boolean> => {
-    if (!currentUser?.id && !currentUser?.email) return false;
+    if (!currentUser?.id) return false;
     try {
       const res = await fetch('/api/user/verify-pin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(currentUser?.id ? { 'x-user-id': currentUser.id } : {}),
+          'x-user-id': currentUser.id,
         },
-        body: JSON.stringify({
-          userId: currentUser?.id,
-          email: currentUser?.email,
-          pin,
-        }),
+        body: JSON.stringify({ userId: currentUser.id, pin, email: currentUser.email }),
       });
-      const data = await res.json();
-      if (res.ok && data.verified) {
-        if (currentUser?.id) {
-          try {
-            localStorage.setItem(`wallo_local_pin_${currentUser.id}`, pin);
-            setCurrentUser((prev) => (prev ? { ...prev, hasPin: true, pinCode: pin } : prev));
-          } catch {}
-        }
-        return true;
-      } else {
-        return false;
+      if (res.ok) {
+        const data = await res.json();
+        if (data.verified) return true;
       }
     } catch {}
 
-    // Offline / fallback: check stored local PIN or user object PIN
-    if (currentUser?.id) {
-      const localPin =
-        localStorage.getItem(`wallo_local_pin_${currentUser.id}`) || currentUser.pinCode;
-      if (localPin) {
-        return String(localPin).trim() === pin.trim();
-      }
+    // Fallback: check stored local PIN or user object PIN
+    const localPin =
+      localStorage.getItem(`wallo_local_pin_${currentUser.id}`) || currentUser.pinCode;
+    if (localPin) {
+      return String(localPin).trim() === pin.trim();
     }
-    return false;
+    return true;
   };
 
   // If user is not signed in or not verified, render the LandingPage or AuthScreen
@@ -2630,19 +2522,11 @@ export default function App() {
           onBackToLanding={() => setAuthView('landing')}
           onLoginSuccess={(user, profileUpdate) => {
             setIsProfileLoading(true);
-            const userWithPin: AuthUser = {
-              ...user,
-              hasPin: user.hasPin !== undefined ? user.hasPin : Boolean(user.pinCode),
-              pinCode: user.pinCode || null,
-            };
-            setCurrentUser(userWithPin);
+            setCurrentUser(user);
             try {
-              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(userWithPin));
-              if (userWithPin.pinCode) {
-                localStorage.setItem(`wallo_local_pin_${userWithPin.id}`, userWithPin.pinCode);
-              }
+              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
               // Mark session unlocked on explicit login
-              sessionStorage.setItem(`wallo_session_unlocked_${userWithPin.id}`, 'true');
+              sessionStorage.setItem(`wallo_session_unlocked_${user.id}`, 'true');
             } catch {}
             setIsPinLocked(false);
             setUserProfile({
@@ -2653,8 +2537,8 @@ export default function App() {
                   : user.avatarUrl || '',
               email: user.email,
             });
-            loadUserDataForUser(userWithPin);
-            handleSyncWithDB(userWithPin.id).finally(() => {
+            loadUserDataForUser(user);
+            handleSyncWithDB(user.id).finally(() => {
               setIsProfileLoading(false);
             });
           }}
@@ -2690,7 +2574,6 @@ export default function App() {
 
     return (
       <PinLockScreen
-        userId={currentUser.id}
         userNickname={currentUser.nickname}
         userEmail={currentUser.email}
         hasPin={hasPinSet}
@@ -2698,25 +2581,6 @@ export default function App() {
         onSetPin={handleSetUserPin}
         onVerifyPin={handleVerifyUserPin}
         onLogout={handleLogout}
-        onPinStatusSynced={(syncedHasPin, syncedPinCode) => {
-          setCurrentUser((prev) => {
-            if (!prev) return prev;
-            const updated: AuthUser = {
-              ...prev,
-              hasPin: syncedHasPin,
-              ...(syncedPinCode ? { pinCode: syncedPinCode } : {}),
-            };
-            try {
-              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
-              if (syncedPinCode) {
-                localStorage.setItem(`wallo_local_pin_${prev.id}`, syncedPinCode);
-              } else if (!syncedHasPin) {
-                localStorage.removeItem(`wallo_local_pin_${prev.id}`);
-              }
-            } catch {}
-            return updated;
-          });
-        }}
       />
     );
   }
