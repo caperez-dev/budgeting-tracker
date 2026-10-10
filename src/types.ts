@@ -121,6 +121,10 @@ export interface AuthUser {
   isVerified?: boolean;
   pinCode?: string | null;
   hasPin?: boolean;
+  googleId?: string | null;
+  googleEmail?: string | null;
+  authProvider?: string;
+  hasPassword?: boolean;
 }
 
 export interface DBStatus {

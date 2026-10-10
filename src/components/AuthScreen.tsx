@@ -512,7 +512,10 @@ export function AuthScreen({
         const errMsg = data?.error || 'Something went wrong. Please check your details and try again.';
         const lowerErr = errMsg.toLowerCase();
         const serverErrors: FieldErrors = {};
-        if (lowerErr.includes('username')) {
+        if (data?.googleRegistered || lowerErr.includes('registered using google')) {
+          serverErrors.email = errMsg;
+          serverErrors.general = errMsg;
+        } else if (lowerErr.includes('username')) {
           serverErrors.nickname = errMsg;
         } else if (
           lowerErr.includes('email') ||
@@ -869,9 +872,31 @@ export function AuthScreen({
 
                   {/* General / connection errors right above submit button */}
                   {fieldErrors.general && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700 animate-in fade-in duration-200">
-                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                      <span className="leading-relaxed">{fieldErrors.general}</span>
+                    <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 animate-in fade-in duration-200 space-y-2.5">
+                      <div className="flex items-start gap-2.5">
+                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                        <span className="leading-relaxed font-medium">{fieldErrors.general}</span>
+                      </div>
+                      {fieldErrors.general.includes('registered using Google') && (
+                        <div className="pt-0.5 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleGoogleSignIn}
+                            disabled={isGoogleLoading}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-50 border border-red-200 text-zinc-900 rounded-lg font-medium text-xs shadow-2xs transition-colors cursor-pointer"
+                          >
+                            <GoogleIcon className="w-3.5 h-3.5" />
+                            <span>Continue with Google</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleGoToForgotPassword}
+                            className="inline-flex items-center gap-1 text-xs text-red-800 underline hover:text-red-950 font-medium cursor-pointer"
+                          >
+                            <span>Reset password</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 

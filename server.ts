@@ -445,6 +445,26 @@ app.post("/api/auth/login", async (req, res) => {
         return;
       }
 
+      const hasRealPassword = Boolean(user.password && !user.password.startsWith("google_oauth_"));
+      const isGoogleAccount = Boolean(
+        user.authProvider === "google" ||
+        user.googleId ||
+        user.googleEmail ||
+        (user.password && user.password.startsWith("google_oauth_")) ||
+        user.id?.startsWith("google_")
+      );
+
+      // If user registered with Google without a password, prompt them to use Google or reset password
+      if (isGoogleAccount && !hasRealPassword) {
+        res.status(400).json({
+          success: false,
+          googleRegistered: true,
+          error:
+            "This email was registered using Google. Please continue with Google to log in, or reset your password to add a password login.",
+        });
+        return;
+      }
+
       if (user.password !== password) {
         res.status(401).json({ success: false, error: "Incorrect password. Please try again." });
         return;
@@ -517,6 +537,10 @@ app.post("/api/auth/login", async (req, res) => {
           isVerified: true,
           hasPin: Boolean(user.pinCode),
           pinCode: user.pinCode || null,
+          googleId: user.googleId || null,
+          googleEmail: user.googleEmail || null,
+          authProvider: user.authProvider || "email",
+          hasPassword: hasRealPassword,
         },
         settings: userSettings
           ? {
@@ -1229,6 +1253,16 @@ app.get("/api/auth/google/url", (req, res) => {
     "https://ais-dev-zbjzs6iojh24oqwmlfkoug-54185673300.asia-southeast1.run.app";
   const redirectUri = `${origin}/auth/callback`;
 
+  const action = (req.query.action as string) || "signin";
+  const userId = (req.query.userId as string) || "";
+
+  const statePayload = {
+    origin,
+    action,
+    userId,
+  };
+  const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
+
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -1236,6 +1270,7 @@ app.get("/api/auth/google/url", (req, res) => {
     scope: "openid email profile",
     prompt: "select_account",
     access_type: "offline",
+    state,
   });
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -1244,7 +1279,7 @@ app.get("/api/auth/google/url", (req, res) => {
 
 // Google OAuth Popup Callback Handler
 app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
 
   if (error || !code) {
     res.send(`
@@ -1252,7 +1287,12 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
       <html>
         <body style="font-family: system-ui, sans-serif; padding: 24px; text-align: center; color: #374151;">
           <p style="color: #dc2626; font-weight: 600;">Google sign-in was canceled or failed.</p>
-          <script>setTimeout(() => window.close(), 2000);</script>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'GOOGLE_CONNECT_ERROR', error: 'Google authentication was canceled.' }, '*');
+            }
+            setTimeout(() => window.close(), 1500);
+          </script>
         </body>
       </html>
     `);
@@ -1276,7 +1316,14 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
   }
 
   try {
-    const origin = getOAuthRedirectOrigin(req);
+    let stateData: { origin?: string; action?: string; userId?: string } = {};
+    if (typeof state === "string" && state) {
+      try {
+        stateData = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+      } catch {}
+    }
+
+    const origin = stateData.origin || getOAuthRedirectOrigin(req);
     const redirectUri = `${origin}/auth/callback`;
 
     // Exchange code for tokens
@@ -1310,19 +1357,165 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
     await connectDB();
 
     const cleanEmail = googleProfile.email.toLowerCase().trim();
-    let user = await (UserModel as any).findOne({ email: cleanEmail });
+
+    // ==========================================
+    // ACTION: CONNECT GOOGLE ACCOUNT TO EXISTING USER
+    // ==========================================
+    if (stateData.action === "connect" && stateData.userId) {
+      const targetUser = await (UserModel as any).findOne({
+        $or: [{ id: stateData.userId }, { email: stateData.userId.toLowerCase().trim() }],
+      });
+
+      if (!targetUser) {
+        res.send(`
+          <!DOCTYPE html>
+          <html>
+            <body style="font-family: system-ui, sans-serif; padding: 24px; text-align: center; color: #dc2626;">
+              <p style="font-weight: 600;">Account session not found.</p>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({ type: 'GOOGLE_CONNECT_ERROR', error: 'User session not found.' }, '*');
+                }
+                setTimeout(() => window.close(), 2000);
+              </script>
+            </body>
+          </html>
+        `);
+        return;
+      }
+
+      // Check if this Google account is already linked to another user
+      const conflictUser = await (UserModel as any).findOne({
+        id: { $ne: targetUser.id },
+        $or: [{ googleId: googleProfile.id }, { googleEmail: cleanEmail }],
+      });
+
+      if (conflictUser) {
+        res.send(`
+          <!DOCTYPE html>
+          <html>
+            <body style="font-family: system-ui, sans-serif; padding: 28px; text-align: center; color: #374151;">
+              <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #FEE2E2; color: #DC2626; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 20px;">!</div>
+              <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 8px; color: #991B1B;">Already Connected</h2>
+              <p style="font-size: 13px; color: #4B5563; margin: 0;">This Google account is already connected to another Wallo account.</p>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({ type: 'GOOGLE_CONNECT_ERROR', error: 'This Google account is already linked to another Wallo account.' }, '*');
+                }
+                setTimeout(() => window.close(), 3000);
+              </script>
+            </body>
+          </html>
+        `);
+        return;
+      }
+
+      // Successfully link Google account to target user
+      targetUser.googleId = googleProfile.id;
+      targetUser.googleEmail = cleanEmail;
+      if (!targetUser.avatarUrl && googleProfile.picture) {
+        targetUser.avatarUrl = googleProfile.picture;
+      }
+      await targetUser.save();
+
+      // Update UserProfileModel
+      await (UserProfileModel as any).findOneAndUpdate(
+        { $or: [{ userId: targetUser.id }, { singletonId: `profile_${targetUser.id}` }] },
+        {
+          $set: {
+            userId: targetUser.id,
+            singletonId: `profile_${targetUser.id}`,
+            nickname: targetUser.nickname,
+            email: targetUser.email,
+            ...(targetUser.avatarUrl ? { avatarUrl: targetUser.avatarUrl } : {}),
+          },
+        },
+        { upsert: true, returnDocument: 'after' }
+      );
+
+      const hasPassword = Boolean(targetUser.password && !targetUser.password.startsWith("google_oauth_"));
+      const connectPayload = JSON.stringify({
+        type: "GOOGLE_CONNECT_SUCCESS",
+        googleEmail: cleanEmail,
+        googleId: googleProfile.id,
+        user: {
+          id: targetUser.id,
+          email: targetUser.email,
+          nickname: targetUser.nickname,
+          avatarUrl: targetUser.avatarUrl,
+          defaultCurrency: targetUser.defaultCurrency || "PHP",
+          isVerified: true,
+          hasPin: Boolean(targetUser.pinCode),
+          pinCode: targetUser.pinCode || null,
+          googleId: targetUser.googleId,
+          googleEmail: targetUser.googleEmail,
+          authProvider: targetUser.authProvider || "email",
+          hasPassword,
+        },
+      });
+
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Google Account Connected</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #FAFAFA; color: #18181B;">
+            <div style="text-align: center; padding: 24px;">
+              <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #059669; color: white; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 20px;">✓</div>
+              <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 8px;">Google Account Connected!</h2>
+              <p style="font-size: 13px; color: #71717A; margin: 0;">Connected as ${cleanEmail}. This window will close shortly.</p>
+            </div>
+            <script>
+              const payload = ${connectPayload};
+              if (window.opener) {
+                window.opener.postMessage(payload, '*');
+                setTimeout(() => { window.close(); }, 600);
+              } else {
+                window.location.href = '/';
+              }
+            </script>
+          </body>
+        </html>
+      `);
+      return;
+    }
+
+    // ==========================================
+    // ACTION: REGULAR SIGN IN / SIGN UP WITH GOOGLE
+    // ==========================================
+    // Match by Google ID, Google Email, or registered email address
+    let user = await (UserModel as any).findOne({
+      $or: [
+        { googleId: googleProfile.id },
+        { googleEmail: cleanEmail },
+        { email: cleanEmail },
+      ],
+    });
 
     if (!user) {
       user = await (UserModel as any).create({
         id: `google_${googleProfile.id || Date.now()}`,
         email: cleanEmail,
-        password: `google_oauth_${Math.random().toString(36).slice(2)}`,
+        password: null,
         nickname: googleProfile.given_name || googleProfile.name || cleanEmail.split("@")[0],
         avatarUrl: googleProfile.picture || "",
         isVerified: true,
+        googleId: googleProfile.id || `google_${Date.now()}`,
+        googleEmail: cleanEmail,
+        authProvider: "google",
       });
     } else {
       let needsSave = false;
+      if (!user.googleId && googleProfile.id) {
+        user.googleId = googleProfile.id;
+        needsSave = true;
+      }
+      if (!user.googleEmail) {
+        user.googleEmail = cleanEmail;
+        needsSave = true;
+      }
       if (user.avatarUrl === undefined && googleProfile.picture) {
         user.avatarUrl = googleProfile.picture;
         needsSave = true;
@@ -1363,6 +1556,8 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
       user.defaultCurrency ||
       "PHP";
 
+    const hasRealPassword = Boolean(user.password && !user.password.startsWith("google_oauth_"));
+
     const authPayload = JSON.stringify({
       type: "OAUTH_AUTH_SUCCESS",
       user: {
@@ -1374,6 +1569,10 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
         isVerified: true,
         hasPin: Boolean(user.pinCode),
         pinCode: user.pinCode || null,
+        googleId: user.googleId || null,
+        googleEmail: user.googleEmail || null,
+        authProvider: user.authProvider || "google",
+        hasPassword: hasRealPassword,
       },
     });
 
@@ -1421,6 +1620,73 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
         </body>
       </html>
     `);
+  }
+});
+
+// Disconnect Google Account endpoint
+app.post("/api/auth/google/disconnect", async (req, res) => {
+  const userId =
+    req.body.userId ||
+    (req.headers["x-user-id"] as string) ||
+    "";
+
+  if (!userId) {
+    res.status(400).json({ success: false, error: "Active account session required." });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Unable to connect right now. Please try again shortly." });
+    return;
+  }
+
+  try {
+    const user = await (UserModel as any).findOne({
+      $or: [{ id: userId }, { email: String(userId).toLowerCase().trim() }],
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, error: "Account not found." });
+      return;
+    }
+
+    const hasRealPassword = Boolean(user.password && !user.password.startsWith("google_oauth_"));
+    if (!hasRealPassword) {
+      res.status(400).json({
+        success: false,
+        error: "Please set a password first before disconnecting your Google account so you can still log in.",
+      });
+      return;
+    }
+
+    user.googleId = null;
+    user.googleEmail = null;
+    if (user.authProvider === "google") {
+      user.authProvider = "email";
+    }
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Google account disconnected successfully.",
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        defaultCurrency: user.defaultCurrency || "PHP",
+        isVerified: true,
+        hasPin: Boolean(user.pinCode),
+        pinCode: user.pinCode || null,
+        googleId: null,
+        googleEmail: null,
+        authProvider: user.authProvider || "email",
+        hasPassword: true,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || "Failed to disconnect Google account." });
   }
 });
 
@@ -1720,6 +1986,21 @@ app.get("/api/db/sync", async (req, res) => {
         goals: goals || [],
         settings: settingsDoc || null,
         profile: profileDoc || null,
+        user: userObj
+          ? {
+              id: userObj.id,
+              email: userObj.email,
+              nickname: userObj.nickname,
+              avatarUrl: userObj.avatarUrl,
+              defaultCurrency: userObj.defaultCurrency || "PHP",
+              googleId: userObj.googleId || null,
+              googleEmail: userObj.googleEmail || null,
+              authProvider: userObj.authProvider || "email",
+              hasPassword: Boolean(userObj.password && !userObj.password.startsWith("google_oauth_")),
+              hasPin: Boolean(userObj.pinCode),
+              isVerified: userObj.isVerified,
+            }
+          : null,
       },
     });
   } catch (err: any) {

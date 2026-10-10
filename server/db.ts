@@ -185,7 +185,7 @@ const UserSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true },
+    password: { type: String, default: null },
     nickname: { type: String, default: 'Carlos' },
     avatarUrl: { type: String, default: '' },
     defaultCurrency: { type: String, default: 'PHP' },
@@ -193,6 +193,9 @@ const UserSchema = new mongoose.Schema(
     verificationPin: { type: String, default: null },
     verificationPinExpiresAt: { type: Date, default: null },
     pinCode: { type: String, default: null },
+    googleId: { type: String, default: null, index: true },
+    googleEmail: { type: String, default: null, lowercase: true, trim: true },
+    authProvider: { type: String, default: 'email' },
   },
   { timestamps: true, strict: false }
 );

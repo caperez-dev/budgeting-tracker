@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   Check,
+  CheckCircle2,
   AlertCircle,
   Loader2,
   Pencil,
@@ -19,6 +20,7 @@ import { validateUsername } from '../utils/usernameValidation';
 import { PhotoCropModal } from './PhotoCropModal';
 import { SpecularButton } from './ui/SpecularButton';
 import CodeSlots from './ui/CodeSlots';
+import { GoogleIcon } from './AuthScreen';
 
 /**
  * Masks an email for placeholder display:
@@ -59,6 +61,7 @@ interface SettingsPageProps {
     avatarUrl?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   onSetPin?: (pin: string) => Promise<boolean>;
+  onUpdateCurrentUser?: (updated: Partial<AuthUser>) => void;
 }
 
 export function SettingsPage({
@@ -67,6 +70,7 @@ export function SettingsPage({
   onBack,
   onSave,
   onSetPin,
+  onUpdateCurrentUser,
 }: SettingsPageProps) {
   const [activeEmail, setActiveEmail] = useState(
     (currentUser?.email || profile.email || '').trim()
@@ -145,6 +149,153 @@ export function SettingsPage({
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Google Account Connection states
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+  const [isDisconnectingGoogle, setIsDisconnectingGoogle] = useState(false);
+  const [googleStatusMessage, setGoogleStatusMessage] = useState<string | null>(null);
+  const [googleErrorMessage, setGoogleErrorMessage] = useState<string | null>(null);
+  const [isDisconnectConfirmOpen, setIsDisconnectConfirmOpen] = useState(false);
+
+  const isGoogleConnected = Boolean(
+    currentUser?.googleId ||
+    currentUser?.googleEmail ||
+    currentUser?.authProvider === 'google'
+  );
+  const googleConnectedEmail =
+    currentUser?.googleEmail ||
+    (currentUser?.authProvider === 'google' ? currentUser?.email : null) ||
+    '';
+
+  const hasPasswordSet = currentUser?.hasPassword !== false && !currentUser?.id?.startsWith('google_');
+
+  useEffect(() => {
+    const handleGoogleMessage = (event: MessageEvent) => {
+      const origin = event.origin;
+      const currentOrigin = window.location.origin;
+      const isAllowed =
+        origin === currentOrigin ||
+        origin.endsWith('.run.app') ||
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1');
+
+      if (!isAllowed) return;
+
+      if (event.data?.type === 'GOOGLE_CONNECT_SUCCESS') {
+        setIsConnectingGoogle(false);
+        setGoogleErrorMessage(null);
+        setGoogleStatusMessage('Google account connected successfully! You can now use Google to sign in.');
+        setTimeout(() => setGoogleStatusMessage(null), 5000);
+
+        if (event.data.user && onUpdateCurrentUser) {
+          onUpdateCurrentUser(event.data.user);
+        } else if (onUpdateCurrentUser) {
+          onUpdateCurrentUser({
+            googleId: event.data.googleId,
+            googleEmail: event.data.googleEmail,
+          });
+        }
+      } else if (event.data?.type === 'GOOGLE_CONNECT_ERROR') {
+        setIsConnectingGoogle(false);
+        setGoogleErrorMessage(event.data.error || 'Failed to connect Google account.');
+        setTimeout(() => setGoogleErrorMessage(null), 6000);
+      }
+    };
+
+    window.addEventListener('message', handleGoogleMessage);
+    return () => window.removeEventListener('message', handleGoogleMessage);
+  }, [onUpdateCurrentUser]);
+
+  const handleConnectGoogle = async () => {
+    setIsConnectingGoogle(true);
+    setGoogleErrorMessage(null);
+    setGoogleStatusMessage(null);
+
+    try {
+      const origin = window.location.origin;
+      const userId = currentUser?.id || '';
+      const res = await fetch(
+        `/api/auth/google/url?origin=${encodeURIComponent(origin)}&action=connect&userId=${encodeURIComponent(userId)}`
+      );
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Google Sign-In is temporarily unavailable. Please try again shortly.');
+      }
+
+      if (!res.ok || !data?.url) {
+        throw new Error(data?.error || 'Unable to open Google sign-in. Please try again.');
+      }
+
+      const authWindow = window.open(
+        data.url,
+        'google_oauth_popup',
+        'width=520,height=640,left=200,top=100'
+      );
+
+      if (!authWindow) {
+        throw new Error('Your browser blocked the pop-up window. Please allow pop-ups for this site to connect your Google account.');
+      }
+
+      const timer = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(timer);
+          setIsConnectingGoogle(false);
+        }
+      }, 1000);
+    } catch (err: any) {
+      setGoogleErrorMessage(err.message || 'Unable to connect Google account.');
+      setIsConnectingGoogle(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    if (!hasPasswordSet) {
+      setGoogleErrorMessage(
+        'Please set a password first before disconnecting your Google account so you can still log in.'
+      );
+      setTimeout(() => setGoogleErrorMessage(null), 6000);
+      return;
+    }
+
+    setIsDisconnectingGoogle(true);
+    setGoogleErrorMessage(null);
+    setGoogleStatusMessage(null);
+
+    try {
+      const res = await fetch('/api/auth/google/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || '',
+        },
+        body: JSON.stringify({ userId: currentUser?.id }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setGoogleStatusMessage('Google account disconnected successfully.');
+        setIsDisconnectConfirmOpen(false);
+        setTimeout(() => setGoogleStatusMessage(null), 4000);
+        if (onUpdateCurrentUser) {
+          onUpdateCurrentUser({
+            googleId: null,
+            googleEmail: null,
+            authProvider: 'email',
+          });
+        }
+      } else {
+        setGoogleErrorMessage(data.error || 'Failed to disconnect Google account.');
+      }
+    } catch (err: any) {
+      setGoogleErrorMessage(err.message || 'An error occurred while disconnecting Google account.');
+    } finally {
+      setIsDisconnectingGoogle(false);
+    }
+  };
 
   // Security PIN states
   const [isEditingPin, setIsEditingPin] = useState(false);
@@ -396,17 +547,24 @@ export function SettingsPage({
       const result = await onSave({
         nickname: nickname.trim() || profile.nickname || 'User',
         email: activeEmail,
-        currentPassword: currentPassword.trim(),
+        currentPassword: hasPasswordSet ? currentPassword.trim() : undefined,
         password: trimmedNew,
         avatarUrl,
       });
 
       if (result.success) {
-        setPasswordSuccessMessage('Your password has been changed successfully.');
+        setPasswordSuccessMessage(
+          hasPasswordSet
+            ? 'Your password has been changed successfully.'
+            : 'Password added successfully! You can now log in with either your password or Google.'
+        );
         setIsPasswordVerified(false);
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
+        if (onUpdateCurrentUser) {
+          onUpdateCurrentUser({ hasPassword: true });
+        }
         setTimeout(() => setPasswordSuccessMessage(null), 4000);
       } else {
         const errorText = result.error || 'Failed to update password. Please try again.';
@@ -895,13 +1053,168 @@ export function SettingsPage({
           </div>
         </div>
 
-        {/* Section 2: Security & Password */}
+        {/* Section: Connected Accounts / Google Account */}
+        <div
+          id="settings-google-account-section"
+          className="bg-white border border-zinc-200 rounded-[6px] p-5 sm:p-6 shadow-xs space-y-4"
+        >
+          <div className="pb-3 border-b border-zinc-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-800 shrink-0">
+                <GoogleIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">Google Account</h2>
+                <p className="text-[11px] text-zinc-500">
+                  Connect your Google account to quickly and securely sign in on any device.
+                </p>
+              </div>
+            </div>
+            {isGoogleConnected && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-[3px]">
+                <Check className="w-3 h-3 text-emerald-600" />
+                <span>Connected</span>
+              </span>
+            )}
+          </div>
+
+          {/* Feedback alerts */}
+          {googleErrorMessage && (
+            <div
+              id="google-error-alert"
+              className="p-3 rounded-[4px] bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-in fade-in"
+            >
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{googleErrorMessage}</span>
+            </div>
+          )}
+
+          {googleStatusMessage && (
+            <div
+              id="google-success-alert"
+              className="p-3 rounded-[4px] bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in"
+            >
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{googleStatusMessage}</span>
+            </div>
+          )}
+
+          {isGoogleConnected ? (
+            <div className="space-y-3 pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-zinc-50 border border-zinc-200 rounded-[6px]">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-white border border-zinc-200 flex items-center justify-center shrink-0 shadow-2xs">
+                    <GoogleIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-zinc-900">
+                      {googleConnectedEmail || activeEmail || 'Google Account Linked'}
+                    </div>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Ready for instant Google sign-in
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  {!isDisconnectConfirmOpen ? (
+                    <button
+                      type="button"
+                      id="btn-disconnect-google-prompt"
+                      onClick={() => setIsDisconnectConfirmOpen(true)}
+                      disabled={isDisconnectingGoogle}
+                      className="px-3 py-1.5 text-xs font-medium text-zinc-700 hover:text-rose-700 bg-white hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 rounded-[4px] transition-colors cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsDisconnectConfirmOpen(false)}
+                        className="px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-[4px] transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        id="btn-confirm-disconnect-google"
+                        onClick={handleDisconnectGoogle}
+                        disabled={isDisconnectingGoogle}
+                        className="px-2.5 py-1 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-[4px] transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        {isDisconnectingGoogle ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Disconnecting...</span>
+                          </>
+                        ) : (
+                          <span>Confirm</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 text-[11px] text-zinc-500 pt-0.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  You can now use Google to sign in anytime on your browser or mobile phone without needing a password.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-zinc-50 border border-zinc-200 rounded-[6px]">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-semibold text-zinc-900">
+                    Sign in with Google
+                  </span>
+                  <p className="text-xs text-zinc-500">
+                    Link your Google account so you can sign in directly with Google on web or mobile.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-connect-google"
+                  onClick={handleConnectGoogle}
+                  disabled={isConnectingGoogle}
+                  className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-medium text-zinc-800 bg-white hover:bg-zinc-100 border border-zinc-300 rounded-[4px] transition-colors shadow-2xs cursor-pointer shrink-0 disabled:opacity-60"
+                >
+                  {isConnectingGoogle ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-600" />
+                      <span>Opening Google...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GoogleIcon className="w-3.5 h-3.5 text-zinc-800" />
+                      <span>Connect Google Account</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <p className="text-[11px] text-zinc-500">
+                Once connected, you can sign into Wallo using either Google or your email.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Section: Security & Password */}
         <div className="bg-white border border-zinc-200 rounded-[6px] p-5 sm:p-6 shadow-xs space-y-4">
           <div className="pb-3 border-b border-zinc-100">
             <div>
-              <h2 className="text-sm font-semibold text-zinc-900">Change Password</h2>
+              <h2 className="text-sm font-semibold text-zinc-900">
+                {hasPasswordSet ? 'Change Password' : 'Set a Password'}
+              </h2>
               <p className="text-[11px] text-zinc-400">
-                Update your password to keep your account secure.
+                {hasPasswordSet
+                  ? 'Update your password to keep your account secure.'
+                  : 'Add a password to your account so you can log in with your email and password in addition to Google.'}
               </p>
             </div>
           </div>
@@ -917,7 +1230,7 @@ export function SettingsPage({
             </div>
           )}
 
-          {!isPasswordVerified ? (
+          {!isPasswordVerified && hasPasswordSet ? (
             /* Step 1: Current Password with initially muted Continue button */
             <div className="space-y-3 pt-1">
               <div>
@@ -1226,7 +1539,7 @@ export function SettingsPage({
                       <span>Saving...</span>
                     </>
                   ) : (
-                    <span>Save Password</span>
+                    <span>{hasPasswordSet ? 'Save Password' : 'Set Password'}</span>
                   )}
                 </SpecularButton>
               </div>

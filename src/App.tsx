@@ -270,6 +270,10 @@ export default function App() {
           isVerified: true,
           hasPin: parsed.user.hasPin ?? Boolean(parsed.user.pinCode),
           pinCode: parsed.user.pinCode || null,
+          googleId: parsed.user.googleId || null,
+          googleEmail: parsed.user.googleEmail || null,
+          authProvider: parsed.user.authProvider || 'google',
+          hasPassword: parsed.user.hasPassword ?? false,
         };
 
         setCurrentUser(user);
@@ -1077,6 +1081,19 @@ export default function App() {
                 return updatedUser;
               });
             }
+          }
+          if (json.data.user) {
+            setCurrentUser((prev) => {
+              if (!prev) return prev;
+              const merged: AuthUser = {
+                ...prev,
+                ...json.data.user,
+              };
+              try {
+                localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
           }
           const nowStr = new Date().toLocaleTimeString('en-US', {
             hour: 'numeric',
@@ -2564,6 +2581,7 @@ export default function App() {
         nickname: nextNickname,
         avatarUrl: nextAvatar,
         defaultCurrency: currentUser?.defaultCurrency || settings.defaultCurrency || 'PHP',
+        ...(data.password ? { hasPassword: true } : {}),
       };
       setCurrentUser(updatedUser);
       try {
@@ -2589,6 +2607,24 @@ export default function App() {
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'An error occurred while updating your settings.' };
+    }
+  };
+
+  const handleUpdateCurrentUserPartial = (updated: Partial<AuthUser>) => {
+    setCurrentUser((prev) => {
+      if (!prev) return prev;
+      const nextUser: AuthUser = {
+        ...prev,
+        ...updated,
+      };
+      try {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(nextUser));
+      } catch {}
+      return nextUser;
+    });
+
+    if (currentUser?.id) {
+      handleSyncWithDB(currentUser.id);
     }
   };
 
@@ -2895,6 +2931,7 @@ export default function App() {
               onBack={() => setActiveTab('tracker')}
               onSave={handleUpdateAccountSettings}
               onSetPin={handleSetUserPin}
+              onUpdateCurrentUser={handleUpdateCurrentUserPartial}
             />
           )}
         </div>
