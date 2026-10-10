@@ -160,11 +160,12 @@ export function SettingsPage({
   const isGoogleConnected = Boolean(
     currentUser?.googleId ||
     currentUser?.googleEmail ||
-    currentUser?.authProvider === 'google'
+    currentUser?.authProvider === 'google' ||
+    currentUser?.id?.startsWith('google_')
   );
   const googleConnectedEmail =
     currentUser?.googleEmail ||
-    (currentUser?.authProvider === 'google' ? currentUser?.email : null) ||
+    (isGoogleConnected ? currentUser?.email : null) ||
     '';
 
   const hasPasswordSet = currentUser?.hasPassword !== false && !currentUser?.id?.startsWith('google_');
@@ -1066,14 +1067,16 @@ export function SettingsPage({
               <div>
                 <h2 className="text-sm font-semibold text-zinc-900 tracking-tight">Google Account</h2>
                 <p className="text-[11px] text-zinc-500">
-                  Connect your Google account to quickly and securely sign in on any device.
+                  {isGoogleConnected
+                    ? 'Your Google account is linked to Wallo for quick and secure sign-in.'
+                    : 'Link a Google account for one-tap sign-in on any device.'}
                 </p>
               </div>
             </div>
             {isGoogleConnected && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-[3px]">
                 <Check className="w-3 h-3 text-emerald-600" />
-                <span>Connected</span>
+                <span>Linked</span>
               </span>
             )}
           </div>
@@ -1111,48 +1114,54 @@ export function SettingsPage({
                       {googleConnectedEmail || activeEmail || 'Google Account Linked'}
                     </div>
                     <p className="text-[11px] text-zinc-500 mt-0.5">
-                      Ready for instant Google sign-in
+                      Linked for sign-in
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  {!isDisconnectConfirmOpen ? (
-                    <button
-                      type="button"
-                      id="btn-disconnect-google-prompt"
-                      onClick={() => setIsDisconnectConfirmOpen(true)}
-                      disabled={isDisconnectingGoogle}
-                      className="px-3 py-1.5 text-xs font-medium text-zinc-700 hover:text-rose-700 bg-white hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 rounded-[4px] transition-colors cursor-pointer"
-                    >
-                      Disconnect
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
+                  {hasPasswordSet ? (
+                    !isDisconnectConfirmOpen ? (
                       <button
                         type="button"
-                        onClick={() => setIsDisconnectConfirmOpen(false)}
-                        className="px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-[4px] transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        id="btn-confirm-disconnect-google"
-                        onClick={handleDisconnectGoogle}
+                        id="btn-disconnect-google-prompt"
+                        onClick={() => setIsDisconnectConfirmOpen(true)}
                         disabled={isDisconnectingGoogle}
-                        className="px-2.5 py-1 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-[4px] transition-colors cursor-pointer flex items-center gap-1"
+                        className="px-3 py-1.5 text-xs font-medium text-zinc-700 hover:text-rose-700 bg-white hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 rounded-[4px] transition-colors cursor-pointer"
                       >
-                        {isDisconnectingGoogle ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Disconnecting...</span>
-                          </>
-                        ) : (
-                          <span>Confirm</span>
-                        )}
+                        Disconnect
                       </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsDisconnectConfirmOpen(false)}
+                          className="px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-[4px] transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          id="btn-confirm-disconnect-google"
+                          onClick={handleDisconnectGoogle}
+                          disabled={isDisconnectingGoogle}
+                          className="px-2.5 py-1 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-[4px] transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          {isDisconnectingGoogle ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Disconnecting...</span>
+                            </>
+                          ) : (
+                            <span>Confirm</span>
+                          )}
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-zinc-600 bg-zinc-100 border border-zinc-200 rounded-[4px]">
+                      Primary login
+                    </span>
                   )}
                 </div>
               </div>
@@ -1160,7 +1169,7 @@ export function SettingsPage({
               <div className="flex items-start gap-2 text-[11px] text-zinc-500 pt-0.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                 <span>
-                  You can now use Google to sign in anytime on your browser or mobile phone without needing a password.
+                  You can sign in with one tap using this Google account on any device without typing a password.
                 </span>
               </div>
             </div>
@@ -1191,14 +1200,14 @@ export function SettingsPage({
                   ) : (
                     <>
                       <GoogleIcon className="w-3.5 h-3.5 text-zinc-800" />
-                      <span>Connect Google Account</span>
+                      <span>Link Google Account</span>
                     </>
                   )}
                 </button>
               </div>
 
               <p className="text-[11px] text-zinc-500">
-                Once connected, you can sign into Wallo using either Google or your email.
+                Once linked, you can sign into Wallo using either Google or your email.
               </p>
             </div>
           )}

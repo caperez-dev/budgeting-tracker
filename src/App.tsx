@@ -203,6 +203,11 @@ export default function App() {
       if (user && user.isVerified === false) {
         return null;
       }
+      if (user && (user.id?.startsWith('google_') || user.googleId || user.googleEmail)) {
+        user.authProvider = user.authProvider || 'google';
+        user.googleId = user.googleId || (user.id?.startsWith('google_') ? user.id.replace('google_', '') : user.id);
+        user.googleEmail = user.googleEmail || user.email;
+      }
       return user;
     } catch {
       return null;

@@ -1987,19 +1987,28 @@ app.get("/api/db/sync", async (req, res) => {
         settings: settingsDoc || null,
         profile: profileDoc || null,
         user: userObj
-          ? {
-              id: userObj.id,
-              email: userObj.email,
-              nickname: userObj.nickname,
-              avatarUrl: userObj.avatarUrl,
-              defaultCurrency: userObj.defaultCurrency || "PHP",
-              googleId: userObj.googleId || null,
-              googleEmail: userObj.googleEmail || null,
-              authProvider: userObj.authProvider || "email",
-              hasPassword: Boolean(userObj.password && !userObj.password.startsWith("google_oauth_")),
-              hasPin: Boolean(userObj.pinCode),
-              isVerified: userObj.isVerified,
-            }
+          ? (() => {
+              const isGoogle = Boolean(
+                userObj.authProvider === "google" ||
+                userObj.googleId ||
+                userObj.googleEmail ||
+                userObj.id?.startsWith("google_") ||
+                (userObj.password && userObj.password.startsWith("google_oauth_"))
+              );
+              return {
+                id: userObj.id,
+                email: userObj.email,
+                nickname: userObj.nickname,
+                avatarUrl: userObj.avatarUrl,
+                defaultCurrency: userObj.defaultCurrency || "PHP",
+                googleId: userObj.googleId || (userObj.id?.startsWith("google_") ? userObj.id.replace("google_", "") : (isGoogle ? userObj.id : null)),
+                googleEmail: userObj.googleEmail || (isGoogle ? userObj.email : null),
+                authProvider: userObj.authProvider || (isGoogle ? "google" : "email"),
+                hasPassword: Boolean(userObj.password && !userObj.password.startsWith("google_oauth_")),
+                hasPin: Boolean(userObj.pinCode),
+                isVerified: userObj.isVerified,
+              };
+            })()
           : null,
       },
     });
