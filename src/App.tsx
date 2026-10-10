@@ -268,16 +268,91 @@ export default function App() {
           avatarUrl: parsed.user.avatarUrl || '',
           defaultCurrency: parsed.user.defaultCurrency || 'PHP',
           isVerified: true,
+          hasPin: parsed.user.hasPin ?? Boolean(parsed.user.pinCode),
+          pinCode: parsed.user.pinCode || null,
         };
 
         setCurrentUser(user);
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+        // Mark session unlocked on explicit Google login
+        sessionStorage.setItem(`wallo_session_unlocked_${user.id}`, 'true');
+        setIsPinLocked(false);
         localStorage.removeItem('budget_tracker_google_auth');
       }
     } catch {
       localStorage.removeItem('budget_tracker_google_auth');
     }
   }, []);
+
+  // Synchronize PIN status with database whenever currentUser is present
+  useEffect(() => {
+    if (!currentUser?.id && !currentUser?.email) return;
+
+    let isMounted = true;
+    const syncPinWithServer = async () => {
+      try {
+        const params = new URLSearchParams();
+        if (currentUser.id) params.append('userId', currentUser.id);
+        if (currentUser.email) params.append('email', currentUser.email);
+        const res = await fetch(`/api/user/pin-status?${params.toString()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted || !data.success) return;
+
+        const localPin = localStorage.getItem(`wallo_local_pin_${currentUser.id}`);
+
+        if (data.hasPin) {
+          // Server has PIN
+          if (!currentUser.hasPin || currentUser.pinCode !== data.pinCode) {
+            const updated: AuthUser = {
+              ...currentUser,
+              hasPin: true,
+              pinCode: data.pinCode || currentUser.pinCode || null,
+            };
+            setCurrentUser(updated);
+            try {
+              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
+              if (data.pinCode) {
+                localStorage.setItem(`wallo_local_pin_${currentUser.id}`, data.pinCode);
+              }
+            } catch {}
+          }
+        } else if (localPin && /^\d{4}$/.test(localPin.trim())) {
+          // Device has a local PIN from previous session but server has none: sync to database!
+          const saveRes = await fetch('/api/user/set-pin', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': currentUser.id,
+            },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              email: currentUser.email,
+              pin: localPin.trim(),
+            }),
+          });
+          if (saveRes.ok && isMounted) {
+            const updated: AuthUser = {
+              ...currentUser,
+              hasPin: true,
+              pinCode: localPin.trim(),
+            };
+            setCurrentUser(updated);
+            try {
+              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync PIN with server:', err);
+      }
+    };
+
+    syncPinWithServer();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id, currentUser?.email]);
 
   // Remove any legacy transaction history or tracker filter persistence from localStorage
   useEffect(() => {
@@ -2359,9 +2434,13 @@ export default function App() {
       } catch {}
     }
     try {
+      if (currentUser?.id) {
+        sessionStorage.removeItem(`wallo_session_unlocked_${currentUser.id}`);
+      }
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
       localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
     } catch {}
+    setIsPinLocked(false);
     setCurrentUser(null);
     setAuthView('landing');
     setTransactions([]);
@@ -2447,62 +2526,66 @@ export default function App() {
   };
 
   const handleSetUserPin = async (pin: string): Promise<boolean> => {
-    if (!currentUser?.id) return false;
+    if (!currentUser?.id && !currentUser?.email) return false;
     try {
       const res = await fetch('/api/user/set-pin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
+          'x-user-id': currentUser.id || '',
         },
-        body: JSON.stringify({ userId: currentUser.id, pin }),
+        body: JSON.stringify({
+          userId: currentUser.id,
+          email: currentUser.email,
+          pin: pin.trim(),
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         const updatedUser: AuthUser = {
           ...currentUser,
           hasPin: true,
-          pinCode: pin,
+          pinCode: pin.trim(),
         };
         setCurrentUser(updatedUser);
         try {
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
-          localStorage.setItem(`wallo_local_pin_${currentUser.id}`, pin);
+          localStorage.setItem(`wallo_local_pin_${currentUser.id}`, pin.trim());
         } catch {}
         return true;
       }
-    } catch {}
+    } catch (err) {
+      console.error('Failed to set PIN on server:', err);
+    }
 
-    // Fallback local storage update
-    const updatedUser: AuthUser = {
-      ...currentUser,
-      hasPin: true,
-      pinCode: pin,
-    };
-    setCurrentUser(updatedUser);
-    try {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
-      localStorage.setItem(`wallo_local_pin_${currentUser.id}`, pin);
-    } catch {}
-    return true;
+    return false;
   };
 
   const handleVerifyUserPin = async (pin: string): Promise<boolean> => {
-    if (!currentUser?.id) return false;
+    if (!currentUser?.id && !currentUser?.email) return false;
     try {
       const res = await fetch('/api/user/verify-pin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
+          'x-user-id': currentUser.id || '',
         },
-        body: JSON.stringify({ userId: currentUser.id, pin, email: currentUser.email }),
+        body: JSON.stringify({
+          userId: currentUser.id,
+          email: currentUser.email,
+          pin: pin.trim(),
+        }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.verified) return true;
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        return true;
       }
-    } catch {}
+      if (res.status === 400) {
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to verify PIN on server:', err);
+    }
 
     // Fallback: check stored local PIN or user object PIN
     const localPin =
@@ -2510,7 +2593,7 @@ export default function App() {
     if (localPin) {
       return String(localPin).trim() === pin.trim();
     }
-    return true;
+    return false;
   };
 
   // If user is not signed in or not verified, render the LandingPage or AuthScreen
@@ -2574,6 +2657,7 @@ export default function App() {
 
     return (
       <PinLockScreen
+        userId={currentUser.id}
         userNickname={currentUser.nickname}
         userEmail={currentUser.email}
         hasPin={hasPinSet}
@@ -2581,6 +2665,16 @@ export default function App() {
         onSetPin={handleSetUserPin}
         onVerifyPin={handleVerifyUserPin}
         onLogout={handleLogout}
+        onPinFound={() => {
+          setCurrentUser((prev) => {
+            if (!prev) return prev;
+            const updated: AuthUser = { ...prev, hasPin: true };
+            try {
+              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
+            } catch {}
+            return updated;
+          });
+        }}
       />
     );
   }

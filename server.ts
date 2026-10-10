@@ -999,121 +999,190 @@ app.post("/api/user/verify-password", async (req, res) => {
   res.json({ success: true, message: "Password verified." });
 });
 
+// Check PIN Status for a user across all devices
+app.get("/api/user/pin-status", async (req, res) => {
+  const userId = (req.query.userId as string) || (req.headers["x-user-id"] as string);
+  const email = (req.query.email as string) || "";
+
+  if (!userId && !email) {
+    res.status(400).json({ success: false, error: "User identifier required." });
+    return;
+  }
+
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Database unreachable." });
+    return;
+  }
+
+  try {
+    const user = await (UserModel as any).findOne({
+      $or: [
+        ...(userId ? [{ id: userId }] : []),
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(userId && userId.includes('@') ? [{ email: userId.trim().toLowerCase() }] : []),
+      ],
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, error: "Account not found." });
+      return;
+    }
+
+    res.json({
+      success: true,
+      hasPin: Boolean(user.pinCode),
+      pinCode: user.pinCode || null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || "Failed to fetch PIN status." });
+  }
+});
+
 // Verify 4-digit PIN Code
 app.post("/api/user/verify-pin", async (req, res) => {
   const userId = req.body.userId || (req.headers["x-user-id"] as string);
+  const email = req.body.email as string;
   const { pin } = req.body;
 
-  if (!userId) {
+  if (!userId && !email) {
     res.status(400).json({ success: false, error: "Active account session required." });
     return;
   }
 
-  if (!pin || typeof pin !== "string" || pin.length !== 4) {
+  if (!pin || typeof pin !== "string" || pin.trim().length !== 4) {
     res.status(400).json({ success: false, error: "Please enter a 4-digit PIN." });
     return;
   }
 
+  const cleanPin = pin.trim();
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
+
   const connected = await connectDB();
-  if (connected) {
-    try {
-      let user = await (UserModel as any).findOne({ id: userId });
-      if (!user && req.body.email) {
-        user = await (UserModel as any).findOne({ email: req.body.email.trim().toLowerCase() });
-      }
-
-      if (!user) {
-        res.json({ success: true, verified: true });
-        return;
-      }
-
-      if (!user.pinCode) {
-        // No PIN set yet
-        res.json({ success: true, verified: true, noPinSet: true });
-        return;
-      }
-
-      const isMatch = String(user.pinCode).trim() === pin.trim();
-      if (!isMatch) {
-        res.status(400).json({ success: false, error: "Incorrect PIN code. Please try again." });
-        return;
-      }
-
-      res.json({ success: true, verified: true });
-      return;
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || "Failed to verify PIN." });
-      return;
-    }
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Database service unreachable." });
+    return;
   }
 
-  res.json({ success: true, verified: true });
+  try {
+    const user = await (UserModel as any).findOne({
+      $or: [
+        ...(userId ? [{ id: userId }] : []),
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(userId && userId.includes('@') ? [{ email: userId.trim().toLowerCase() }] : []),
+      ],
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, error: "User account not found." });
+      return;
+    }
+
+    if (!user.pinCode) {
+      // No PIN set yet on account
+      res.status(400).json({ success: false, noPinSet: true, error: "No PIN code configured for this account." });
+      return;
+    }
+
+    const isMatch = String(user.pinCode).trim() === cleanPin;
+    if (!isMatch) {
+      res.status(400).json({ success: false, error: "Incorrect PIN code. Please try again." });
+      return;
+    }
+
+    res.json({ success: true, verified: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || "Failed to verify PIN." });
+  }
 });
 
 // Set / Update 4-digit PIN Code
 app.post("/api/user/set-pin", async (req, res) => {
   const userId = req.body.userId || (req.headers["x-user-id"] as string);
+  const email = req.body.email as string;
   const { pin } = req.body;
 
-  if (!userId) {
+  if (!userId && !email) {
     res.status(400).json({ success: false, error: "Active account session required." });
     return;
   }
 
-  if (!pin || typeof pin !== "string" || !/^\d{4}$/.test(pin)) {
+  if (!pin || typeof pin !== "string" || !/^\d{4}$/.test(pin.trim())) {
     res.status(400).json({ success: false, error: "PIN must be exactly 4 digits." });
     return;
   }
 
-  const connected = await connectDB();
-  if (connected) {
-    try {
-      let user = await (UserModel as any).findOne({ id: userId });
-      if (!user && req.body.email) {
-        user = await (UserModel as any).findOne({ email: req.body.email.trim().toLowerCase() });
-      }
+  const cleanPin = pin.trim();
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
 
-      if (user) {
-        user.pinCode = pin;
-        await user.save();
-      }
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || "Failed to update PIN." });
-      return;
-    }
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Database service unreachable." });
+    return;
   }
 
-  res.json({ success: true, message: "PIN set successfully.", pinCode: pin });
+  try {
+    const user = await (UserModel as any).findOne({
+      $or: [
+        ...(userId ? [{ id: userId }] : []),
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(userId && userId.includes('@') ? [{ email: userId.trim().toLowerCase() }] : []),
+      ],
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, error: "Account not found." });
+      return;
+    }
+
+    user.pinCode = cleanPin;
+    await user.save();
+
+    console.log(`[PIN Code] Successfully saved PIN for user ${user.email} (${user.id})`);
+    res.json({ success: true, message: "PIN set successfully.", hasPin: true, pinCode: cleanPin });
+  } catch (err: any) {
+    console.error("[PIN Code] Failed to update PIN:", err);
+    res.status(500).json({ success: false, error: err.message || "Failed to update PIN." });
+  }
 });
 
 // Remove 4-digit PIN Code
 app.post("/api/user/remove-pin", async (req, res) => {
   const userId = req.body.userId || (req.headers["x-user-id"] as string);
+  const email = req.body.email as string;
 
-  if (!userId) {
+  if (!userId && !email) {
     res.status(400).json({ success: false, error: "Active account session required." });
     return;
   }
 
-  const connected = await connectDB();
-  if (connected) {
-    try {
-      let user = await (UserModel as any).findOne({ id: userId });
-      if (!user && req.body.email) {
-        user = await (UserModel as any).findOne({ email: req.body.email.trim().toLowerCase() });
-      }
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
 
-      if (user) {
-        user.pinCode = null;
-        await user.save();
-      }
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || "Failed to remove PIN." });
-      return;
-    }
+  const connected = await connectDB();
+  if (!connected) {
+    res.status(503).json({ success: false, error: "Database service unreachable." });
+    return;
   }
 
-  res.json({ success: true, message: "PIN removed successfully." });
+  try {
+    const user = await (UserModel as any).findOne({
+      $or: [
+        ...(userId ? [{ id: userId }] : []),
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(userId && userId.includes('@') ? [{ email: userId.trim().toLowerCase() }] : []),
+      ],
+    });
+
+    if (user) {
+      user.pinCode = null;
+      await user.save();
+    }
+
+    res.json({ success: true, message: "PIN removed successfully." });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || "Failed to remove PIN." });
+  }
 });
 
 // Google OAuth Authorization URL endpoint
