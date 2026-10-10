@@ -29,13 +29,6 @@ function escapeRegex(text: string): string {
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
-});
-process.on("uncaughtException", (error) => {
-  console.error("Uncaught Exception:", error);
-});
-
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
@@ -88,11 +81,7 @@ function getOAuthRedirectOrigin(req: express.Request, requestedOrigin?: string):
 
 // Health Check Endpoints for Cloud Run / uptime monitoring
 app.get("/api/health", (_req, res) => {
-  res.json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    db: getDBStatus(),
-  });
+  res.json({ status: "healthy", timestamp: new Date().toISOString() });
 });
 app.get("/healthz", (_req, res) => {
   res.status(200).send("OK");
@@ -1708,6 +1697,13 @@ app.post("/api/auth/google/disconnect", async (req, res) => {
   }
 });
 
+// Health check endpoint
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    db: getDBStatus(),
+  });
+});
 
 // MongoDB Status & Sync Endpoints
 app.get("/api/db/status", async (_req, res) => {
