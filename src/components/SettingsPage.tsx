@@ -52,8 +52,8 @@ interface SettingsPageProps {
   profile: UserProfile;
   onBack: () => void;
   onSave: (data: {
-    nickname: string;
-    email: string;
+    nickname?: string;
+    email?: string;
     password?: string;
     currentPassword?: string;
     avatarUrl?: string;
@@ -229,8 +229,6 @@ export function SettingsPage({
     setErrorMessage(null);
     try {
       const result = await onSave({
-        nickname: nickname.trim() || profile.nickname || 'User',
-        email: activeEmail,
         avatarUrl: croppedDataUrl,
       });
       if (result.success) {
@@ -261,8 +259,6 @@ export function SettingsPage({
     setErrorMessage(null);
     try {
       const result = await onSave({
-        nickname: nickname.trim() || profile.nickname || 'User',
-        email: activeEmail,
         avatarUrl: '',
       });
       if (result.success) {

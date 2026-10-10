@@ -827,13 +827,28 @@ app.post("/api/user/update-profile", async (req, res) => {
   }
 
   const cleanEmail = email ? email.trim().toLowerCase() : "";
+  const connected = await connectDB();
+
+  let user: any = null;
+  if (connected) {
+    user = await (UserModel as any).findOne({
+      $or: [{ id: userId }, { email: String(userId).toLowerCase().trim() }],
+    });
+    if (!user && cleanEmail) {
+      user = await (UserModel as any).findOne({ email: cleanEmail });
+    }
+  }
+
   let cleanNickname = "";
   if (nickname !== undefined) {
     const rawNickname = String(nickname).trim();
-    const usernameValidation = validateUsername(rawNickname);
-    if (!usernameValidation.isValid) {
-      res.status(400).json({ success: false, error: usernameValidation.error });
-      return;
+    // Only validate username format if it is actually changing
+    if (!user || user.nickname !== rawNickname) {
+      const usernameValidation = validateUsername(rawNickname);
+      if (!usernameValidation.isValid) {
+        res.status(400).json({ success: false, error: usernameValidation.error });
+        return;
+      }
     }
     cleanNickname = rawNickname;
   }
@@ -848,14 +863,15 @@ app.post("/api/user/update-profile", async (req, res) => {
     return;
   }
 
-  const connected = await connectDB();
   if (connected) {
     try {
+      const canonicalUserId = user ? user.id : userId;
+
       // Check if another account already uses this username (case-insensitive)
-      if (cleanNickname) {
+      if (cleanNickname && (!user || user.nickname !== cleanNickname)) {
         const existingWithUsername = await (UserModel as any).findOne({
           nickname: { $regex: new RegExp(`^${escapeRegex(cleanNickname)}$`, "i") },
-          id: { $ne: userId },
+          id: { $ne: canonicalUserId },
         });
         if (existingWithUsername) {
           res.status(400).json({
@@ -867,10 +883,10 @@ app.post("/api/user/update-profile", async (req, res) => {
       }
 
       // Check if another account already uses this email
-      if (cleanEmail) {
+      if (cleanEmail && (!user || user.email !== cleanEmail)) {
         const existingWithEmail = await (UserModel as any).findOne({
           email: cleanEmail,
-          id: { $ne: userId },
+          id: { $ne: canonicalUserId },
         });
         if (existingWithEmail) {
           res.status(400).json({
@@ -882,11 +898,6 @@ app.post("/api/user/update-profile", async (req, res) => {
       }
 
       // Update UserModel
-      let user = await (UserModel as any).findOne({ id: userId });
-      if (!user && cleanEmail) {
-        user = await (UserModel as any).findOne({ email: cleanEmail });
-      }
-
       if (user) {
         if (password && password.trim().length >= 6) {
           if (user.password && currentPassword !== undefined && currentPassword.trim() !== user.password) {
@@ -906,14 +917,18 @@ app.post("/api/user/update-profile", async (req, res) => {
         await user.save();
       }
 
+      const finalAvatarUrl = avatarUrl !== undefined ? avatarUrl : (user?.avatarUrl || "");
+      const finalNickname = cleanNickname || user?.nickname || "User";
+      const finalEmail = cleanEmail || user?.email || "";
+
       // Update UserProfileModel strictly scoped to this user
-      const profileFilter = userId
-        ? { $or: [{ userId }, { singletonId: `profile_${userId}` }] }
+      const profileFilter = canonicalUserId
+        ? { $or: [{ userId: canonicalUserId }, { singletonId: `profile_${canonicalUserId}` }] }
         : { singletonId: "default_profile" };
 
       const profileUpdate: any = {
-        userId: userId || "",
-        singletonId: userId ? `profile_${userId}` : "default_profile",
+        userId: canonicalUserId || "",
+        singletonId: canonicalUserId ? `profile_${canonicalUserId}` : "default_profile",
       };
       if (cleanNickname) profileUpdate.nickname = cleanNickname;
       if (cleanEmail) profileUpdate.email = cleanEmail;
@@ -925,13 +940,25 @@ app.post("/api/user/update-profile", async (req, res) => {
         { upsert: true, returnDocument: 'after' }
       );
 
+      // Real-time broadcast to all connected devices for this user
+      broadcastToUser(canonicalUserId, {
+        type: "profile_updated",
+        userId: canonicalUserId,
+        email: finalEmail,
+        profile: {
+          nickname: finalNickname,
+          email: finalEmail,
+          avatarUrl: finalAvatarUrl,
+        },
+      });
+
       res.json({
         success: true,
         user: {
-          id: user ? user.id : userId,
-          email: cleanEmail || user?.email || "",
-          nickname: cleanNickname || user?.nickname || "User",
-          avatarUrl: avatarUrl !== undefined ? avatarUrl : (user?.avatarUrl || ""),
+          id: canonicalUserId,
+          email: finalEmail,
+          nickname: finalNickname,
+          avatarUrl: finalAvatarUrl,
         },
       });
       return;
@@ -1296,7 +1323,7 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
       });
     } else {
       let needsSave = false;
-      if (!user.avatarUrl && googleProfile.picture) {
+      if (user.avatarUrl === undefined && googleProfile.picture) {
         user.avatarUrl = googleProfile.picture;
         needsSave = true;
       }
@@ -1622,13 +1649,14 @@ app.get("/api/db/sync", async (req, res) => {
     if (userId) {
       userObj = await (UserModel as any).findOne({ id: userId }).lean().exec();
       if (userObj) {
+        const finalAvatar =
+          userObj.avatarUrl !== undefined
+            ? userObj.avatarUrl
+            : (profileDocFromDb?.avatarUrl || "");
         profileDoc = {
-          nickname: profileDocFromDb?.nickname || userObj.nickname || "User",
+          nickname: userObj.nickname || profileDocFromDb?.nickname || "User",
           email: userObj.email, // Authoritative email of this authenticated user account
-          avatarUrl:
-            profileDocFromDb?.avatarUrl !== undefined
-              ? profileDocFromDb.avatarUrl
-              : (userObj.avatarUrl || ""),
+          avatarUrl: finalAvatar,
           userId: userObj.id,
         };
       }
@@ -1939,6 +1967,8 @@ app.post("/api/db/sync", async (req, res) => {
     }
 
     if (profile) {
+      // Exclude avatarUrl from bulk sync to prevent older devices from clobbering profile photos
+      const { avatarUrl: _syncedAvatar, ...restProfile } = profile;
       const filter = userId
         ? { $or: [{ userId }, { singletonId: `profile_${userId}` }] }
         : { singletonId: "default_profile" };
@@ -1947,7 +1977,7 @@ app.post("/api/db/sync", async (req, res) => {
           filter,
           {
             $set: {
-              ...profile,
+              ...restProfile,
               userId: userId || "",
               singletonId: userId ? `profile_${userId}` : "default_profile",
             },
@@ -1955,15 +1985,6 @@ app.post("/api/db/sync", async (req, res) => {
           { upsert: true, returnDocument: 'after' }
         )
       );
-
-      if (userId && profile.avatarUrl !== undefined) {
-        promises.push(
-          (UserModel as any).findOneAndUpdate(
-            { id: userId },
-            { $set: { avatarUrl: profile.avatarUrl } }
-          )
-        );
-      }
     }
 
     await Promise.all(promises);
@@ -1979,21 +2000,32 @@ const sseClients = new Map<string, Set<any>>();
 
 function broadcastToUser(rawUserId: string, payload: any) {
   if (!rawUserId) return;
-  const targetIds: string[] = [rawUserId.toLowerCase().trim()];
+  const targetIds = new Set<string>();
+  targetIds.add(rawUserId.toLowerCase().trim());
+  if (payload.userId) {
+    targetIds.add(String(payload.userId).toLowerCase().trim());
+  }
+  if (payload.email) {
+    targetIds.add(String(payload.email).toLowerCase().trim());
+  }
   if (Array.isArray(payload.userIds)) {
     payload.userIds.forEach((id: string) => {
-      if (id) targetIds.push(id.toLowerCase().trim());
+      if (id) targetIds.add(String(id).toLowerCase().trim());
     });
   }
   const msg = `data: ${JSON.stringify(payload)}\n\n`;
+  const sentClients = new Set<any>();
   for (const tid of targetIds) {
     const clients = sseClients.get(tid);
     if (clients) {
       for (const client of clients) {
-        try {
-          client.write(msg);
-        } catch {
-          clients.delete(client);
+        if (!sentClients.has(client)) {
+          sentClients.add(client);
+          try {
+            client.write(msg);
+          } catch {
+            clients.delete(client);
+          }
         }
       }
     }

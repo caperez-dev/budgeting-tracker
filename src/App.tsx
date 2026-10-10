@@ -1059,6 +1059,23 @@ export default function App() {
                   JSON.stringify(safeProfile)
                 );
               } catch {}
+
+              // Keep currentUser avatar and nickname in sync across device
+              setCurrentUser((prev) => {
+                if (!prev) return prev;
+                if (prev.avatarUrl === safeProfile.avatarUrl && prev.nickname === safeProfile.nickname) {
+                  return prev;
+                }
+                const updatedUser: AuthUser = {
+                  ...prev,
+                  avatarUrl: safeProfile.avatarUrl,
+                  nickname: safeProfile.nickname,
+                };
+                try {
+                  localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+                } catch {}
+                return updatedUser;
+              });
             }
           }
           const nowStr = new Date().toLocaleTimeString('en-US', {
@@ -1122,7 +1139,6 @@ export default function App() {
           debts,
           goals,
           settings,
-          profile: userProfile,
         }),
       })
         .then(() => {
@@ -1136,7 +1152,7 @@ export default function App() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [categories, currencies, accounts, debts, goals, settings, userProfile, dbStatus.connected, currentUser?.id]);
+  }, [categories, currencies, accounts, debts, goals, settings, dbStatus.connected, currentUser?.id]);
 
   // Real-Time Cross-Device Synchronization via Server-Sent Events (SSE)
   useEffect(() => {
@@ -1169,6 +1185,39 @@ export default function App() {
               setTransactions((prev) => prev.filter((t) => t.id !== data.id));
             } else if (data.type === 'sync_updated') {
               handleSyncWithDB(uid);
+            } else if (data.type === 'profile_updated' && data.profile) {
+              const updated = data.profile;
+              const nextAvatar = updated.avatarUrl !== undefined ? updated.avatarUrl : '';
+              const nextNickname = updated.nickname || 'User';
+              const nextEmail = updated.email || '';
+
+              const safeProfile: UserProfile = {
+                nickname: nextNickname,
+                email: nextEmail,
+                avatarUrl: nextAvatar,
+              };
+              setUserProfile(safeProfile);
+
+              setCurrentUser((prev) => {
+                if (!prev) return prev;
+                const updatedUser: AuthUser = {
+                  ...prev,
+                  nickname: nextNickname || prev.nickname,
+                  email: nextEmail || prev.email,
+                  avatarUrl: nextAvatar,
+                };
+                try {
+                  localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+                } catch {}
+                return updatedUser;
+              });
+
+              try {
+                localStorage.setItem(
+                  getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, uid),
+                  JSON.stringify(safeProfile)
+                );
+              } catch {}
             }
           } catch {}
         };
@@ -2362,7 +2411,6 @@ export default function App() {
           goals,
           accounts,
           categories,
-          profile: userProfile,
         }),
       }).catch(() => {});
     }
@@ -2454,13 +2502,22 @@ export default function App() {
   };
 
   const handleUpdateAccountSettings = async (data: {
-    nickname: string;
-    email: string;
+    nickname?: string;
+    email?: string;
     password?: string;
     currentPassword?: string;
     avatarUrl?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
+      const payload: any = {
+        userId: currentUser?.id,
+      };
+      if (data.nickname !== undefined) payload.nickname = data.nickname;
+      if (data.email !== undefined) payload.email = data.email;
+      if (data.password !== undefined) payload.password = data.password;
+      if (data.currentPassword !== undefined) payload.currentPassword = data.currentPassword;
+      if (data.avatarUrl !== undefined) payload.avatarUrl = data.avatarUrl;
+
       try {
         const res = await fetch('/api/user/update-profile', {
           method: 'POST',
@@ -2468,14 +2525,7 @@ export default function App() {
             'Content-Type': 'application/json',
             'x-user-id': currentUser?.id || '',
           },
-          body: JSON.stringify({
-            userId: currentUser?.id,
-            nickname: data.nickname,
-            email: data.email,
-            password: data.password,
-            currentPassword: data.currentPassword,
-            avatarUrl: data.avatarUrl,
-          }),
+          body: JSON.stringify(payload),
         });
 
         if (!res.ok) {
@@ -2496,14 +2546,22 @@ export default function App() {
         console.error('Failed to update profile on server:', err);
       }
 
+      const nextNickname =
+        data.nickname !== undefined
+          ? data.nickname
+          : (currentUser?.nickname || userProfile.nickname || 'User');
+      const nextEmail =
+        data.email !== undefined
+          ? data.email
+          : (currentUser?.email || userProfile.email || '');
       const nextAvatar =
         data.avatarUrl !== undefined ? data.avatarUrl : (currentUser?.avatarUrl || '');
 
       // Always update on device
       const updatedUser: AuthUser = {
-        ...(currentUser || { id: 'user-local', email: data.email, nickname: data.nickname }),
-        email: data.email,
-        nickname: data.nickname,
+        ...(currentUser || { id: 'user-local', email: nextEmail, nickname: nextNickname }),
+        email: nextEmail,
+        nickname: nextNickname,
         avatarUrl: nextAvatar,
         defaultCurrency: currentUser?.defaultCurrency || settings.defaultCurrency || 'PHP',
       };
@@ -2513,8 +2571,8 @@ export default function App() {
       } catch {}
 
       const updatedProfile: UserProfile = {
-        nickname: data.nickname,
-        email: data.email,
+        nickname: nextNickname,
+        email: nextEmail,
         avatarUrl: nextAvatar,
       };
       setUserProfile(updatedProfile);
