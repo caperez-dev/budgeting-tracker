@@ -645,7 +645,7 @@ export default function App() {
             nickname: parsed.nickname || currentUser.nickname || 'User',
             email: currentUser.email || parsed.email || '',
             avatarUrl:
-              parsed.avatarUrl !== undefined && parsed.avatarUrl !== ''
+              parsed.avatarUrl !== undefined
                 ? parsed.avatarUrl
                 : currentUser.avatarUrl || '',
           };
@@ -889,7 +889,7 @@ export default function App() {
           nickname: parsed.nickname || user.nickname || 'User',
           email: user.email, // Always enforce the logged-in user's email
           avatarUrl:
-            parsed.avatarUrl !== undefined && parsed.avatarUrl !== ''
+            parsed.avatarUrl !== undefined
               ? parsed.avatarUrl
               : user.avatarUrl || '',
         });
@@ -1048,7 +1048,7 @@ export default function App() {
                 nickname: json.data.profile.nickname || currentUser?.nickname || 'User',
                 email: currentUser?.email || profileEmail,
                 avatarUrl:
-                  json.data.profile.avatarUrl !== undefined && json.data.profile.avatarUrl !== ''
+                  json.data.profile.avatarUrl !== undefined
                     ? json.data.profile.avatarUrl
                     : currentUser?.avatarUrl || '',
               };
@@ -2478,26 +2478,33 @@ export default function App() {
           }),
         });
 
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const json = await res.json();
-          if (!res.ok || json.success === false) {
+        if (!res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const json = await res.json();
             return {
               success: false,
               error: json.error || 'Failed to update account settings.',
             };
           }
+          return {
+            success: false,
+            error: 'Server error updating account settings.',
+          };
         }
-      } catch {
-        // Backend offline or running on static hosting
+      } catch (err: any) {
+        console.error('Failed to update profile on server:', err);
       }
+
+      const nextAvatar =
+        data.avatarUrl !== undefined ? data.avatarUrl : (currentUser?.avatarUrl || '');
 
       // Always update on device
       const updatedUser: AuthUser = {
-        id: currentUser?.id || 'user-local',
+        ...(currentUser || { id: 'user-local', email: data.email, nickname: data.nickname }),
         email: data.email,
         nickname: data.nickname,
-        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : currentUser?.avatarUrl,
+        avatarUrl: nextAvatar,
         defaultCurrency: currentUser?.defaultCurrency || settings.defaultCurrency || 'PHP',
       };
       setCurrentUser(updatedUser);
@@ -2505,12 +2512,21 @@ export default function App() {
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
       } catch {}
 
-      setUserProfile((prev) => ({
-        ...prev,
+      const updatedProfile: UserProfile = {
         nickname: data.nickname,
         email: data.email,
-        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : prev.avatarUrl,
-      }));
+        avatarUrl: nextAvatar,
+      };
+      setUserProfile(updatedProfile);
+
+      if (currentUser?.id) {
+        try {
+          localStorage.setItem(
+            getUserStorageKey(STORAGE_KEYS.USER_PROFILE_PREFIX, currentUser.id),
+            JSON.stringify(updatedProfile)
+          );
+        } catch {}
+      }
 
       return { success: true };
     } catch (err: any) {

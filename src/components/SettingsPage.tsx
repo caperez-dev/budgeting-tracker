@@ -100,7 +100,14 @@ export function SettingsPage({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string>(profile.avatarUrl || currentUser?.avatarUrl || '');
+  const [avatarUrl, setAvatarUrl] = useState<string>(
+    profile.avatarUrl !== undefined ? profile.avatarUrl : (currentUser?.avatarUrl || '')
+  );
+
+  useEffect(() => {
+    const next = profile.avatarUrl !== undefined ? profile.avatarUrl : (currentUser?.avatarUrl || '');
+    setAvatarUrl(next);
+  }, [profile.avatarUrl, currentUser?.avatarUrl]);
 
   // Photo crop modal state
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);

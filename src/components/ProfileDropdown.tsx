@@ -99,7 +99,7 @@ export function ProfileDropdown({
 
   const isEmailLoading = isLoading || (!currentUser?.email && !profile.email);
   const activeEmail = currentUser?.email || profile.email || '';
-  const activeAvatar = profile.avatarUrl || currentUser?.avatarUrl || '';
+  const activeAvatar = profile.avatarUrl !== undefined ? profile.avatarUrl : (currentUser?.avatarUrl || '');
   const activeNickname = profile.nickname || currentUser?.nickname || 'User';
 
   return (
@@ -118,6 +118,7 @@ export function ProfileDropdown({
           <div className="w-8 h-8 rounded-full bg-zinc-200 animate-pulse border border-zinc-300/60 shrink-0" />
         ) : activeAvatar ? (
           <img
+            key={activeAvatar}
             src={activeAvatar}
             alt={activeNickname}
             className={`w-8 h-8 rounded-full object-cover transition-all shrink-0 ${
@@ -150,6 +151,7 @@ export function ProfileDropdown({
                 <div className="w-13 h-13 rounded-full bg-zinc-200 animate-pulse border-2 border-zinc-100 shadow-xs shrink-0" />
               ) : activeAvatar ? (
                 <img
+                  key={activeAvatar}
                   src={activeAvatar}
                   alt={activeNickname}
                   className="w-13 h-13 rounded-full object-cover border-2 border-zinc-100 shadow-xs"

@@ -29,7 +29,8 @@ function escapeRegex(text: string): string {
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 function stripTrailingSlash(url: string): string {
   return (url || "").replace(/\/$/, "");
@@ -1625,7 +1626,7 @@ app.get("/api/db/sync", async (req, res) => {
           nickname: profileDocFromDb?.nickname || userObj.nickname || "User",
           email: userObj.email, // Authoritative email of this authenticated user account
           avatarUrl:
-            profileDocFromDb?.avatarUrl !== undefined && profileDocFromDb.avatarUrl !== ""
+            profileDocFromDb?.avatarUrl !== undefined
               ? profileDocFromDb.avatarUrl
               : (userObj.avatarUrl || ""),
           userId: userObj.id,
@@ -1954,6 +1955,15 @@ app.post("/api/db/sync", async (req, res) => {
           { upsert: true, returnDocument: 'after' }
         )
       );
+
+      if (userId && profile.avatarUrl !== undefined) {
+        promises.push(
+          (UserModel as any).findOneAndUpdate(
+            { id: userId },
+            { $set: { avatarUrl: profile.avatarUrl } }
+          )
+        );
+      }
     }
 
     await Promise.all(promises);

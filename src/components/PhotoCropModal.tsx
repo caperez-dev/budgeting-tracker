@@ -12,7 +12,7 @@ interface PhotoCropModalProps {
 }
 
 const CROP_SIZE = 260; // Size of the circular crop viewport in px
-const OUTPUT_SIZE = 400; // Output square image resolution
+const OUTPUT_SIZE = 360; // Output square image resolution
 const COVER_PADDING = 24; // Extra padding ensuring the image always covers circle with safety cushion
 
 export function PhotoCropModal({
@@ -412,7 +412,7 @@ export function PhotoCropModal({
     );
 
     try {
-      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
       await onSave(croppedDataUrl);
     } catch (err) {
       console.error('Failed to export cropped photo', err);
