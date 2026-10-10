@@ -203,7 +203,14 @@ export default function App() {
       if (user && user.isVerified === false) {
         return null;
       }
-      if (user && (user.id?.startsWith('google_') || user.googleId || user.googleEmail)) {
+      if (
+        user &&
+        (user.id?.startsWith('google_') ||
+          user.googleId ||
+          user.googleEmail ||
+          user.authProvider === 'google' ||
+          (user.email && (user.email.toLowerCase().endsWith('@gmail.com') || user.email.toLowerCase().endsWith('@googlemail.com'))))
+      ) {
         user.authProvider = user.authProvider || 'google';
         user.googleId = user.googleId || (user.id?.startsWith('google_') ? user.id.replace('google_', '') : user.id);
         user.googleEmail = user.googleEmail || user.email;

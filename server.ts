@@ -29,6 +29,13 @@ function escapeRegex(text: string): string {
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+});
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+});
+
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
@@ -81,7 +88,11 @@ function getOAuthRedirectOrigin(req: express.Request, requestedOrigin?: string):
 
 // Health Check Endpoints for Cloud Run / uptime monitoring
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "healthy", timestamp: new Date().toISOString() });
+  res.json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    db: getDBStatus(),
+  });
 });
 app.get("/healthz", (_req, res) => {
   res.status(200).send("OK");
@@ -983,6 +994,13 @@ app.post("/api/user/update-profile", async (req, res) => {
           email: finalEmail,
           nickname: finalNickname,
           avatarUrl: finalAvatarUrl,
+          defaultCurrency: user?.defaultCurrency || "PHP",
+          googleId: user?.googleId || null,
+          googleEmail: user?.googleEmail || null,
+          authProvider: user?.authProvider || (user?.googleId ? "google" : "email"),
+          hasPassword: Boolean(user?.password && !user?.password.startsWith("google_oauth_")),
+          hasPin: Boolean(user?.pinCode),
+          isVerified: true,
         },
       });
       return;
@@ -1690,13 +1708,6 @@ app.post("/api/auth/google/disconnect", async (req, res) => {
   }
 });
 
-// Health check endpoint
-app.get("/api/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    db: getDBStatus(),
-  });
-});
 
 // MongoDB Status & Sync Endpoints
 app.get("/api/db/status", async (_req, res) => {
@@ -1913,7 +1924,10 @@ app.get("/api/db/sync", async (req, res) => {
     let profileDoc: any = profileDocFromDb;
     let userObj: any = null;
     if (userId) {
-      userObj = await (UserModel as any).findOne({ id: userId }).lean().exec();
+      userObj = await (UserModel as any)
+        .findOne({ $or: [{ id: userId }, { email: String(userId).toLowerCase().trim() }] })
+        .lean()
+        .exec();
       if (userObj) {
         const finalAvatar =
           userObj.avatarUrl !== undefined

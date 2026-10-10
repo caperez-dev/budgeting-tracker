@@ -161,11 +161,15 @@ export function SettingsPage({
     currentUser?.googleId ||
     currentUser?.googleEmail ||
     currentUser?.authProvider === 'google' ||
-    currentUser?.id?.startsWith('google_')
+    currentUser?.id?.startsWith('google_') ||
+    (currentUser?.email && (currentUser.email.toLowerCase().endsWith('@gmail.com') || currentUser.email.toLowerCase().endsWith('@googlemail.com'))) ||
+    (profile?.email && (profile.email.toLowerCase().endsWith('@gmail.com') || profile.email.toLowerCase().endsWith('@googlemail.com'))) ||
+    (activeEmail && (activeEmail.toLowerCase().endsWith('@gmail.com') || activeEmail.toLowerCase().endsWith('@googlemail.com')))
   );
+
   const googleConnectedEmail =
     currentUser?.googleEmail ||
-    (isGoogleConnected ? currentUser?.email : null) ||
+    (isGoogleConnected ? (currentUser?.email || profile?.email || activeEmail) : null) ||
     '';
 
   const hasPasswordSet = currentUser?.hasPassword !== false && !currentUser?.id?.startsWith('google_');
