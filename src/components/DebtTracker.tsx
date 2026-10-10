@@ -13,6 +13,7 @@ import { formatCurrency, getTodayDateString } from '../utils/formatters';
 import { CurrencySelect } from './CurrencySelect';
 import { SpecularButton } from './ui/SpecularButton';
 import { ModalPortal } from './ui/ModalPortal';
+import { AddDebtModal } from './AddDebtModal';
 
 interface DebtTrackerProps {
   debts: Debt[];
@@ -33,16 +34,6 @@ export function DebtTracker({
 }: DebtTrackerProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [debtToDelete, setDebtToDelete] = useState<Debt | null>(null);
-  const [type, setType] = useState<'owe' | 'owed'>('owe');
-  const [person, setPerson] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState(selectedCurrency);
-  const [note, setNote] = useState('');
-  const [dueDate, setDueDate] = useState('');
-
-  React.useEffect(() => {
-    setCurrency(selectedCurrency);
-  }, [selectedCurrency]);
 
   const currencyObj = currencies.find((c) => c.code === selectedCurrency);
   const currencySymbol = currencyObj?.symbol || '₱';
@@ -57,61 +48,6 @@ export function DebtTracker({
   const totalOwedToYouUnsettled = debtsOwedToYou
     .filter((d) => !d.settled)
     .reduce((sum, d) => sum + d.amount, 0);
-
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const isFormValid =
-    person.trim().length > 0 &&
-    amount.trim().length > 0 &&
-    !isNaN(parseFloat(amount)) &&
-    parseFloat(amount) > 0;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPerson = person.trim().slice(0, 30);
-    const numAmount = parseFloat(amount);
-
-    if (!cleanPerson) {
-      setErrorMsg('Please enter a person or entity name.');
-      return;
-    }
-
-    if (isNaN(numAmount) || numAmount <= 0) {
-      setErrorMsg('Please enter a valid amount.');
-      return;
-    }
-
-    if (numAmount > 9999999999.99) {
-      setErrorMsg('Amount is too large (maximum 10 digits).');
-      return;
-    }
-
-    setErrorMsg(null);
-    onAddDebt({
-      type,
-      person: cleanPerson,
-      amount: numAmount,
-      currency,
-      note: note.trim().slice(0, 100),
-      dueDate: dueDate || undefined,
-    });
-
-    setPerson('');
-    setAmount('');
-    setNote('');
-    setDueDate('');
-    setShowAddModal(false);
-  };
-
-  const handleAmountChange = (val: string) => {
-    const cleaned = val.replace(/[^0-9.]/g, '');
-    const parts = cleaned.split('.');
-    if (parts.length > 2) return;
-    if (parts[0].length > 10) return;
-    if (parts[1] && parts[1].length > 2) return;
-    setAmount(cleaned);
-    if (errorMsg) setErrorMsg(null);
-  };
 
   return (
     <div id="debt-tracker-view" className="space-y-5">
@@ -315,173 +251,12 @@ export function DebtTracker({
 
       {/* Add Debt Modal */}
       {showAddModal && (
-        <ModalPortal>
-          <div
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-modal-backdrop-in"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowAddModal(false);
-              }
-            }}
-          >
-            <form
-              onSubmit={handleSubmit}
-              className="bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 my-auto animate-modal-slide-in"
-            >
-              <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-                <h4 className="text-sm font-semibold text-zinc-900">Add Debt Entry</h4>
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="text-zinc-400 hover:text-zinc-600 text-xs"
-                >
-                  ✕
-                </button>
-              </div>
-
-            <div className="space-y-3 text-xs">
-              {/* Type Toggle */}
-              <div>
-                <label className="block text-zinc-500 font-medium mb-1">Type</label>
-                <div className="grid grid-cols-2 p-0.5 bg-zinc-100 rounded-[4px] border border-zinc-200 w-full text-xs font-medium">
-                  <button
-                    type="button"
-                    onClick={() => setType('owe')}
-                    className={`py-1 rounded-[3px] transition-colors cursor-pointer text-center ${
-                      type === 'owe'
-                        ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
-                        : 'text-zinc-500 hover:text-zinc-800'
-                    }`}
-                  >
-                    Liability
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setType('owed')}
-                    className={`py-1 rounded-[3px] transition-colors cursor-pointer text-center ${
-                      type === 'owed'
-                        ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
-                        : 'text-zinc-500 hover:text-zinc-800'
-                    }`}
-                  >
-                    Receivables
-                  </button>
-                </div>
-              </div>
-
-              {/* Person / Entity */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-zinc-500 font-medium">
-                    Person or Entity
-                  </label>
-                  <span className="text-[10px] text-zinc-400 font-mono">
-                    {person.length}/30
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  required
-                  maxLength={30}
-                  value={person}
-                  onChange={(e) => setPerson(e.target.value.slice(0, 30))}
-                  placeholder="Person or company name"
-                  className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              {/* Amount & Currency */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-zinc-500 font-medium mb-1">Amount</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    required
-                    value={amount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-zinc-500 font-medium mb-1">Currency</label>
-                  <CurrencySelect
-                    currencies={currencies}
-                    value={currency}
-                    onChange={setCurrency}
-                    ariaLabel="Debt currency"
-                    className="h-9"
-                  />
-                </div>
-              </div>
-
-              {/* Due Date */}
-              <div>
-                <label className="block text-zinc-500 font-medium mb-1">
-                  Target Due Date (Optional)
-                </label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              {/* Note */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-zinc-500 font-medium">
-                    Description / Note (Optional)
-                  </label>
-                  <span className="text-[10px] text-zinc-400 font-mono">
-                    {note.length}/100
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  maxLength={100}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value.slice(0, 100))}
-                  placeholder="Reference or note (optional)"
-                  className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              {errorMsg && (
-                <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px]">
-                  {errorMsg}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100">
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <SpecularButton
-                type="submit"
-                size="sm"
-                radius={3}
-                disabled={!isFormValid}
-                isMuted={!isFormValid}
-                className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                  !isFormValid
-                    ? 'opacity-40 cursor-not-allowed bg-zinc-200 text-zinc-400 border border-zinc-200 shadow-none'
-                    : 'text-white cursor-pointer'
-                }`}
-              >
-                Save Debt
-              </SpecularButton>
-            </div>
-          </form>
-        </div>
-        </ModalPortal>
+        <AddDebtModal
+          onClose={() => setShowAddModal(false)}
+          onAddDebt={onAddDebt}
+          currencies={currencies}
+          defaultCurrency={selectedCurrency}
+        />
       )}
 
       {/* Delete Debt Confirmation Modal */}

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, AlertCircle, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Currency, Goal } from '../types';
 import { CurrencySelect } from './CurrencySelect';
 import { SpecularButton } from './ui/SpecularButton';
+import { ModalPortal } from './ui/ModalPortal';
 import { useModalAnimation } from '../utils/useModalAnimation';
 import { getTodayDateString } from '../utils/formatters';
 
-interface CreateGoalModalProps {
+export interface CreateGoalModalProps {
   isOpen?: boolean;
   onClose: () => void;
   onAddGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => void;
@@ -30,7 +31,6 @@ export function CreateGoalModal({
   const [imageUrl, setImageUrl] = useState('');
   const [imageError, setImageError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -43,8 +43,8 @@ export function CreateGoalModal({
         requestClose();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [requestClose]);
 
   const compressGoalImage = (file: File, maxSize = 600, quality = 0.85): Promise<string> =>
@@ -87,22 +87,29 @@ export function CreateGoalModal({
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setImageError('Please select a valid image file (JPG, PNG, WebP).');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setImageError('Image file is too large. Please select an image under 5MB.');
-        return;
-      }
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setImageError('Please select a valid image file');
+      return;
+    }
+
+    try {
+      const compressedDataUrl = await compressGoalImage(file);
+      setImageUrl(compressedDataUrl);
       setImageError(null);
-      try {
-        const compressedBase64 = await compressGoalImage(file);
-        setImageUrl(compressedBase64);
-      } catch {
-        setImageError('Could not process this image. Please choose another.');
+    } catch {
+      if (file.size > 2 * 1024 * 1024) {
+        setImageError('Image file is too large (max 2MB)');
+        return;
       }
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        if (uploadEvent.target?.result) {
+          setImageUrl(uploadEvent.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -114,46 +121,28 @@ export function CreateGoalModal({
     }
   };
 
-  const handlePriceChange = (val: string) => {
-    const cleaned = val.replace(/[^0-9.]/g, '');
-    const parts = cleaned.split('.');
-    if (parts.length > 2) return;
-    if (parts[0].length > 10) return;
-    if (parts[1] && parts[1].length > 2) return;
-    setTargetPrice(cleaned);
-    if (errorMsg) setErrorMsg(null);
-  };
+  const isAddFormValid =
+    name.trim().length > 0 &&
+    targetPrice.trim().length > 0 &&
+    !isNaN(parseFloat(targetPrice)) &&
+    parseFloat(targetPrice) > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = name.trim().slice(0, 50);
     const price = parseFloat(targetPrice);
-
-    if (!cleanName) {
-      setErrorMsg('Please enter a goal name.');
+    if (!name.trim() || isNaN(price) || price <= 0) {
       return;
     }
 
-    if (isNaN(price) || price <= 0) {
-      setErrorMsg('Please enter a valid target price.');
-      return;
-    }
-
-    if (price > 9999999999.99) {
-      setErrorMsg('Target price is too large (maximum 10 digits).');
-      return;
-    }
-
-    setErrorMsg(null);
     onAddGoal({
-      name: cleanName,
+      name: name.trim(),
       targetPrice: price,
       currency,
       plannedDate: plannedDate || getTodayDateString(),
       imageUrl: imageUrl || undefined,
       allocationMode: 'shared',
       earmarkedAmount: 0,
-      notes: notes.trim().slice(0, 150) || undefined,
+      notes: notes.trim() || undefined,
       isAchieved: false,
     });
 
@@ -161,193 +150,165 @@ export function CreateGoalModal({
   };
 
   return (
-    <div
-      id="modal-create-goal-backdrop"
-      className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 cursor-pointer select-none ${backdropClass}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          requestClose();
-        }
-      }}
-    >
+    <ModalPortal>
       <div
-        id="modal-create-goal"
-        className={`bg-white rounded-[6px] border border-zinc-200 p-5 max-w-md w-full shadow-xl space-y-4 max-h-[92vh] flex flex-col cursor-default select-none ${modalClass}`}
-        onClick={(e) => e.stopPropagation()}
+        id="modal-create-goal-backdrop"
+        className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto cursor-pointer ${backdropClass}`}
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) {
+            requestClose();
+          }
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            requestClose();
+          }
+        }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-100 pb-3 shrink-0">
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-900">Create Goal</h3>
-            <p className="text-[11px] text-zinc-500 mt-0.5">
-              Set a purchase target and track your savings progress.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="text-zinc-400 hover:text-zinc-600 p-1 rounded-[3px] transition-colors cursor-pointer"
-            aria-label="Close window"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Scrollable Form Content */}
-        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-1 flex-1 text-xs">
-          {errorMsg && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-[4px] flex items-center gap-2 shrink-0">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {/* Goal Name */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-zinc-500 font-medium uppercase text-[10px] tracking-wider">
-                Goal Name
-              </label>
-              <span className="text-[10px] text-zinc-400 font-mono">
-                {name.length}/50
-              </span>
-            </div>
-            <input
-              type="text"
-              id="input-goal-name"
-              required
-              maxLength={50}
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value.slice(0, 50));
-                if (errorMsg) setErrorMsg(null);
-              }}
-              placeholder="e.g. New Laptop, Emergency Fund, Vacation"
-              className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500 focus:bg-white transition-colors"
-            />
-          </div>
-
-          {/* Target Price & Currency */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-zinc-500 font-medium mb-1 uppercase text-[10px] tracking-wider">
-                Target Price
-              </label>
-              <input
-                type="text"
-                id="input-goal-target-price"
-                inputMode="decimal"
-                required
-                value={targetPrice}
-                onChange={(e) => handlePriceChange(e.target.value)}
-                placeholder="0.00"
-                className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-800 focus:outline-none focus:border-zinc-500 focus:bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-zinc-500 font-medium mb-1 uppercase text-[10px] tracking-wider">
-                Currency
-              </label>
-              <CurrencySelect
-                currencies={currencies}
-                value={currency}
-                onChange={setCurrency}
-                ariaLabel="Goal currency"
-                className="h-9"
-              />
-            </div>
-          </div>
-
-          {/* Planned Purchase Date */}
-          <div>
-            <label className="block text-zinc-500 font-medium mb-1 uppercase text-[10px] tracking-wider">
-              Target Purchase Date
-            </label>
-            <input
-              type="date"
-              id="input-goal-planned-date"
-              required
-              value={plannedDate}
-              onChange={(e) => setPlannedDate(e.target.value)}
-              className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs text-zinc-800 focus:outline-none focus:border-zinc-500 focus:bg-white transition-colors"
-            />
-          </div>
-
-          {/* Optional Goal Photo */}
-          <div>
-            <label className="block text-zinc-500 font-medium mb-1 uppercase text-[10px] tracking-wider">
-              Goal Photo (Optional)
-            </label>
-            <div className="space-y-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                id="input-goal-file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="w-full text-xs text-zinc-500 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-[4px] file:border file:border-zinc-200 file:text-xs file:font-semibold file:bg-white file:text-zinc-800 hover:file:bg-zinc-50 cursor-pointer"
-              />
-              {imageError && (
-                <p className="text-[11px] text-rose-600 font-medium">{imageError}</p>
-              )}
-              {imageUrl && (
-                <div className="flex items-center gap-3 p-2 bg-zinc-50 border border-zinc-200 rounded-[4px]">
-                  <div className="w-12 h-12 rounded-[4px] overflow-hidden border border-zinc-200 bg-zinc-100 shrink-0">
-                    <img
-                      src={imageUrl}
-                      alt="Goal Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-medium text-zinc-800 block truncate">
-                      Photo attached
-                    </span>
-                    <span className="text-[10px] text-zinc-500 block">
-                      Preview ready for your card
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="text-xs text-rose-600 hover:text-rose-700 font-medium px-2 py-1 hover:bg-rose-50 rounded-[3px] transition-colors cursor-pointer flex items-center gap-1"
-                    title="Remove photo"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Remove</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-zinc-500 font-medium uppercase text-[10px] tracking-wider">
-                Notes & Details (Optional)
-              </label>
-              <span className="text-[10px] text-zinc-400 font-mono">
-                {notes.length}/150
-              </span>
-            </div>
-            <input
-              type="text"
-              id="input-goal-notes"
-              maxLength={150}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value.slice(0, 150))}
-              placeholder="Store, model specs, or motivation notes"
-              className="w-full h-9 bg-zinc-50 border border-zinc-200 px-2.5 rounded-[4px] text-xs text-zinc-800 focus:outline-none focus:border-zinc-500 focus:bg-white transition-colors"
-            />
-          </div>
-
-          {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 shrink-0">
+        <form
+          id="modal-create-goal"
+          onSubmit={handleSubmit}
+          className={`bg-white rounded-[5px] border border-zinc-200 p-5 max-w-md w-full shadow-lg space-y-4 my-auto cursor-default ${modalClass}`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+            <h4 className="text-sm font-semibold text-zinc-900">Add Purchase Goal</h4>
             <button
               type="button"
               onClick={requestClose}
-              className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 font-medium rounded-[3px] transition-colors cursor-pointer"
+              className="text-zinc-400 hover:text-zinc-600 p-1 rounded cursor-pointer transition-colors"
+              aria-label="Close modal"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-3 text-xs">
+            {/* Name */}
+            <div>
+              <label className="block text-zinc-500 font-medium mb-1">Goal Name</label>
+              <input
+                type="text"
+                id="input-goal-name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Goal or item name"
+                className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+              />
+            </div>
+
+            {/* Target Price & Currency */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-zinc-500 font-medium mb-1">Target Price</label>
+                <input
+                  type="number"
+                  id="input-goal-target-price"
+                  step="any"
+                  required
+                  min="0.01"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full h-9 bg-white border border-zinc-200 px-2.5 rounded-[4px] font-mono text-xs tabular-nums text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+                />
+              </div>
+              <div>
+                <label className="block text-zinc-500 font-medium mb-1">Currency</label>
+                <CurrencySelect
+                  currencies={currencies}
+                  value={currency}
+                  onChange={setCurrency}
+                  ariaLabel="Goal currency"
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            {/* Planned Date */}
+            <div>
+              <label className="block text-zinc-500 font-medium mb-1">
+                Planned Purchase Date
+              </label>
+              <input
+                type="date"
+                id="input-goal-planned-date"
+                required
+                value={plannedDate}
+                onChange={(e) => setPlannedDate(e.target.value)}
+                className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] font-mono text-xs text-zinc-900 focus:outline-none focus:border-zinc-500"
+              />
+            </div>
+
+            {/* Optional Image File */}
+            <div>
+              <label className="block text-zinc-500 font-medium mb-1">
+                Optional Image File
+              </label>
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  id="input-goal-image-file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="w-full text-xs text-zinc-500 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-[4px] file:border file:border-zinc-200 file:text-xs file:font-semibold file:bg-white file:text-zinc-800 hover:file:bg-zinc-50 cursor-pointer"
+                />
+                {imageError && (
+                  <p className="text-[11px] text-rose-600 font-medium">{imageError}</p>
+                )}
+                {imageUrl && (
+                  <div className="flex items-center gap-3 p-2 bg-zinc-50 border border-zinc-200 rounded-[4px]">
+                    <div className="w-12 h-12 rounded-[4px] overflow-hidden border border-zinc-200 bg-zinc-100 shrink-0">
+                      <img
+                        src={imageUrl}
+                        alt="Goal Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-medium text-zinc-800 block truncate">
+                        Image selected
+                      </span>
+                      <span className="text-[10px] text-zinc-500 block">
+                        Preview ready for this goal
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="text-xs text-rose-600 hover:text-rose-700 font-medium px-2 py-1 hover:bg-rose-50 rounded-[3px] transition-colors cursor-pointer"
+                      title="Remove image"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-zinc-500 font-medium mb-1">Notes (Optional)</label>
+              <input
+                type="text"
+                id="input-goal-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Model, store, or target details (optional)"
+                className="w-full bg-white border border-zinc-200 px-2.5 py-1.5 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100">
+            <button
+              type="button"
+              onClick={requestClose}
+              className="px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-800 rounded-[3px] cursor-pointer transition-colors"
             >
               Cancel
             </button>
@@ -355,15 +316,20 @@ export function CreateGoalModal({
               type="submit"
               id="btn-submit-create-goal"
               size="sm"
-              radius={4}
-              disabled={!targetPrice || !name.trim()}
-              className="px-4 py-1.5 text-white text-xs font-semibold shadow-xs"
+              radius={3}
+              disabled={!isAddFormValid}
+              isMuted={!isAddFormValid}
+              className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                !isAddFormValid
+                  ? 'opacity-40 cursor-not-allowed bg-zinc-200 text-zinc-400 border border-zinc-200 shadow-none'
+                  : 'text-white cursor-pointer'
+              }`}
             >
-              <span>Create Goal</span>
+              Save Goal
             </SpecularButton>
           </div>
         </form>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
