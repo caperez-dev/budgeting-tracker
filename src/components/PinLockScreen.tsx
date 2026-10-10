@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CodeSlots from './ui/CodeSlots';
 import walloLogo from '../assets/wallo.png';
-import { SpecularButton } from './ui/SpecularButton';
-import { Lock, KeyRound, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Lock, AlertCircle } from 'lucide-react';
 
 interface PinLockScreenProps {
+  userId?: string;
   userNickname?: string;
   userEmail?: string;
   hasPin: boolean;
@@ -12,9 +12,11 @@ interface PinLockScreenProps {
   onSetPin: (pin: string) => Promise<boolean>;
   onVerifyPin: (pin: string) => Promise<boolean>;
   onLogout: () => void;
+  onPinStatusSynced?: (hasPin: boolean, pinCode?: string | null) => void;
 }
 
 export function PinLockScreen({
+  userId,
   userNickname,
   userEmail,
   hasPin,
@@ -22,9 +24,12 @@ export function PinLockScreen({
   onSetPin,
   onVerifyPin,
   onLogout,
+  onPinStatusSynced,
 }: PinLockScreenProps) {
-  // If user already has a PIN, mode is 'enter'. If not, mode is 'create' -> 'confirm'.
-  const [mode, setMode] = useState<'enter' | 'create' | 'confirm'>(hasPin ? 'enter' : 'create');
+  // If user already has a PIN, mode is 'enter'. If not, we start in 'checking' to verify with server first.
+  const [mode, setMode] = useState<'enter' | 'create' | 'confirm' | 'checking'>(() => {
+    return hasPin ? 'enter' : 'checking';
+  });
   const [createdPin, setCreatedPin] = useState('');
   const [status, setStatus] = useState<'idle' | 'error' | 'success'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -32,6 +37,58 @@ export function PinLockScreen({
 
   // Key to force reset CodeSlots component on step change or error drain
   const [slotKey, setSlotKey] = useState(0);
+
+  // Check canonical PIN status from server so another device always detects existing PIN
+  useEffect(() => {
+    let isCancelled = false;
+
+    const checkServerPin = async () => {
+      try {
+        const params = new URLSearchParams();
+        if (userId) params.set('userId', userId);
+        if (userEmail) params.set('email', userEmail);
+        const res = await fetch(`/api/user/pin-status?${params.toString()}`, {
+          headers: userId ? { 'x-user-id': userId } : {},
+          cache: 'no-store',
+        });
+        const data = await res.json();
+        if (isCancelled) return;
+        if (data && data.success) {
+          if (data.hasPin) {
+            setMode('enter');
+            onPinStatusSynced?.(true, data.pinCode);
+            return;
+          } else if (!hasPin) {
+            // Truly no PIN set on the server and no PIN locally
+            setMode('create');
+            onPinStatusSynced?.(false, null);
+            return;
+          }
+        }
+      } catch {}
+
+      if (isCancelled) return;
+      // If network failure or offline, fallback to hasPin prop
+      setMode(hasPin ? 'enter' : 'create');
+    };
+
+    if (userId || userEmail) {
+      checkServerPin();
+    } else {
+      setMode(hasPin ? 'enter' : 'create');
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [userId, userEmail, hasPin, onPinStatusSynced]);
+
+  // If parent prop hasPin updates to true, ensure mode is 'enter'
+  useEffect(() => {
+    if (hasPin && (mode === 'create' || mode === 'checking')) {
+      setMode('enter');
+    }
+  }, [hasPin, mode]);
 
   const handleEnterComplete = async (code: string) => {
     if (code.length !== 4) return;
@@ -43,7 +100,7 @@ export function PinLockScreen({
         setStatus('success');
         setTimeout(() => {
           onUnlock();
-        }, 600);
+        }, 500);
       } else {
         setStatus('error');
         setErrorMessage('Incorrect PIN. Please try again.');
@@ -96,6 +153,7 @@ export function PinLockScreen({
       const ok = await onSetPin(code);
       if (ok) {
         setStatus('success');
+        onPinStatusSynced?.(true, code);
         setTimeout(() => {
           onUnlock();
         }, 600);
@@ -118,6 +176,29 @@ export function PinLockScreen({
       setIsVerifying(false);
     }
   };
+
+  if (mode === 'checking') {
+    return (
+      <div
+        id="pin-lock-screen"
+        className="fixed inset-0 z-100 flex flex-col items-center justify-center p-4 sm:p-6 bg-white select-none animate-in fade-in duration-200"
+      >
+        <div className="w-full max-w-sm flex flex-col items-center text-center space-y-5">
+          <div className="p-2.5 bg-zinc-50 border border-zinc-200/80 rounded-2xl shadow-xs animate-pulse">
+            <img
+              src={walloLogo}
+              alt="Wallo"
+              className="h-10 w-auto object-contain select-none"
+            />
+          </div>
+          <div className="space-y-1 px-2">
+            <h2 className="text-base font-semibold text-zinc-900 tracking-tight">Verifying Session</h2>
+            <p className="text-xs text-zinc-400">Checking security PIN status...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const title =
     mode === 'enter'
