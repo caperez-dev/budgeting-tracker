@@ -119,6 +119,8 @@ export interface AuthUser {
   avatarUrl?: string;
   defaultCurrency?: string;
   isVerified?: boolean;
+  pinCode?: string | null;
+  hasPin?: boolean;
 }
 
 export interface DBStatus {

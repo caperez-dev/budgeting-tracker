@@ -328,7 +328,7 @@ app.post("/api/auth/verify-pin", async (req, res) => {
           avatarUrl: user.avatarUrl || "",
         },
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     // Fetch this user's settings or fallback to default
@@ -352,6 +352,8 @@ app.post("/api/auth/verify-pin", async (req, res) => {
         avatarUrl: user.avatarUrl,
         defaultCurrency: userDefaultCurrency,
         isVerified: true,
+        hasPin: Boolean(user.pinCode),
+        pinCode: user.pinCode || null,
       },
       settings: userSettings
         ? {
@@ -488,7 +490,7 @@ app.post("/api/auth/login", async (req, res) => {
             avatarUrl: user.avatarUrl || "",
           },
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       // Fetch this user's settings or fallback to default
@@ -512,6 +514,8 @@ app.post("/api/auth/login", async (req, res) => {
           avatarUrl: user.avatarUrl,
           defaultCurrency: userDefaultCurrency,
           isVerified: true,
+          hasPin: Boolean(user.pinCode),
+          pinCode: user.pinCode || null,
         },
         settings: userSettings
           ? {
@@ -917,7 +921,7 @@ app.post("/api/user/update-profile", async (req, res) => {
       await (UserProfileModel as any).findOneAndUpdate(
         profileFilter,
         { $set: profileUpdate },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       res.json({
@@ -993,6 +997,123 @@ app.post("/api/user/verify-password", async (req, res) => {
   }
 
   res.json({ success: true, message: "Password verified." });
+});
+
+// Verify 4-digit PIN Code
+app.post("/api/user/verify-pin", async (req, res) => {
+  const userId = req.body.userId || (req.headers["x-user-id"] as string);
+  const { pin } = req.body;
+
+  if (!userId) {
+    res.status(400).json({ success: false, error: "Active account session required." });
+    return;
+  }
+
+  if (!pin || typeof pin !== "string" || pin.length !== 4) {
+    res.status(400).json({ success: false, error: "Please enter a 4-digit PIN." });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      let user = await (UserModel as any).findOne({ id: userId });
+      if (!user && req.body.email) {
+        user = await (UserModel as any).findOne({ email: req.body.email.trim().toLowerCase() });
+      }
+
+      if (!user) {
+        res.json({ success: true, verified: true });
+        return;
+      }
+
+      if (!user.pinCode) {
+        // No PIN set yet
+        res.json({ success: true, verified: true, noPinSet: true });
+        return;
+      }
+
+      const isMatch = String(user.pinCode).trim() === pin.trim();
+      if (!isMatch) {
+        res.status(400).json({ success: false, error: "Incorrect PIN code. Please try again." });
+        return;
+      }
+
+      res.json({ success: true, verified: true });
+      return;
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to verify PIN." });
+      return;
+    }
+  }
+
+  res.json({ success: true, verified: true });
+});
+
+// Set / Update 4-digit PIN Code
+app.post("/api/user/set-pin", async (req, res) => {
+  const userId = req.body.userId || (req.headers["x-user-id"] as string);
+  const { pin } = req.body;
+
+  if (!userId) {
+    res.status(400).json({ success: false, error: "Active account session required." });
+    return;
+  }
+
+  if (!pin || typeof pin !== "string" || !/^\d{4}$/.test(pin)) {
+    res.status(400).json({ success: false, error: "PIN must be exactly 4 digits." });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      let user = await (UserModel as any).findOne({ id: userId });
+      if (!user && req.body.email) {
+        user = await (UserModel as any).findOne({ email: req.body.email.trim().toLowerCase() });
+      }
+
+      if (user) {
+        user.pinCode = pin;
+        await user.save();
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to update PIN." });
+      return;
+    }
+  }
+
+  res.json({ success: true, message: "PIN set successfully.", pinCode: pin });
+});
+
+// Remove 4-digit PIN Code
+app.post("/api/user/remove-pin", async (req, res) => {
+  const userId = req.body.userId || (req.headers["x-user-id"] as string);
+
+  if (!userId) {
+    res.status(400).json({ success: false, error: "Active account session required." });
+    return;
+  }
+
+  const connected = await connectDB();
+  if (connected) {
+    try {
+      let user = await (UserModel as any).findOne({ id: userId });
+      if (!user && req.body.email) {
+        user = await (UserModel as any).findOne({ email: req.body.email.trim().toLowerCase() });
+      }
+
+      if (user) {
+        user.pinCode = null;
+        await user.save();
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to remove PIN." });
+      return;
+    }
+  }
+
+  res.json({ success: true, message: "PIN removed successfully." });
 });
 
 // Google OAuth Authorization URL endpoint
@@ -1130,7 +1251,7 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
           avatarUrl: user.avatarUrl || "",
         },
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     // Fetch this user's settings or fallback to default
@@ -1154,6 +1275,8 @@ app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
         avatarUrl: user.avatarUrl,
         defaultCurrency: userDefaultCurrency,
         isVerified: true,
+        hasPin: Boolean(user.pinCode),
+        pinCode: user.pinCode || null,
       },
     });
 
@@ -1731,7 +1854,7 @@ app.post("/api/db/sync", async (req, res) => {
               singletonId: userId ? `settings_${userId}` : "default_settings",
             },
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         )
       );
 
@@ -1759,7 +1882,7 @@ app.post("/api/db/sync", async (req, res) => {
               singletonId: userId ? `profile_${userId}` : "default_profile",
             },
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         )
       );
     }
@@ -1893,7 +2016,7 @@ app.post("/api/db/transactions", async (req, res) => {
     const savedDoc = await (TransactionModel as any).findOneAndUpdate(
       { id: cleanTx.id },
       { $set: cleanTx },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     ).lean().exec();
 
     // Broadcast in real-time to all other devices for this user
@@ -1940,7 +2063,7 @@ app.put("/api/db/transactions/:id", async (req, res) => {
     const updatedDoc = await (TransactionModel as any).findOneAndUpdate(
       { id: req.params.id },
       { $set: cleanTx },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     ).lean().exec();
 
     // Broadcast in real-time to all devices

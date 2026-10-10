@@ -192,6 +192,7 @@ const UserSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     verificationPin: { type: String, default: null },
     verificationPinExpiresAt: { type: Date, default: null },
+    pinCode: { type: String, default: null },
   },
   { timestamps: true, strict: false }
 );

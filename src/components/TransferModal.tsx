@@ -1,8 +1,24 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { X, ArrowLeftRight, AlertCircle, CheckCircle2, Wallet } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  X,
+  ArrowLeftRight,
+  AlertCircle,
+  CheckCircle2,
+  Wallet,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { Account, Transaction } from '../types';
 import { AccountSelect } from './AccountSelect';
-import { formatCurrency } from '../utils/formatters';
+import {
+  formatCurrency,
+  getCurrent12HourTime,
+  getTodayDateString,
+  parseTimeComponents,
+  construct12HourTime,
+  formatFriendlyDate,
+} from '../utils/formatters';
 import { SpecularButton } from './ui/SpecularButton';
 import { useModalAnimation } from '../utils/useModalAnimation';
 
@@ -18,6 +34,8 @@ interface TransferModalProps {
     toAccountId: string;
     amount: number;
     note: string;
+    date: string;
+    time: string;
   }) => void;
   onOpenAddAccount?: () => void;
 }
@@ -69,28 +87,127 @@ export function TransferModal({
   const [note, setNote] = useState<string>('');
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
-  // Initialize or reset selections when modal opens
+  // Date and Time picker state
+  const [selectedDate, setSelectedDate] = useState<string>(() => getTodayDateString());
+  const [selectedTime, setSelectedTime] = useState<string>(() => getCurrent12HourTime());
+  const [isDateTimeOpen, setIsDateTimeOpen] = useState<boolean>(false);
+  const [activePickerTab, setActivePickerTab] = useState<'date' | 'time'>('date');
+  const [calYear, setCalYear] = useState<number>(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState<number>(() => new Date().getMonth());
+  const dateTimePickerRef = useRef<HTMLDivElement>(null);
+  const dateTimeButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
-    if (isOpen && accounts.length >= 2) {
-      // Pick Cash as default "from" or first account
-      const defaultFrom =
-        accounts.find((a) => a.id === 'cash' || a.name.toLowerCase() === 'cash')?.id ||
-        accounts[0]?.id ||
-        '';
+    if (!isDateTimeOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dateTimePickerRef.current &&
+        !dateTimePickerRef.current.contains(e.target as Node) &&
+        dateTimeButtonRef.current &&
+        !dateTimeButtonRef.current.contains(e.target as Node)
+      ) {
+        setIsDateTimeOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDateTimeOpen]);
 
-      // Pick another account as "to"
-      const defaultTo =
-        accounts.find((a) => a.id !== defaultFrom)?.id ||
-        accounts[1]?.id ||
-        '';
+  // Sync calendar view month with selectedDate
+  useEffect(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const [y, m] = selectedDate.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m)) {
+        setCalYear(y);
+        setCalMonth(m - 1);
+      }
+    }
+  }, [selectedDate]);
 
-      setFromAccountId(defaultFrom);
-      setToAccountId(defaultTo);
+  const calMonthTitle = useMemo(
+    () =>
+      new Date(calYear, calMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    [calYear, calMonth]
+  );
+
+  const calGrid = useMemo(() => {
+    const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay();
+    const daysInCurrentMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(calYear, calMonth, 0).getDate();
+    const cells: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      cells.push({ day: daysInPrevMonth - i, isCurrentMonth: false, dateStr: `pad-prev-${i}` });
+    }
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      cells.push({
+        day: d,
+        isCurrentMonth: true,
+        dateStr: `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+      });
+    }
+    const totalSlots = Math.ceil(cells.length / 7) * 7;
+    for (let t = 1; cells.length < totalSlots; t++) {
+      cells.push({ day: t, isCurrentMonth: false, dateStr: `pad-next-${t}` });
+    }
+    return cells;
+  }, [calYear, calMonth]);
+
+  const handlePrevMonth = () => {
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear((y) => y - 1);
+    } else setCalMonth((m) => m - 1);
+  };
+
+  const handleNextMonth = () => {
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear((y) => y + 1);
+    } else setCalMonth((m) => m + 1);
+  };
+
+  const prevIsOpenRef = useRef(false);
+
+  // Initialize or reset selections ONLY when modal opens (transition from closed to open)
+  useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      if (accounts.length >= 2) {
+        // Pick Cash as default "from" or first account
+        const defaultFrom =
+          accounts.find((a) => a.id === 'cash' || a.name.toLowerCase() === 'cash')?.id ||
+          accounts[0]?.id ||
+          '';
+
+        // Pick another account as "to"
+        const defaultTo =
+          accounts.find((a) => a.id !== defaultFrom)?.id ||
+          accounts[1]?.id ||
+          '';
+
+        setFromAccountId(defaultFrom);
+        setToAccountId(defaultTo);
+      }
       setAmount('');
       setNote('');
       setIsSuccess(false);
+      setSelectedDate(getTodayDateString());
+      setSelectedTime(getCurrent12HourTime());
+      setIsDateTimeOpen(false);
+      setActivePickerTab('date');
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, accounts]);
+
+  // If accounts change while modal is already open, only preserve validity without wiping user inputs
+  useEffect(() => {
+    if (!isOpen || accounts.length < 2) return;
+    if (fromAccountId && !accounts.some((a) => a.id === fromAccountId)) {
+      setFromAccountId(accounts[0]?.id || '');
+    }
+    if (toAccountId && !accounts.some((a) => a.id === toAccountId)) {
+      setToAccountId(accounts.find((a) => a.id !== fromAccountId)?.id || accounts[1]?.id || '');
+    }
+  }, [isOpen, accounts, fromAccountId, toAccountId]);
 
   const { isClosing, requestClose, backdropClass, modalClass } = useModalAnimation({
     isOpen,
@@ -101,12 +218,16 @@ export function TransferModal({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape' && (isOpen || isClosing)) {
+        if (isDateTimeOpen) {
+          setIsDateTimeOpen(false);
+          return;
+        }
         requestClose();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isClosing, requestClose]);
+  }, [isOpen, isClosing, requestClose, isDateTimeOpen]);
 
   if (!isOpen && !isClosing) return null;
 
@@ -146,6 +267,8 @@ export function TransferModal({
       toAccountId,
       amount: parsedAmount,
       note: note.trim(),
+      date: selectedDate || getTodayDateString(),
+      time: selectedTime || getCurrent12HourTime(),
     });
 
     setIsSuccess(true);
@@ -169,7 +292,7 @@ export function TransferModal({
     >
       <div
         id="transfer-modal-card"
-        className={`w-full max-w-lg bg-white border border-zinc-200 rounded-[6px] shadow-xl overflow-hidden flex flex-col ${modalClass}`}
+        className={`w-full max-w-lg bg-white border border-zinc-200 rounded-[6px] shadow-xl flex flex-col ${modalClass}`}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 bg-white">
@@ -428,15 +551,216 @@ export function TransferModal({
                   {note.length}/100
                 </span>
               </div>
-              <input
-                id="transfer-note-input"
-                type="text"
-                maxLength={100}
-                placeholder="e.g., Weekly budget, Allowance, Savings"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="w-full h-9 px-3 bg-white border border-zinc-200 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500 transition-colors"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  id="transfer-note-input"
+                  type="text"
+                  maxLength={100}
+                  placeholder="e.g., Weekly budget, Allowance, Savings"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="flex-1 min-w-0 h-9 px-3 bg-white border border-zinc-200 rounded-[4px] text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500 transition-colors"
+                />
+
+                {/* Calendar Button (Date & Time selector) */}
+                <div className="relative shrink-0">
+                  <button
+                    ref={dateTimeButtonRef}
+                    id="btn-transfer-calendar"
+                    type="button"
+                    onClick={() => setIsDateTimeOpen((prev) => !prev)}
+                    aria-expanded={isDateTimeOpen}
+                    className={`h-9 w-9 bg-white border rounded-[4px] flex items-center justify-center text-xs transition-colors cursor-pointer select-none ${
+                      isDateTimeOpen
+                        ? 'border-zinc-900 ring-1 ring-zinc-900 shadow-2xs'
+                        : selectedDate !== getTodayDateString()
+                        ? 'border-zinc-900 bg-zinc-50 text-zinc-900 shadow-2xs'
+                        : 'border-zinc-200 hover:border-zinc-300 text-zinc-600 hover:text-zinc-900'
+                    }`}
+                    title={`Selected Date & Time: ${formatFriendlyDate(selectedDate)} at ${selectedTime}`}
+                    aria-label="Select date and time"
+                  >
+                    <CalendarDays className="w-4 h-4 text-zinc-500 shrink-0" />
+                  </button>
+
+                  {/* In-App Popover Calendar & Time Selector (opens upward) */}
+                  {isDateTimeOpen && (
+                    <div
+                      ref={dateTimePickerRef}
+                      className="absolute right-0 bottom-full mb-2 z-50 bg-white border border-zinc-200 rounded-[6px] shadow-xl p-3.5 w-72 sm:w-80 max-w-[calc(100vw-32px)] animate-in fade-in zoom-in-95 duration-100 cursor-default"
+                    >
+                      {/* Header Tabs: Date & Time */}
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                        <div className="flex items-center gap-1 bg-zinc-100 p-0.5 rounded-[4px]">
+                          {(['date', 'time'] as const).map((tab) => (
+                            <button
+                              key={tab}
+                              type="button"
+                              onClick={() => setActivePickerTab(tab)}
+                              className={`px-2.5 py-1 text-xs font-semibold rounded-[3px] transition-colors cursor-pointer ${
+                                activePickerTab === tab
+                                  ? 'bg-white text-zinc-900 shadow-2xs'
+                                  : 'text-zinc-500 hover:text-zinc-800'
+                              }`}
+                            >
+                              {tab === 'date' ? 'Date' : 'Time'}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="text-[11px] font-mono text-zinc-500 tabular-nums">
+                          {formatFriendlyDate(selectedDate)} {selectedTime}
+                        </span>
+                      </div>
+
+                      {activePickerTab === 'date' ? (
+                        <div>
+                          {/* Month Navigation */}
+                          <div className="flex items-center justify-between pb-2 mb-1.5">
+                            <button
+                              type="button"
+                              onClick={handlePrevMonth}
+                              className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                              title="Previous month"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span className="text-xs font-bold text-zinc-900 tracking-wide">
+                              {calMonthTitle}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleNextMonth}
+                              className="p-1 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-[3px] transition-colors cursor-pointer"
+                              title="Next month"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Days of Week Header */}
+                          <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                              <span key={d} className="text-[10px] font-semibold text-zinc-400 py-0.5">
+                                {d}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Day Cells Grid */}
+                          <div className="grid grid-cols-7 gap-1 text-center">
+                            {calGrid.map((item) => {
+                              if (!item.isCurrentMonth) {
+                                return (
+                                  <div
+                                    key={item.dateStr}
+                                    className="h-8 flex items-center justify-center text-[11px] text-zinc-300 pointer-events-none select-none"
+                                  >
+                                    {item.day}
+                                  </div>
+                                );
+                              }
+                              const isSelected = selectedDate === item.dateStr;
+                              const isToday = item.dateStr === getTodayDateString();
+                              return (
+                                <button
+                                  key={item.dateStr}
+                                  type="button"
+                                  onClick={() => setSelectedDate(item.dateStr)}
+                                  className={`h-8 flex items-center justify-center rounded-[4px] text-xs transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                                      : isToday
+                                      ? 'text-zinc-900 font-bold border border-zinc-400 hover:bg-zinc-100'
+                                      : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                                  }`}
+                                >
+                                  <span>{item.day}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        (() => {
+                          const { hour: curH, minute: curM, period: curP } = parseTimeComponents(selectedTime);
+                          const setTime = (h: number, m: string, p: 'AM' | 'PM') =>
+                            setSelectedTime(construct12HourTime(h, m, p));
+                          const optionClass = (isSelected: boolean) =>
+                            `w-full py-1 text-xs rounded-[3px] transition-colors cursor-pointer ${
+                              isSelected ? 'bg-zinc-900 text-white font-bold' : 'text-zinc-700 hover:bg-zinc-100'
+                            }`;
+                          return (
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs py-1">
+                              <div>
+                                <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Hour</div>
+                                <div className="max-h-36 overflow-y-auto space-y-0.5 pr-0.5">
+                                  {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                                    <button key={h} type="button" onClick={() => setTime(h, curM, curP)} className={optionClass(curH === h)}>
+                                      {h}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Minute</div>
+                                <div className="max-h-36 overflow-y-auto space-y-0.5 pr-0.5">
+                                  {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map((m) => (
+                                    <button key={m} type="button" onClick={() => setTime(curH, m, curP)} className={optionClass(curM === m)}>
+                                      {m}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-semibold text-zinc-400 uppercase mb-1">Period</div>
+                                <div className="space-y-1">
+                                  {(['AM', 'PM'] as const).map((p) => (
+                                    <button
+                                      key={p}
+                                      type="button"
+                                      onClick={() => setTime(curH, curM, p)}
+                                      className={`w-full py-2 text-xs rounded-[3px] font-bold transition-colors cursor-pointer ${
+                                        curP === p
+                                          ? 'bg-zinc-900 text-white shadow-2xs'
+                                          : 'text-zinc-700 hover:bg-zinc-100 border border-zinc-200'
+                                      }`}
+                                    >
+                                      {p}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      )}
+
+                      {/* Footer Controls */}
+                      <div className="pt-2.5 mt-2 border-t border-zinc-100 flex items-center justify-between text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(getTodayDateString());
+                            setSelectedTime(getCurrent12HourTime());
+                            setCalYear(new Date().getFullYear());
+                            setCalMonth(new Date().getMonth());
+                          }}
+                          className="text-[11px] text-zinc-600 hover:text-zinc-900 font-medium px-2 py-1 rounded-[3px] hover:bg-zinc-100 transition-colors cursor-pointer"
+                        >
+                          Reset to Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsDateTimeOpen(false)}
+                          className="text-[11px] font-medium bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-1 rounded-[3px] transition-colors cursor-pointer"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Modal Footer / Buttons */}

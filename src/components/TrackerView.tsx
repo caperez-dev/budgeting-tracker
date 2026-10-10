@@ -33,6 +33,7 @@ import { CurrencySelect } from './CurrencySelect';
 import { CategorySelect } from './CategorySelect';
 import { AccountSelect } from './AccountSelect';
 import { ModalPortal } from './ui/ModalPortal';
+import LatticeLoader from './ui/LatticeLoader';
 
 function formatFriendlyDate(dateStr?: string): string {
   if (!dateStr) return '';
@@ -100,6 +101,14 @@ export function TrackerView({
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const editSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (editSavingTimeoutRef.current) clearTimeout(editSavingTimeoutRef.current);
+    };
+  }, []);
 
   // Mobile swipe-left and long-press revealed row actions
   const [revealedMobileRowId, setRevealedMobileRowId] = useState<string | null>(null);
@@ -1059,7 +1068,7 @@ export function TrackerView({
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTx) return;
+    if (!editingTx || isSavingEdit) return;
     if (editingTx.type === 'transfer') {
       if (transferAmountValidationError) return;
       const fromId = editingTx.fromAccountId || editingTx.accountId;
@@ -1080,11 +1089,19 @@ export function TrackerView({
         accountIcon: fromAcc?.icon,
         note: (editingTx.note || '').trim(),
       });
-      setEditingTx(null);
+      setIsSavingEdit(true);
+      editSavingTimeoutRef.current = setTimeout(() => {
+        setIsSavingEdit(false);
+        setEditingTx(null);
+      }, 700);
       return;
     }
     onUpdateTransaction(editingTx);
-    setEditingTx(null);
+    setIsSavingEdit(true);
+    editSavingTimeoutRef.current = setTimeout(() => {
+      setIsSavingEdit(false);
+      setEditingTx(null);
+    }, 700);
   };
 
   const availableFilterCategories = useMemo(() => {
@@ -2071,6 +2088,35 @@ export function TrackerView({
             </div>
           </form>
         </div>
+        </ModalPortal>
+      )}
+
+      {/* Full-screen Loading Overlay with LatticeLoader on Edit Save */}
+      {isSavingEdit && (
+        <ModalPortal>
+          <div
+            id="edit-transaction-saving-backdrop"
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-white/60 backdrop-blur-xs animate-fade-in select-none cursor-wait"
+            aria-live="assertive"
+            role="status"
+          >
+            <LatticeLoader
+              status="working"
+              label="Saving"
+              pattern="orbit"
+              grid={3}
+              shape="square"
+              cellSize={7}
+              gap={2}
+              fontSize={14}
+              step={90}
+              idleOpacity={0.15}
+              glow
+              glowColor="#10B981"
+              showTimer={false}
+              color="#10B981"
+            />
+          </div>
         </ModalPortal>
       )}
     </div>

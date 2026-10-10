@@ -36,6 +36,7 @@ import { CurrencyManagerModal } from './components/CurrencyManagerModal';
 import { AccountManagerModal } from './components/AccountManagerModal';
 import { TransferModal } from './components/TransferModal';
 import { SettingsPage } from './components/SettingsPage';
+import { PinLockScreen } from './components/PinLockScreen';
 import { Particles } from './components/ui/particles';
 import { ClickSpark } from './components/ui/ClickSpark';
 import { ModalPortal } from './components/ui/ModalPortal';
@@ -205,6 +206,21 @@ export default function App() {
       return user;
     } catch {
       return null;
+    }
+  });
+
+  // PIN lock state: locked whenever app/tab is opened fresh (sessionStorage does not have unlocked flag)
+  const [isPinLocked, setIsPinLocked] = useState<boolean>(() => {
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      if (!savedUser) return false;
+      const user = JSON.parse(savedUser);
+      if (!user || user.isVerified === false) return false;
+      // If session is already unlocked in this tab session, do not lock
+      const sessionUnlocked = sessionStorage.getItem(`wallo_session_unlocked_${user.id}`);
+      return sessionUnlocked !== 'true';
+    } catch {
+      return false;
     }
   });
 
@@ -2098,18 +2114,22 @@ export default function App() {
     toAccountId,
     amount,
     note,
+    date,
+    time,
   }: {
     fromAccountId: string;
     toAccountId: string;
     amount: number;
     note: string;
+    date?: string;
+    time?: string;
   }) => {
     const fromAcc = accounts.find((a) => a.id === fromAccountId);
     const toAcc = accounts.find((a) => a.id === toAccountId);
 
     const now = Date.now();
-    const today = getTodayDateString();
-    const currentTime = getCurrent12HourTime();
+    const today = date || getTodayDateString();
+    const currentTime = time || getCurrent12HourTime();
     const transferCurrency = settings.defaultCurrency || 'PHP';
 
     const transferTx: Transaction = {
@@ -2419,6 +2439,80 @@ export default function App() {
     }
   };
 
+  const handleUnlockSession = () => {
+    if (currentUser?.id) {
+      sessionStorage.setItem(`wallo_session_unlocked_${currentUser.id}`, 'true');
+    }
+    setIsPinLocked(false);
+  };
+
+  const handleSetUserPin = async (pin: string): Promise<boolean> => {
+    if (!currentUser?.id) return false;
+    try {
+      const res = await fetch('/api/user/set-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ userId: currentUser.id, pin }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updatedUser: AuthUser = {
+          ...currentUser,
+          hasPin: true,
+          pinCode: pin,
+        };
+        setCurrentUser(updatedUser);
+        try {
+          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+          localStorage.setItem(`wallo_local_pin_${currentUser.id}`, pin);
+        } catch {}
+        return true;
+      }
+    } catch {}
+
+    // Fallback local storage update
+    const updatedUser: AuthUser = {
+      ...currentUser,
+      hasPin: true,
+      pinCode: pin,
+    };
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+      localStorage.setItem(`wallo_local_pin_${currentUser.id}`, pin);
+    } catch {}
+    return true;
+  };
+
+  const handleVerifyUserPin = async (pin: string): Promise<boolean> => {
+    if (!currentUser?.id) return false;
+    try {
+      const res = await fetch('/api/user/verify-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ userId: currentUser.id, pin, email: currentUser.email }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.verified) return true;
+      }
+    } catch {}
+
+    // Fallback: check stored local PIN or user object PIN
+    const localPin =
+      localStorage.getItem(`wallo_local_pin_${currentUser.id}`) || currentUser.pinCode;
+    if (localPin) {
+      return String(localPin).trim() === pin.trim();
+    }
+    return true;
+  };
+
   // If user is not signed in or not verified, render the LandingPage or AuthScreen
   if (!currentUser || currentUser.isVerified === false) {
     if (authView === 'auth') {
@@ -2431,7 +2525,10 @@ export default function App() {
             setCurrentUser(user);
             try {
               localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+              // Mark session unlocked on explicit login
+              sessionStorage.setItem(`wallo_session_unlocked_${user.id}`, 'true');
             } catch {}
+            setIsPinLocked(false);
             setUserProfile({
               nickname: profileUpdate?.nickname || user.nickname || 'User',
               avatarUrl:
@@ -2463,6 +2560,27 @@ export default function App() {
           setAuthInitialMode('login');
           setAuthView('auth');
         }}
+      />
+    );
+  }
+
+  // If session is locked by 4-digit PIN (reopened app/tab with Remember Me active)
+  if (isPinLocked) {
+    const hasPinSet = Boolean(
+      currentUser.hasPin ||
+      currentUser.pinCode ||
+      (typeof window !== 'undefined' && localStorage.getItem(`wallo_local_pin_${currentUser.id}`))
+    );
+
+    return (
+      <PinLockScreen
+        userNickname={currentUser.nickname}
+        userEmail={currentUser.email}
+        hasPin={hasPinSet}
+        onUnlock={handleUnlockSession}
+        onSetPin={handleSetUserPin}
+        onVerifyPin={handleVerifyUserPin}
+        onLogout={handleLogout}
       />
     );
   }
@@ -2608,6 +2726,7 @@ export default function App() {
               profile={userProfile}
               onBack={() => setActiveTab('tracker')}
               onSave={handleUpdateAccountSettings}
+              onSetPin={handleSetUserPin}
             />
           )}
         </div>

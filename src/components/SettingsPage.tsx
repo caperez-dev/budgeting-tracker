@@ -12,11 +12,13 @@ import {
   Loader2,
   Pencil,
   HelpCircle,
+  KeyRound,
 } from 'lucide-react';
 import { AuthUser, UserProfile } from '../types';
 import { validateUsername } from '../utils/usernameValidation';
 import { PhotoCropModal } from './PhotoCropModal';
 import { SpecularButton } from './ui/SpecularButton';
+import CodeSlots from './ui/CodeSlots';
 
 /**
  * Masks an email for placeholder display:
@@ -56,6 +58,7 @@ interface SettingsPageProps {
     currentPassword?: string;
     avatarUrl?: string;
   }) => Promise<{ success: boolean; error?: string }>;
+  onSetPin?: (pin: string) => Promise<boolean>;
 }
 
 export function SettingsPage({
@@ -63,6 +66,7 @@ export function SettingsPage({
   profile,
   onBack,
   onSave,
+  onSetPin,
 }: SettingsPageProps) {
   const [activeEmail, setActiveEmail] = useState(
     (currentUser?.email || profile.email || '').trim()
@@ -134,6 +138,15 @@ export function SettingsPage({
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Security PIN states
+  const [isEditingPin, setIsEditingPin] = useState(false);
+  const [pinStep, setPinStep] = useState<'enter' | 'confirm'>('enter');
+  const [newPinValue, setNewPinValue] = useState('');
+  const [pinStatus, setPinStatus] = useState<'idle' | 'error' | 'success'>('idle');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinSuccessMessage, setPinSuccessMessage] = useState<string | null>(null);
+  const [pinSlotKey, setPinSlotKey] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1217,6 +1230,147 @@ export function SettingsPage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Security PIN Section */}
+      <div
+        id="settings-pin-section"
+        className="bg-white border border-zinc-200 rounded-[6px] p-5 shadow-2xs space-y-4"
+      >
+        <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-zinc-100 text-zinc-900 rounded-[4px]">
+              <KeyRound className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900 tracking-tight">
+                4-Digit Security PIN
+              </h3>
+              <p className="text-xs text-zinc-500">
+                Required to unlock the application whenever you reopen the tab or browser.
+              </p>
+            </div>
+          </div>
+          {pinSuccessMessage && (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded-[3px] animate-fade-in">
+              <Check className="w-3.5 h-3.5" /> {pinSuccessMessage}
+            </span>
+          )}
+        </div>
+
+        {!isEditingPin ? (
+          <div className="flex items-center justify-between py-1">
+            <div className="space-y-0.5">
+              <span className="text-xs font-medium text-zinc-700">App Lock Status</span>
+              <p className="text-xs text-zinc-500">
+                {currentUser?.hasPin || currentUser?.pinCode ? 'Active (PIN configured)' : 'Not configured yet'}
+              </p>
+            </div>
+            <SpecularButton
+              type="button"
+              id="btn-edit-pin"
+              size="sm"
+              radius={4}
+              onClick={() => {
+                setIsEditingPin(true);
+                setPinStep('enter');
+                setNewPinValue('');
+                setPinError(null);
+                setPinSlotKey((prev) => prev + 1);
+              }}
+              className="px-3.5 py-1.5 text-xs font-medium text-white shadow-xs"
+            >
+              <span>{currentUser?.hasPin || currentUser?.pinCode ? 'Change PIN' : 'Set PIN'}</span>
+            </SpecularButton>
+          </div>
+        ) : (
+          <div className="space-y-4 pt-1 animate-in fade-in">
+            <div className="flex flex-col items-center justify-center p-4 bg-zinc-50 border border-zinc-200 rounded-lg space-y-3">
+              <span className="text-xs font-semibold text-zinc-700">
+                {pinStep === 'enter' ? 'Enter a new 4-digit PIN' : 'Confirm your new 4-digit PIN'}
+              </span>
+
+              <CodeSlots
+                key={pinSlotKey}
+                length={4}
+                status={pinStatus}
+                onChange={() => {
+                  if (pinStatus === 'error') setPinStatus('idle');
+                  if (pinError) setPinError(null);
+                }}
+                onComplete={async (code) => {
+                  if (pinStep === 'enter') {
+                    setNewPinValue(code);
+                    setPinStatus('success');
+                    setTimeout(() => {
+                      setPinStep('confirm');
+                      setPinStatus('idle');
+                      setPinSlotKey((prev) => prev + 1);
+                    }, 400);
+                  } else {
+                    if (code !== newPinValue) {
+                      setPinStatus('error');
+                      setPinError('PINs do not match. Please try again.');
+                      setTimeout(() => {
+                        setPinStep('enter');
+                        setNewPinValue('');
+                        setPinStatus('idle');
+                        setPinSlotKey((prev) => prev + 1);
+                      }, 1200);
+                      return;
+                    }
+
+                    if (onSetPin) {
+                      const ok = await onSetPin(code);
+                      if (ok) {
+                        setPinStatus('success');
+                        setPinSuccessMessage('Security PIN updated!');
+                        setTimeout(() => {
+                          setIsEditingPin(false);
+                          setPinSuccessMessage(null);
+                        }, 1000);
+                      } else {
+                        setPinStatus('error');
+                        setPinError('Failed to update PIN.');
+                      }
+                    }
+                  }
+                }}
+                mask={true}
+                autoFocus={true}
+                slotSize={48}
+                gap={8}
+                radius={8}
+                accentColor="#18181b"
+                inkColor="#18181b"
+                slotColor="#ffffff"
+                digitColor="#ffffff"
+                dangerColor="#ef4444"
+              />
+
+              {pinError && (
+                <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>{pinError}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingPin(false);
+                  setNewPinValue('');
+                  setPinError(null);
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-[4px] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Photo Crop Modal */}
